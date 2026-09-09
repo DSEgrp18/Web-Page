@@ -1,11 +1,11 @@
 # Continuous integration for the Sinhala Accessible Reader.
 #
 # This workflow deliberately only runs checks over content that exists today:
-# the repository guards, the TTS text path, and document extraction. Frontend
-# builds, container builds, database integration tests, and the accessibility
-# smoke test are added to this file in the same pull requests that introduce
-# the code they check, as required by CLAUDE.md. A check that is skipped or
-# absent must never be able to stand in for a passing test.
+# the repository guards, the TTS text path, document extraction, and the reader
+# API. Frontend builds, container builds, database integration tests, and the
+# accessibility smoke test are added to this file in the same pull requests
+# that introduce the code they check, as required by CLAUDE.md. A check that is
+# skipped or absent must never be able to stand in for a passing test.
 #
 # Nothing here needs a GPU, the 5.6 GB checkpoint, or a sample PDF. That is what
 # keeps every job runnable on a free runner for every pull request.
@@ -129,6 +129,38 @@ jobs:
       - name: Tests
         run: python -m pytest
 
+  reader-api:
+    name: Reader API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install test tooling
+        # The API sits on both service packages, so this job installs their
+        # runtime dependencies too: pdfplumber for extraction, numpy for the
+        # audio the synthesis adapter returns.
+        #
+        # Still no torch and no checkpoint. The development adapter produces a
+        # tone, which is enough to exercise every route, the cache, and the
+        # deduplication — and it is what keeps the whole API testable on a free
+        # runner. Real-model checks belong on hardware that has the bundle.
+        run: |
+          python -m pip install --disable-pip-version-check             "fastapi>=0.115" "python-multipart>=0.0.9" "httpx>=0.27"             "pdfplumber>=0.11.4" "numpy>=1.26" "pytest>=8" "ruff==0.15.20"
+      - name: Lint
+        run: ruff check .
+      - name: Format check
+        run: ruff format --check .
+      - name: Tests
+        run: python -m pytest
+
   # Aggregate gate. This is the single required status check on main, so it must
   # always report a conclusion, even when a job above is skipped or cancelled.
   #
@@ -146,6 +178,7 @@ jobs:
         shell-scripts,
         tts-text-frontend,
         document-extraction,
+        reader-api,
       ]
     runs-on: ubuntu-latest
     timeout-minutes: 5
