@@ -24,7 +24,7 @@ talking talks over the screen reader announcing it.
 **Continuous narration is not announced.** When one sentence ends and the next
 begins, nothing goes to a live region. The reader is listening to the book; a
 screen reader naming every sentence boundary competes with the thing they asked
-for. Position is announced when they *ask*, by pressing a control.
+for. Position is announced when they _ask_, by pressing a control.
 
 **Polite for progress, assertive for errors, and nothing else.** A live region
 that interrupts constantly is one a reader turns off. Announcements are also
@@ -113,16 +113,16 @@ node apps/web/scripts/verify-contract.mjs /tmp/openapi.json
 
 ## How it is put together
 
-| | |
-| --- | --- |
-| `src/lib/types.ts` | The API contract, mirroring `schemas.py`. |
-| `src/lib/client.ts` | Every request. Turns HTTP status into a small set of named failures. |
-| `src/lib/usePlayer.ts` | One audio element, a queue of sentences, instant pause. |
-| `src/lib/strings.ts` | Every word the interface says. **Awaiting native-speaker review.** |
-| `src/lib/identity.ts` | The development stand-in for accounts. |
-| `src/components/Announcer.tsx` | The two live regions, and the rules for using them. |
-| `src/components/Library.tsx` | Upload, list, delete. |
-| `src/components/Reader.tsx` | The reading screen. |
+|                                |                                                                      |
+| ------------------------------ | -------------------------------------------------------------------- |
+| `src/lib/types.ts`             | The API contract, mirroring `schemas.py`.                            |
+| `src/lib/client.ts`            | Every request. Turns HTTP status into a small set of named failures. |
+| `src/lib/usePlayer.ts`         | One audio element, a queue of sentences, instant pause.              |
+| `src/lib/strings.ts`           | Every word the interface says. **Awaiting native-speaker review.**   |
+| `src/lib/identity.ts`          | The development stand-in for accounts.                               |
+| `src/components/Announcer.tsx` | The two live regions, and the rules for using them.                  |
+| `src/components/Library.tsx`   | Upload, list, delete.                                                |
+| `src/components/Reader.tsx`    | The reading screen.                                                  |
 
 Audio is fetched as a blob rather than pointed at with `<audio src>`, because
 that attribute can carry neither the identity header nor a reading of

@@ -27,7 +27,17 @@ export default tseslint.config(
     },
   },
   {
+    // Node built-ins used by the test harness and the contract script. Listed
+    // rather than pulled from a globals package: it is four names, and a
+    // dependency whose only job is to name them is a dependency to keep.
     files: ["tests/**/*.{ts,tsx}", "scripts/**/*.mjs"],
-    languageOptions: { globals: { process: "readonly", console: "readonly" } },
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        fetch: "readonly",
+        process: "readonly",
+        URL: "readonly",
+      },
+    },
   },
 );
