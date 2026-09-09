@@ -11,8 +11,10 @@ from __future__ import annotations
 import pytest
 
 from sinhala_tts.normalize import (
+    MODEL_INPUT_CHAR_LIMIT,
     NORMALIZER_VERSION,
     contains_sinhala,
+    exceeds_model_limit,
     expand_numbers,
     is_speakable,
     normalize_whitespace,
@@ -209,3 +211,38 @@ def test_speech_text_stays_readable_sinhala() -> None:
     spoken = to_speech_text("පිටුව 42 බලන්න")
     assert contains_sinhala(spoken)
     assert not spoken.isascii()
+
+
+# --------------------------------------------------------------------------
+# The model's own text-length limit
+# --------------------------------------------------------------------------
+
+
+def test_model_limit_matches_the_tokenizer_the_model_ships_with() -> None:
+    """250 is VoiceBpeTokenizer.char_limits["en"], read from coqui-tts.
+
+    Not a number we chose. If it ever disagrees with the installed library the
+    segmenter is sized wrong, and segments would be silently truncated.
+    """
+    assert MODEL_INPUT_CHAR_LIMIT == 250
+
+
+def test_ordinary_sentences_are_well_inside_the_limit() -> None:
+    text = "පොත් කියවීම මගින් දැනුම වර්ධනය වන අතර, එය සිතීමේ හැකියාව ද වර්ධනය කරයි."
+    assert not exceeds_model_limit(to_model_input(text))
+
+
+def test_an_oversized_segment_is_detected() -> None:
+    long_text = "මම ගෙදර යනවා. " * 40
+    model_text = to_model_input(long_text)
+    assert len(model_text) > MODEL_INPUT_CHAR_LIMIT
+    assert exceeds_model_limit(model_text)
+
+
+def test_the_limit_applies_to_model_input_not_display_text() -> None:
+    """Romanisation changes length, so the two counts differ.
+
+    Checking the Sinhala would measure the wrong string.
+    """
+    text = "ආයුබෝවන් " * 20
+    assert len(to_model_input(text)) != len(text)

@@ -84,22 +84,45 @@ would exceed this is truncated by the model rather than failing loudly, so
 segmentation must stay well inside it. This is a derivation from the config, not
 a measurement; confirm it against real output before relying on it.
 
-### Text length: three different numbers, none of them interchangeable
-
-This is the single easiest thing to get wrong, so all three are recorded:
+### Text length: four different numbers, and the one that governs
 
 | Source | Value | What it actually is |
 | --- | --- | --- |
-| `config.json` `gpt_max_text_tokens` | 402 | The checkpoint's own limit, in **tokens** |
+| `config.json` `gpt_max_text_tokens` | 402 | The checkpoint's limit, in **tokens** |
 | `sinhala_text.py` docstring | 200 | Claims `GPTArgs.max_text_length = 200` |
 | `voice-service` `MAX_TEXT_CHARS` | 1000 | An API guard, in **characters** |
+| **`VoiceBpeTokenizer.char_limits["en"]`** | **250** | **The runtime guard, in characters** |
 
-The docstring also reports measured corpus statistics of median 59, p95 97, and
-max 117 tokens per line. CLAUDE.md is explicit that chunks must be bounded by
-actual model limits rather than a copied character cap, so **segmentation must
-count tokens with the real tokenizer**, not characters. Which of 402 and 200
-binds in practice has not been tested and must be measured before chunking is
-finalised.
+**250 characters is the operative limit for our path.** Read from the installed
+`coqui-tts` source, not inferred: `char_limits` is keyed by language, `en` maps
+to 250, and `check_input_length` is called from `preprocess_text` on every
+inference. Over the limit it logs *"this might cause truncated audio"* and
+proceeds — a warning, not a refusal.
+
+Two consequences that matter more than the number:
+
+- **Nothing splits the text for us.** `Xtts.inference` splits on the character
+  limit only when `enable_text_splitting=True`; the default is `False` and the
+  caller does not set it, so `text = [text]` and the whole segment is generated
+  as one utterance. **Segmentation must enforce the limit itself.**
+- **`voice-service` accepts 4× the model's own limit.** Its `MAX_TEXT_CHARS` of
+  1000 would pass text the tokenizer warns about, in a warning easily lost among
+  load messages.
+
+The limit is also coherent with the audio ceiling, which is reassuring rather
+than coincidental: 250 characters at the measured 10–11 characters per second is
+about 23–24 s, and the derived audio-token ceiling is 25.8 s. The character limit
+is essentially that ceiling expressed in characters.
+
+So **cap segments at 250 characters of model input**, measured after
+normalisation and romanisation, since that is the string the tokenizer sees.
+Counting characters of the original Sinhala would be wrong: romanisation changes
+length substantially, and `to_ascii` is applied before the tokenizer.
+
+The 402-token and 200-token figures are not the runtime guard on this path. The
+docstring's corpus statistics — median 59, p95 97, max 117 tokens per line —
+remain useful as evidence that ordinary sentences sit far below every one of
+these limits.
 
 ## Language token
 
@@ -418,28 +441,67 @@ So `expect_single_utterance` is **reliable only for short sentences without
 internal pauses**, and must not gate anything on real document text as it
 stands.
 
-#### A better rule, from this data
+#### Speech rate is not constant, and assuming it was misled me
 
-Expected duration is predictable from text length at the measured 10–11 c/s, and
-that separates the cases where the gap rule cannot:
+Calibration run, 2026-09-09: ten cases, three repeats, thirty clips. Apparent
+speed climbs steadily with text length, measured on clips with no appended
+audio:
 
-| Case | Characters | Expected | Observed | Excess |
-| --- | ---: | ---: | ---: | ---: |
-| `plain-short` | 21 | ~2.0 s | 3.95–4.64 s | 2.0–2.6 s — real, confirmed by ear |
-| `page-reference` | 30 | ~2.9 s | 3.01–3.85 s | up to 0.9 s — real |
-| `comma-clauses` | 45 | ~4.3 s | 3.89–4.50 s | none — gap rule was wrong |
-| `long-single-sentence` | 194 | ~18.5 s | 12.2–13.2 s | none, and **shorter than expected** |
+| Characters | Characters per second |
+| ---: | ---: |
+| 21 | 7.7–8.7 |
+| 30 | 9.8–10.0 |
+| 44 | 12.0–12.5 |
+| 71 | 13.9–14.2 |
+| 194 | 14.9–15.4 |
 
-A duration-expectation rule flags the two cases that are genuinely faulty and
-clears the two the gap rule got wrong. It needs calibrating on more clean
-samples before it replaces anything, since a single speech-rate estimate from
-two clips is not a calibration.
+Every clip carries a fixed overhead — onset, leading and trailing silence —
+which weighs proportionally more on a short one. Fitting overhead plus a
+marginal rate gives:
 
-The last row raises a separate question: `long-single-sentence` runs *shorter*
-than its text predicts, which could mean the model is dropping content on long
-input. That is potentially worse than appended noise, and is unexamined.
+```text
+duration ≈ 1.2 s + characters / 17
+```
 
-#### Where that leaves the fix
+It predicts 2.94 s for 30 characters against 2.92 measured, and 12.61 s for 194
+against 12.58.
+
+**This retracts the content-loss suspicion recorded earlier.** The long sentence
+looked short only because "expected" was computed from a rate measured on short
+clips, where overhead dominates. At 194 characters it sits exactly on the curve.
+There is no evidence the model drops content on long input, and the earlier
+entry saying there might be was wrong.
+
+#### The rule that replaces the gap rule
+
+Flag a clip when its duration exceeds **1.4x** the expected duration above.
+Implemented in `audio_checks.check_audio`; `expect_single_utterance` and its
+gap-based rule are retained for diagnosis but no longer gate anything.
+
+Validated against **all 80 clips generated so far**, across every experiment:
+
+| Text | Ratio to expectation | Verdict |
+| --- | --- | --- |
+| `long-single-sentence`, 6 clips | 0.96–1.05x | clean — gap rule flagged all six |
+| `comma-clauses`, 6 clips | 0.93–1.17x | clean — gap rule flagged four |
+| `plain-longer`, `year`, `line-broken`, `conjuncts`, `page-reference` | 0.89–1.07x | clean |
+| `plain-short`, runs confirmed clean by listening | 0.78–1.05x | clean |
+| `plain-short`, runs confirmed faulty by listening | 1.62–2.78x | flagged |
+| `greedy`, confirmed faulty by listening | 1.41x | flagged |
+
+**Zero false positives on multi-clause prose**, which is what made the gap rule
+unusable, and every clip the owner listened to lands on the correct side.
+
+Two honest limits:
+
+- **The margin is thin.** Greedy, confirmed faulty by ear, sits at 1.41x against
+  a 1.4x threshold. Known-good prose reaches 1.17x and one unconfirmed clip
+  reaches 1.39x. The 1.2–1.4x band is unexamined, so the threshold separates the
+  cases we have checked and not much more.
+- **Calibrated on CPU, one voice, ten sentences.** Re-fit on serving hardware
+  and on real document text before this gates a release.
+
+#### Where that leaves the fix#### Where that leaves the fix
 
 Retrying a flagged segment still works, because sampling makes each attempt
 independent — but the arithmetic is poor. At the measured ~12% clean rate, four
@@ -450,17 +512,17 @@ books that is a serious cost, not a rounding error.
 Settings cannot fix it, and trimming at the first pause destroys real sentences.
 So the options are now:
 
-1. **Replace the gap rule with a duration-expectation rule**, calibrated on
-   enough clean samples to count as a calibration rather than a guess. Until the
-   detector stops flagging ordinary prose, nothing can be built on top of it.
+1. ~~Replace the gap rule with a duration-expectation rule.~~ **Done**, fitted
+   to 30 clips and validated against all 80. It no longer flags ordinary prose.
 2. **Establish whether `repetition_penalty` 5.0 genuinely helps**, with 20+
    repeats. It is the documented value we are not using, and it was the best of
    the six tested.
 3. **Bounded retry**, once the detector is trustworthy enough to decide what to
    retry. At the measured ~12% clean rate this is expensive, and retrying a
    false positive would loop on audio that was never faulty.
-4. **Investigate whether long input loses content**, since
-   `long-single-sentence` runs shorter than its length predicts.
+4. ~~Investigate whether long input loses content.~~ **Resolved:** the
+   calibration shows speech rate rises with length because of fixed overhead.
+   The long sentence sits exactly on the fitted curve; nothing is being lost.
 
 Trimming stays implemented but unused, its danger documented and a test
 asserting that it destroys a second sentence. Keeping the evaluation runnable is
@@ -598,8 +660,6 @@ Required by CLAUDE.md before serving, and still missing:
   multiples of GPU time at the measured ~12% clean rate.
 - GPU figures: first-audio latency, real-time factor, sustained throughput, and
   peak VRAM on serving hardware. The CPU run recorded above is not a substitute.
-- Whether 402 or 200 text tokens binds in practice, measured with the real
-  tokenizer.
 - Whether the derived 25.8 s utterance ceiling matches observed behaviour.
 - Whether the checkpoint carries optimizer or training state, and whether an
   inference-only artifact is worth extracting.

@@ -51,6 +51,20 @@ from .vendor.sinhala_text import to_ascii
 # hash, document version, model version, voice, and generation settings.
 NORMALIZER_VERSION = "1"
 
+# The model's own runtime limit for the "en" token, read from coqui-tts:
+# VoiceBpeTokenizer.char_limits["en"] == 250, checked by check_input_length on
+# every inference. Beyond it the tokenizer logs "this might cause truncated
+# audio" and proceeds anyway, so nothing stops oversized text except us.
+#
+# Xtts.inference only splits text when enable_text_splitting=True, which is not
+# the default and which the caller does not set, so the whole segment is
+# generated as one utterance. Segmentation has to respect this itself.
+#
+# It is measured against the MODEL INPUT, after normalisation and romanisation,
+# because that is the string the tokenizer sees. Counting the original Sinhala
+# would be wrong: to_ascii changes the length substantially.
+MODEL_INPUT_CHAR_LIMIT = 250
+
 # Characters that carry no sound and must be removed rather than turned into a
 # space, or they would split a word in two.
 _ZERO_WIDTH = dict.fromkeys(
@@ -180,3 +194,16 @@ def contains_sinhala(text: str) -> bool:
     segment-level language handling later.
     """
     return any("඀" <= character <= "෿" for character in text)
+
+
+def exceeds_model_limit(model_text: str, *, limit: int = MODEL_INPUT_CHAR_LIMIT) -> bool:
+    """Whether this model input is longer than the model will reliably speak.
+
+    Pass the output of :func:`to_model_input`, not the display text.
+
+    A segment over the limit is not rejected by the model; it risks audio that
+    stops partway through with nothing to indicate it. For a document reader
+    that is silent truncation, so the segmenter must keep every segment under
+    this rather than relying on the model to cope.
+    """
+    return len(model_text) > limit
