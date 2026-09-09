@@ -1,0 +1,56 @@
+# Code owners for DSEgrp18/Web-Page.
+#
+# Every entry must be a GitHub user with write access to this repository, or the
+# rule is silently ignored. The three usernames below were read from the
+# repository's own collaborator list, not guessed.
+#
+# GitHub applies the LAST matching rule for a path, so the specific rules at the
+# bottom of this file override the repository-wide default at the top.
+#
+# A pull request author's own approval never satisfies code owner review, so
+# with the default rule below every change still needs a review from one of the
+# other two team members.
+
+# ---------------------------------------------------------------------------
+# Repository default: any of the three team members may review any change.
+#
+# CLAUDE.md asks for ownership split by area (frontend/accessibility,
+# backend/document processing, inference/operations) with a primary and a backup
+# reviewer. That split is a team decision and the areas do not exist in the
+# repository yet, so it is deliberately not invented here. Replace this default
+# with the per-area rules below once the team has agreed who owns what and the
+# corresponding directories exist.
+# ---------------------------------------------------------------------------
+*                           @heshannethmina @KusalPabasara @LasanaPahanga
+
+# ---------------------------------------------------------------------------
+# Planned per-area ownership. Uncomment and assign as each area lands.
+# Keep a primary and a backup reviewer on every line.
+#
+# /apps/web/                @<frontend-primary> @<frontend-backup>
+# /services/api/            @<backend-primary> @<backend-backup>
+# /services/worker/         @<backend-primary> @<backend-backup>
+# /services/tts/            @<inference-primary> @<inference-backup>
+# /evaluation/              @<research-primary> @<research-backup>
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Owner review required for sensitive infrastructure.
+#
+# CLAUDE.md requires workflow, deployment, and sensitive infrastructure changes
+# to be reviewed by the responsible human owner. A malicious or careless change
+# to a workflow file can exfiltrate secrets or weaken every other control in
+# this repository, so these paths do not fall back to the team-wide default.
+# ---------------------------------------------------------------------------
+/.github/                   @heshannethmina
+/.github/workflows/         @heshannethmina
+/.github/CODEOWNERS         @heshannethmina
+/infra/                     @heshannethmina
+/scripts/                   @heshannethmina
+/.gitignore                 @heshannethmina
+/.gitattributes             @heshannethmina
+/CLAUDE.md                  @heshannethmina
+/SECURITY.md                @heshannethmina
+
+# Vendored third-party data carries licence and provenance obligations.
+/data/legacy_fonts/         @heshannethmina

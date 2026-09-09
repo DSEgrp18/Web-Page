@@ -1,0 +1,27 @@
+# Dependency updates.
+#
+# Only the github-actions ecosystem is enabled: it is the only dependency
+# manifest that exists today. Workflow actions are pinned to immutable commit
+# SHAs, which is safe but invisible to humans, so Dependabot is what surfaces
+# upstream security fixes for them.
+#
+# npm and pip entries are added by the pull requests that introduce those
+# manifests. Enabling an ecosystem with no manifest produces noise, not safety.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+    groups:
+      # One pull request per week for routine bumps; security updates still
+      # arrive separately and immediately.
+      actions:
+        patterns:
+          - "*"

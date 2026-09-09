@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security or privacy report
+    url: https://github.com/DSEgrp18/Web-Page/security/advisories/new
+    about: Report vulnerabilities and private-data exposure privately, never as a public issue. See SECURITY.md.
+  - name: Contributor guide
+    url: https://github.com/DSEgrp18/Web-Page/blob/main/CONTRIBUTING.md
+    about: Branch naming, review rules, commit conventions, and the definition of done.
