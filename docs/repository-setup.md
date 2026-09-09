@@ -60,7 +60,7 @@ including the owner and the other organization owners.
 | Required approvals | 1 |
 | Dismiss stale approvals on push | Yes |
 | Require Code Owner review | Yes |
-| Require approval of the most recent push | Yes |
+| Require approval of the most recent push | **No** — removed at the owner's request |
 | Require review threads resolved | Yes |
 | Allowed merge method | Squash only |
 | Required status check | `ci`, pinned to the GitHub Actions app (id `15368`) |
@@ -71,6 +71,43 @@ including the owner and the other organization owners.
 
 GitHub additionally enabled `require_extra_approval_for_unattributed_changes` by
 default on the pull request rule.
+
+`require_last_push_approval` was enabled initially and then **removed**. It had
+required the approver to be someone other than whoever pushed last. For a
+three-person team that added friction without adding much safety: one approval
+from a teammate is still required, and stale approvals are still dismissed when
+new commits arrive, so an author cannot slip changes in after approval.
+
+## Who can merge
+
+Merging a pull request is a push to `main`, so restricting it uses classic
+branch protection push restrictions layered underneath the ruleset. Both are
+evaluated and the more restrictive wins.
+
+| Setting | Value |
+| --- | --- |
+| Users allowed to push to `main` | `heshannethmina` only |
+| Teams / apps allowed | None |
+| Include administrators (`enforce_admins`) | Yes |
+| Force pushes | Blocked |
+| Deletions | Blocked |
+
+The effect intended by the owner: teammates open pull requests and review them,
+but only the owner performs the merge. The one approval required by the ruleset
+still applies to the owner's own pull requests, so this does not let the owner
+merge unreviewed work.
+
+**Enforcement caveat, stated plainly.** This restriction was applied and read
+back from the API, but it was **not** live-tested against another account, since
+that would require a teammate's credentials. Unlike the direct-push rejection
+recorded above, treat it as configured rather than proven.
+
+More importantly, it is not a strong control while `KusalPabasara` and
+`LasanaPahanga` remain organization Owners. Organization ownership carries
+repository administration, so either of them can edit or remove this restriction
+and the ruleset. The restriction reliably prevents an *accidental* merge; it
+does not prevent a *deliberate* one. Making "only the owner merges" genuinely
+enforceable requires open item 1 below.
 
 Pinning the required check to the GitHub Actions app means only GitHub Actions
 can satisfy `ci`. Another integration cannot report a green status under that
@@ -161,7 +198,10 @@ check. No required status name exists for a check that does not run.
 ## Open items
 
 1. **Organization roles.** Reduce `KusalPabasara` and `LasanaPahanga` from
-   organization Owner to Member if the team wants genuine least privilege.
+   organization Owner to Member if the team wants genuine least privilege. This
+   is also what would make "only the owner merges" enforceable rather than
+   merely configured, and what would stop either of them from editing the branch
+   ruleset. The owner chose to leave organization roles unchanged for now.
 2. **Per-area code owners.** `.github/CODEOWNERS` currently assigns every path to
    all three members, with the per-area split left as commented placeholders.
    Assign owners once the team agrees and the directories exist.
