@@ -8,6 +8,12 @@ in Git and GitHub.
 
 Read [CLAUDE.md](CLAUDE.md) before your first change. The rules below assume it.
 
+Everyone taking part is covered by our [Code of Conduct](CODE_OF_CONDUCT.md).
+Report a concern through a
+[private security advisory](https://github.com/DSEgrp18/Web-Page/security/advisories/new)
+or to [@heshannethmina](https://github.com/heshannethmina), not in a public
+issue.
+
 ## Ground rules
 
 - **Accessibility is the product.** If a change makes upload, playback, pause,
