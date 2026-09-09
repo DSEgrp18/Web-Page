@@ -144,6 +144,15 @@ class TextSpan:
     notes: tuple[str, ...] = ()
     """Why this span is not accepted, in language a person can act on."""
 
+    original_text: str = ""
+    """What the PDF actually contained, when ``text`` was decoded from it.
+
+    Empty when nothing was transformed. CLAUDE.md requires the original
+    extraction to be preserved alongside corrected text, and a legacy
+    conversion is the one place here where what is spoken is not what the file
+    held. Without it a mistranslation cannot be diagnosed, because the evidence
+    has been overwritten."""
+
 
 @dataclass(frozen=True)
 class TextLine:

@@ -85,29 +85,54 @@ def test_font_metadata_is_kept_for_every_span() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_legacy_font_text_is_extracted_but_withheld() -> None:
-    """The characters are real; their meaning is not. Narrating them is the bug."""
+def test_fm_abhaya_is_decoded_into_readable_sinhala() -> None:
+    """The whole point of the mapping table: this text becomes speakable."""
     page = pages(legacy_page())[0]
-    assert page.text == LEGACY_LINE
+    assert page.quality is QualityState.ACCEPTED
+    assert page.readable_text == "පොමික පරිස්චිතය හා එම කාරණය වී ඇත"
+    assert page.methods == frozenset({ExtractionMethod.LEGACY})
+
+
+def test_the_original_characters_are_kept_after_decoding() -> None:
+    """Once they are overwritten, a mistranslation cannot be diagnosed.
+
+    This is the one place text a reader hears is not what the file contained,
+    so the evidence has to survive.
+    """
+    span = pages(legacy_page())[0].lines[0].spans[0]
+    assert span.original_text == LEGACY_LINE
+    assert span.text != span.original_text
+
+
+def test_untouched_text_carries_no_original() -> None:
+    """Only a transformed span records one, so its presence means something."""
+    span = pages(sinhala_page())[0].lines[0].spans[0]
+    assert span.original_text == ""
+
+
+def test_a_legacy_font_with_no_table_is_still_withheld() -> None:
+    """Only FM-Abhaya has a validated mapping. The rest cannot be guessed at."""
+    page = pages(legacy_page("DL-Manel"))[0]
     assert page.quality is QualityState.UNDECODABLE
     assert page.readable_text == ""
-    assert page.methods == frozenset({ExtractionMethod.LEGACY})
 
 
 def test_a_withheld_line_stays_on_the_page_with_its_geometry() -> None:
     """Dropping it would make the page look blank instead of unreadable."""
-    page = pages(legacy_page())[0]
+    page = pages(legacy_page("DL-Manel"))[0]
     assert len(page.lines) == 1
     assert page.lines[0].box.width > 0
     assert page.notes
 
 
-def test_the_note_says_whether_a_conversion_table_exists() -> None:
-    """Two different problems for whoever has to fix them."""
-    convertible = pages(legacy_page("ABCDEF+FMAbhaya"))[0].lines[0].spans[0]
+def test_the_note_distinguishes_decoded_from_undecodable() -> None:
+    """Three different situations for whoever has to act on them."""
+    decoded = pages(legacy_page("ABCDEF+FMAbhaya"))[0].lines[0].spans[0]
     unsupported = pages(legacy_page("DL-Manel"))[0].lines[0].spans[0]
-    assert "converter is not implemented" in convertible.notes[0]
+    variant = pages(legacy_page("RFWEJF+FMAbabldBold"))[0].lines[0].spans[0]
+    assert "Converted from" in decoded.notes[0]
     assert "no validated conversion table" in unsupported.notes[0]
+    assert "has not been validated" in variant.notes[0]
 
 
 def test_a_unicode_heading_survives_a_legacy_body() -> None:
@@ -124,8 +149,10 @@ def test_a_unicode_heading_survives_a_legacy_body() -> None:
             )
         )
     )[0]
-    assert page.readable_text == "පළමු පරිච්ඡේදය"
-    assert page.quality is QualityState.UNDECODABLE
+    assert page.readable_text.splitlines() == [
+        "පළමු පරිච්ඡේදය",
+        "පොමික පරිස්චිතය හා එම කාරණය වී ඇත",
+    ]
     assert page.methods == {ExtractionMethod.NATIVE, ExtractionMethod.LEGACY}
 
 
@@ -161,7 +188,7 @@ def test_a_blank_page_is_blank_rather_than_broken() -> None:
 
 def test_pages_are_classified_independently() -> None:
     """CLAUDE.md requires it, and real books mix typeset and scanned pages."""
-    extracted = pages(sinhala_page(), Page(images=1), legacy_page())
+    extracted = pages(sinhala_page(), Page(images=1), legacy_page("DL-Manel"))
     assert [page.kind for page in extracted] == [PageKind.TEXT, PageKind.IMAGE, PageKind.TEXT]
 
 
@@ -244,7 +271,9 @@ def test_a_file_that_is_not_a_pdf_is_refused() -> None:
 
 
 def test_the_document_lists_what_still_needs_work() -> None:
-    document = extract_document(build_pdf([sinhala_page(), Page(images=1), legacy_page()]))
+    document = extract_document(
+        build_pdf([sinhala_page(), Page(images=1), legacy_page("DL-Manel")])
+    )
     assert [page.page_index for page in document.pages_needing_ocr] == [1]
     assert [page.page_index for page in document.pages_needing_review] == [1, 2]
     assert any("images with no readable text" in note for note in document.notes)
@@ -331,10 +360,15 @@ def unnamed_legacy_page(*, with_known_legacy: bool = True) -> Page:
 
 
 def test_a_font_that_identifies_nothing_is_judged_on_all_its_text() -> None:
-    """One line carries too little signal. A page of it does not."""
+    """One line carries too little signal. A page of it does not.
+
+    The FM-Abhaya line on the same page decodes and stays readable, which is
+    the point: the verdict is per font, not per page.
+    """
     page = pages(unnamed_legacy_page())[0]
-    assert page.readable_text == ""
     assert page.quality is QualityState.UNDECODABLE
+    assert UNNAMED_LEGACY_BODY not in page.readable_text
+    assert page.readable_text == "පොමික පරිස්චිතය හා එම කාරණය වී ඇත"
 
 
 def test_the_note_explains_what_the_font_was_judged_on() -> None:
@@ -343,15 +377,32 @@ def test_the_note_explains_what_the_font_was_judged_on() -> None:
     assert any("CIDFont+F2" in note for note in notes)
 
 
-def test_without_legacy_context_it_is_flagged_rather_than_withheld() -> None:
-    """No known legacy font on the page means less certainty about why.
+def test_it_is_withheld_even_with_no_legacy_font_beside_it() -> None:
+    """An earlier version only flagged this case. A real book settled it.
 
-    Review, not removal: withholding on the weaker evidence could silently hide
-    a page that reads perfectly.
+    One page of the textbook was set entirely in a font called CIDFont+F2, with
+    no identified legacy font on it to supply context — and flagged text is
+    still narrated, so 3,242 characters of gibberish went to the reader.
     """
     page = pages(unnamed_legacy_page(with_known_legacy=False))[0]
-    assert page.quality is QualityState.NEEDS_REVIEW
-    assert page.readable_text != ""
+    assert page.quality is QualityState.UNDECODABLE
+    assert page.readable_text == ""
+
+
+def test_the_note_only_claims_what_the_page_supports() -> None:
+    """With a known legacy font beside it, this can be named as legacy text.
+
+    Without one, all that is known is that it does not decode to anything
+    readable — so that is all the note says.
+    """
+    with_context = pages(unnamed_legacy_page())[0]
+    alone = pages(unnamed_legacy_page(with_known_legacy=False))[0]
+    assert any("legacy" in n for span in with_context.lines[0].spans for n in span.notes)
+    assert any(
+        "neither Sinhala nor ordinary English" in n
+        for span in alone.lines[0].spans
+        for n in span.notes
+    )
 
 
 def test_readable_text_in_an_unknown_font_is_left_alone() -> None:

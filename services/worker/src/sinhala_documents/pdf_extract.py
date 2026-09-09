@@ -39,6 +39,7 @@ from .fonts import (
     looks_like_legacy_text,
 )
 from .layout import suspects_multiple_columns
+from .legacy_fm_abhaya import MappingUnavailable, convert_with_report
 from .model import (
     BoundingBox,
     DocumentExtraction,
@@ -95,6 +96,21 @@ _OTHER_SCRIPT_NOTE = (
     "shown but not read aloud."
 )
 
+_CONVERTED_NOTE = (
+    "Converted from the legacy Sinhala font {name} using the FM-Abhaya mapping. The text "
+    "was decoded, not proofread."
+)
+
+_CONVERSION_FAILED_NOTE = (
+    "Text is in the legacy Sinhala font {name}, but converting it produced malformed "
+    "Sinhala, so it cannot be read aloud. It needs review."
+)
+
+_MAPPING_MISSING_NOTE = (
+    "Text is in the legacy Sinhala font {name}, but the conversion table could not be "
+    "loaded, so it cannot be read yet."
+)
+
 _UNNAMED_LEGACY_NOTE = (
     "All the text set in {name} on this page decodes to nonsense, and this page also uses "
     "a known legacy Sinhala font. It is being treated as legacy text and cannot be read yet."
@@ -102,7 +118,7 @@ _UNNAMED_LEGACY_NOTE = (
 
 _SUSPECT_FONT_NOTE = (
     "All the text set in {name} on this page decodes to something that is neither Sinhala "
-    "nor ordinary English. It needs checking."
+    "nor ordinary English, so it cannot be read aloud. It needs checking."
 )
 
 
@@ -115,33 +131,77 @@ def _box(item: dict) -> BoundingBox:
     )
 
 
-def _classify_span(
-    text: str, raw_font: str
-) -> tuple[ExtractionMethod, QualityState, tuple[str, ...]]:
+#: What classification decides about a run of text: how it was obtained,
+#: whether it may be spoken, why not, and the text itself — which conversion
+#: may have replaced.
+Verdict = tuple[ExtractionMethod, QualityState, tuple[str, ...], str]
+
+
+def _convert_legacy(text: str, name: str) -> Verdict:
+    """Decode FM-Abhaya text, and decide whether the result may be spoken.
+
+    This is the only place text is rewritten. The original characters are kept
+    by the caller, because once they are gone a mistranslation cannot be
+    diagnosed.
+
+    A conversion that produces malformed Sinhala is withheld rather than
+    narrated. Being well formed is not proof of being right — the table could
+    be wrong and the output would still parse — but malformed output is proof
+    of something having gone wrong, and that much is worth acting on.
+    """
+    try:
+        report = convert_with_report(text)
+    except MappingUnavailable:
+        # The table is vendored and hash-checked, so this means a deployment
+        # problem. Withheld, and said plainly, rather than passing legacy bytes
+        # downstream as though they were readable.
+        return (
+            ExtractionMethod.LEGACY,
+            QualityState.UNDECODABLE,
+            (_MAPPING_MISSING_NOTE.format(name=name),),
+            text,
+        )
+
+    if not report.is_well_formed:
+        return (
+            ExtractionMethod.LEGACY,
+            QualityState.UNDECODABLE,
+            (_CONVERSION_FAILED_NOTE.format(name=name),),
+            text,
+        )
+    return (
+        ExtractionMethod.LEGACY,
+        QualityState.ACCEPTED,
+        (_CONVERTED_NOTE.format(name=name),),
+        report.text,
+    )
+
+
+def _classify_span(text: str, raw_font: str) -> Verdict:
     """Decide how a run of text was encoded and whether it can be narrated."""
     legacy = identify_legacy_font(raw_font)
     if legacy is not None:
         if legacy.convertible:
-            note = _LEGACY_CONVERTIBLE_NOTE.format(name=legacy.raw_name)
-        elif legacy.variant_of:
+            return _convert_legacy(text, legacy.raw_name)
+        if legacy.variant_of:
             note = _LEGACY_VARIANT_NOTE.format(name=legacy.raw_name, family=legacy.variant_of)
         else:
             note = _LEGACY_UNSUPPORTED_NOTE.format(name=legacy.raw_name)
-        return ExtractionMethod.LEGACY, QualityState.UNDECODABLE, (note,)
+        return ExtractionMethod.LEGACY, QualityState.UNDECODABLE, (note,), text
 
     if is_unreadable_script(text):
         # Extracted correctly, in a script this reader cannot speak. Withheld
         # rather than flagged: a Sinhala voice handed Tamil or Devanagari
         # produces confident noise, and a listener cannot tell.
-        return ExtractionMethod.NATIVE, QualityState.UNDECODABLE, (_OTHER_SCRIPT_NOTE,)
+        return ExtractionMethod.NATIVE, QualityState.UNDECODABLE, (_OTHER_SCRIPT_NOTE,), text
 
     if looks_like_legacy_text(text):
         # The font name did not give it away. This is a weak, uncalibrated
         # signal, so it asks for review rather than withholding the text: a
         # false positive here would silently hide a page that reads perfectly.
-        return ExtractionMethod.NATIVE, QualityState.NEEDS_REVIEW, (_SUSPECT_ENCODING_NOTE,)
+        return ExtractionMethod.NATIVE, QualityState.NEEDS_REVIEW, (_SUSPECT_ENCODING_NOTE,), text
 
-    return ExtractionMethod.NATIVE, QualityState.ACCEPTED, ()
+    return ExtractionMethod.NATIVE, QualityState.ACCEPTED, (), text
 
 
 def _span_key(char: dict) -> tuple[str, float]:
@@ -195,11 +255,12 @@ def _spans(chars: Sequence[dict]) -> tuple[TextSpan, ...]:
             return
         text = "".join(char["text"] for char in run)
         raw_font = str(run[0].get("fontname") or "")
-        method, quality, notes = _classify_span(text, raw_font)
+        method, quality, notes, decoded = _classify_span(text, raw_font)
         legacy = identify_legacy_font(raw_font)
         spans.append(
             TextSpan(
-                text=text,
+                text=decoded,
+                original_text=text if decoded != text else "",
                 font=legacy.family if legacy else raw_font,
                 raw_font=raw_font,
                 size=_span_key(run[0])[1],
@@ -283,14 +344,23 @@ def _reclassify_by_font(lines: tuple[TextLine, ...]) -> tuple[TextLine, ...]:
     if not wrong:
         return lines
 
-    # A page that also carries a font positively identified as legacy is a page
-    # set in a pre-Unicode workflow. That context is what separates "this font
-    # decodes to nonsense" from "this font decodes to nonsense and we know why".
+    # Withheld either way. An earlier version only flagged this when the page
+    # also carried a positively identified legacy font, on the reasoning that
+    # weaker evidence deserved a softer verdict — but flagged text is still
+    # narrated, so "softer" meant reading the nonsense out anyway. A real book
+    # settled it: one page was set entirely in a font called CIDFont+F2, with no
+    # identified legacy font beside it to supply the context, and its 3,242
+    # characters of gibberish went straight to the reader.
+    #
+    # The page's own context still decides what the note can honestly claim: with
+    # a known legacy font beside it, this is legacy text and can be named as
+    # such; without one, all that is known is that it does not decode to
+    # anything readable.
     known_legacy = any(
         span.method is ExtractionMethod.LEGACY for line in lines for span in line.spans
     )
     method = ExtractionMethod.LEGACY if known_legacy else ExtractionMethod.NATIVE
-    quality = QualityState.UNDECODABLE if known_legacy else QualityState.NEEDS_REVIEW
+    quality = QualityState.UNDECODABLE
     note = _UNNAMED_LEGACY_NOTE if known_legacy else _SUSPECT_FONT_NOTE
 
     return tuple(
