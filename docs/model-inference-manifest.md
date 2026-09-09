@@ -568,6 +568,46 @@ What it does **not** establish:
   CLAUDE.md cannot be assessed until this runs on a GPU.
 - Anything about VRAM, since none was used.
 
+## The adapter
+
+`sinhala_tts.adapter` implements the boundary CLAUDE.md asks for,
+`synthesize(text, voice_id, settings) -> audio + metadata`, and everything in
+"Known working inference procedure" above is encoded in it rather than repeated
+by each caller.
+
+Validated against the real checkpoint on 2026-09-09:
+
+```text
+before load: not_loaded            serving: False
+after load : degraded  (61 s)      device: cpu
+  note: Running on CPU after the GPU could not hold the model. Narration will be
+        much slower than usual; tell the reader rather than letting them wait.
+synthesis  : 3.01 s @ 24000 Hz, checks OK, real model, version ce18fe82442ccbd3
+second call: 11 s, no reload
+```
+
+That run confirms four things the interface promises:
+
+- The model is loaded **once per process**: the second call skipped the 61 s
+  load entirely.
+- **Readiness is not liveness.** The adapter reported `not_loaded` and
+  `serving: False` before loading, which a naive health check would have called
+  healthy.
+- **The CPU fallback is visible**, as decided. `DEGRADED` is a distinct state
+  and `health()` carries a note written for the reader, not for a log.
+- Every segment carries its model version, device, settings, and cache key.
+
+`DevelopmentAdapter` is the labelled placeholder that lets the rest of the
+application be built without the bundle. It emits a tone, never speech; its
+results carry `is_real_model=False` and a `development-` voice id; and that flag
+is part of the cache key, so a placeholder cannot be served from cache as
+narration.
+
+**Cancellation is deliberately not promised.** A torch forward pass cannot be
+interrupted in process, so `timeout_seconds` bounds waiting for a slot, not the
+generation itself. Concurrency is bounded in the adapter at one generation by
+default, because the caller cannot see the GPU.
+
 ## Hardware observed
 
 The development machine has an **NVIDIA GeForce RTX 2050 with 4 GB VRAM**
