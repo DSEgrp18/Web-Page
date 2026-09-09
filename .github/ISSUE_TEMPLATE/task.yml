@@ -1,0 +1,70 @@
+name: Task
+description: A bounded piece of planned work with acceptance criteria and an owner.
+title: "<area>: <short outcome>"
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep tasks small enough to finish in one short-lived branch and one
+        reviewable pull request. Split anything larger.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Frontend / accessibility
+        - Backend / API
+        - Document processing / extraction
+        - TTS inference / serving
+        - Retrieval / study mode
+        - Infrastructure / CI / operations
+        - Evaluation / research
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What a user or operator can do after this is done that they cannot do now.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable statements. The reviewer verifies these, so avoid criteria nobody can test.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: How it will be verified
+      description: Automated tests, manual steps, or measurements. Say if verification needs the real model or GPU hardware.
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: Owner
+      description: The single GitHub username accountable for this task.
+      placeholder: "@username"
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and blockers
+      description: Issues, missing model assets, credentials, or hardware this depends on.
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraint check
+      options:
+        - label: This does not require training or fine-tuning a model (out of scope per CLAUDE.md).
+        - label: This does not require committing model weights, private documents, or generated audio.

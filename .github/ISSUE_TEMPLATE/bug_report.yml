@@ -1,0 +1,59 @@
+name: Bug report
+description: Something behaves incorrectly.
+title: "bug: <short description>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste private document contents, uploaded books, or credentials
+        into this issue. Describe the content instead, or attach a small
+        redacted sample you have the right to share.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include the exact error text or status shown, without private passages.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: dropdown
+    id: blocker
+    attributes:
+      label: Does this block a core task?
+      description: Upload, play, pause, navigate, or resume failing with assistive technology is a release blocker.
+      options:
+        - "No"
+        - "Yes: blocks a core reading task"
+        - "Yes: blocks a core task with assistive technology"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        - Browser / OS:
+        - Assistive technology (if any):
+        - Commit or deployment:
+        - Document type (digital PDF, scanned, pasted text):
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Logs with private content removed, screenshots, or a recording.

@@ -1,0 +1,86 @@
+# Continuous integration for the Sinhala Accessible Reader.
+#
+# This workflow deliberately only runs checks over content that exists today:
+# the vendored legacy-font tables and the repository hygiene guards. Language
+# toolchains, unit tests, type checks, frontend builds, container builds, and
+# the accessibility smoke test are added to this file in the same pull requests
+# that introduce the code they check, as required by CLAUDE.md. A check that is
+# skipped or absent must never be able to stand in for a passing test.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Superseded runs on the same branch are wasteful; in-progress runs on main are
+# not cancelled so the default branch always has a conclusive result.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Least privilege. No job here needs to write to the repository, and pull
+# requests from forks must never receive a writable token.
+permissions:
+  contents: read
+
+jobs:
+  vendored-assets:
+    name: Vendored assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify legacy font tables against recorded hashes
+        run: scripts/verify-vendored-assets.sh
+
+  repo-hygiene:
+    name: Repository hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check for model weights, audio, documents, and secrets
+        run: scripts/verify-repo-hygiene.sh
+
+  shell-scripts:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: ShellCheck
+        run: shellcheck --severity=style scripts/*.sh
+
+  # Aggregate gate. This is the single required status check on main, so it must
+  # always report a conclusion, even when a job above is skipped or cancelled.
+  #
+  # When path filters are added to the jobs above, give the filtered job a
+  # no-op success path rather than letting it be skipped: a skipped dependency
+  # is treated as a failure here precisely so a path filter cannot silently
+  # satisfy a required check.
+  ci:
+    name: ci
+    if: always()
+    needs: [vendored-assets, repo-hygiene, shell-scripts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm every required job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Dependency results: ${RESULTS}"
+          for result in ${RESULTS}; do
+            if [ "${result}" != "success" ]; then
+              echo "::error::A required CI job did not succeed (${RESULTS})."
+              exit 1
+            fi
+          done
+          echo "All required CI jobs succeeded."

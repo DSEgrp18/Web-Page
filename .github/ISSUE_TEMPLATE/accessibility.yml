@@ -1,0 +1,61 @@
+name: Accessibility issue
+description: A barrier for screen reader, keyboard, low-vision, or other assistive technology users.
+title: "a11y: <short description>"
+labels: ["accessibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Accessibility is the point of this product, not a polish pass. Barriers
+        in core tasks are treated as release blockers.
+  - type: textarea
+    id: barrier
+    attributes:
+      label: The barrier
+      description: What could you not do, and what happened instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: technology
+    attributes:
+      label: How it was found
+      multiple: true
+      options:
+        - NVDA
+        - JAWS
+        - VoiceOver
+        - Android TalkBack
+        - Keyboard only
+        - Screen magnification
+        - High contrast / custom colours
+        - Automated tooling
+        - Code review
+    validations:
+      required: true
+  - type: dropdown
+    id: task
+    attributes:
+      label: Which core task is affected?
+      options:
+        - Upload a document
+        - Navigate pages, chapters, or sentences
+        - Play, pause, or resume narration
+        - Adjust playback speed
+        - Bookmarks and saved progress
+        - Ask a question and hear the answer
+        - Understand processing status or errors
+        - Other / not a core task
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen
+      description: Reference a WCAG 2.2 success criterion if you know which one applies. A clear description is enough if you do not.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: Is there any way to complete the task today?
