@@ -18,13 +18,20 @@ requires-python = ">=3.12"
 #
 # Deliberately absent: any OCR engine. Image-only pages are classified and
 # reported here; recognising them is a later increment with its own evaluation.
+# sinhala-tts supplies segmentation and the Sinhala text front end. The join
+# lives here rather than in the API because this is where documents are turned
+# into work: extraction and segmentation are one pipeline, and splitting them
+# across a network boundary would only make the seam harder to test.
+#
+# It is a path dependency because neither package is published; CI puts both
+# source trees on the path directly, the way the tests do.
 dependencies = ["pdfplumber>=0.11.4"]
 
 [dependency-groups]
 dev = ["pytest>=8"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "tests"]
+pythonpath = ["src", "tests", "../tts/src"]
 testpaths = ["tests"]
 addopts = "-q"
 

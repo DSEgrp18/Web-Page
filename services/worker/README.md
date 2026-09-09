@@ -1,7 +1,8 @@
 # services/worker
 
-Document extraction: turning an uploaded PDF into text the reader is allowed to
-speak, together with the provenance needed to justify that permission.
+Document extraction and preparation: turning an uploaded PDF into the units a
+reader actually plays, together with the provenance needed to justify speaking
+them.
 
 Right now this package handles **digital PDFs only** — files that already carry
 text. Scanned pages are classified and reported, not recognised.
@@ -58,6 +59,10 @@ read rather than presenting it as blank.
 
 - **FM-Abhaya conversion**, decoding legacy spans into Sinhala Unicode using
   the vendored mapping table.
+- **The pipeline** joining extraction to the speech front end: pages become
+  sentence-sized, page-anchored segments carrying display, spoken and model
+  text, the boxes to highlight, and identity that invalidates audio when the
+  text behind it changes.
 
 ## What is not implemented, and is announced rather than faked
 
@@ -109,8 +114,49 @@ src/sinhala_documents/fonts.py         Legacy Sinhala font identification.
 src/sinhala_documents/legacy_fm_abhaya.py  FM-Abhaya to Sinhala Unicode conversion.
 src/sinhala_documents/page_labels.py   Printed page numbers from /PageLabels.
 src/sinhala_documents/layout.py        Multi-column reading-order suspicion.
+src/sinhala_documents/pipeline.py      Pages to playable segments. Joins services/tts.
 tests/pdf_fixtures.py                  In-memory PDF writer. No binaries are committed.
 ```
+
+## From a PDF to something a reader plays
+
+`prepare_document` is the seam between this package and `services/tts`. It
+extracts, decodes, and segments in one step, and the decisions that a reader
+feels are made there:
+
+- **Only text cleared for narration is segmented.** Undecodable lines are
+  dropped at the join rather than filtered later, so nothing that could not be
+  read is ever handed to the synthesiser.
+- **Segments never cross a page.** A citation has to name one page, and "read
+  from here" has to land somewhere a reader can be shown.
+- **Every segment keeps the boxes of the lines it covers**, which is what
+  sentence highlighting draws.
+- **Identity is content-derived**, so editing one page does not invalidate the
+  audio for the rest of the book.
+
+The document version combines the source bytes with the versions of everything
+that transforms them — pipeline, legacy converter, normaliser. A change to the
+number words changes what a reader hears, so audio generated under the old ones
+has to stop being served. It deliberately does *not* depend on which pages were
+prepared, so a page read on its own shares cache entries with the same page read
+as part of the whole book.
+
+Run over the Grade 11 textbook, one page produces 26 segments, all within the
+model's 250-character limit, with numbers written out: `1933` becomes
+`ekdhahas navasiya this thuna`.
+
+### Known limitations of the join
+
+- **A sentence that runs across a page break is split at the break.** Page
+  identity is worth more to a citation than sentence continuity is to prosody,
+  but the seam is audible.
+- **Highlight boxes are line-level.** A sentence ending mid-line highlights the
+  whole line, including the start of the next sentence. Character-level boxes
+  would fix it and are not built.
+- **Splitting an oversized sentence can leave a very short tail** — a 246
+  character segment followed by a 13 character one. Short segments are the worst
+  case for the model's trailing-audio behaviour recorded in
+  `docs/model-inference-manifest.md`, so this is worth revisiting.
 
 ## Why pdfplumber
 
