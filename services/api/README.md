@@ -46,9 +46,18 @@ python -m pip install "fastapi>=0.115" "python-multipart>=0.0.9" "uvicorn" \
   "pdfplumber>=0.11.4" "numpy>=1.26" "pytest>=8" "httpx>=0.27" "ruff==0.15.20"
 
 SINHALA_READER_AUTH=development \
+SINHALA_READER_ORIGINS=http://localhost:3000 \
 PYTHONPATH="src:../worker/src:../tts/src" \
   python -m uvicorn sinhala_reader.app:app --reload
 ```
+
+`SINHALA_READER_ORIGINS` names the origins a **browser** may call this API from
+— [`apps/web`](../../apps/web) in development. It is unset by default, which
+means no browser may call it at all: like the identity check it fails closed,
+and `GET /readiness` reports both an empty setting and a wildcard as
+limitations. `X-Reader-Real-Model` is exposed explicitly, because cross-origin
+JavaScript cannot read a response header the server has not named — and if that
+one is missed, the reader hears a tone with no way to know it was not speech.
 
 Then `http://127.0.0.1:8000/docs`. Every request needs an identity header:
 
@@ -86,6 +95,7 @@ mistake this for production.
 | `InMemoryStore` | PostgreSQL, object storage | Documents, audio and positions are lost on restart. |
 | A thread per job | Celery and Redis | In-flight work is lost on restart; no retries, no cross-process queue. |
 | `DevelopmentAdapter` | The XTTS checkpoint on a GPU | Audio is a 440 Hz tone. Marked `is_real_model=false` everywhere, including in the cache key, so a tone can never be served as narration once a real model exists. |
+| An origin list in an environment variable | Origins tied to a deployment configuration | A wildcard plus header identity means any website can read any reader's documents. `/readiness` says so when one is set. |
 
 The **shape** is what matters and is not a stopgap: ownership runs through the
 store, job states are the ones CLAUDE.md names, and cache identity is the
@@ -111,7 +121,8 @@ Bookmarks, chapter downloads, questions and answers, and the accessibility smoke
 test. Audio is generated per segment on demand; a job that renders a whole
 chapter ahead of time is the next thing the reader will want.
 
-No accessibility testing has been done against this API, because there is no
-interface yet. CLAUDE.md treats inability to upload, play, pause, navigate or
-resume with assistive technology as a release blocker, and that is a claim only
-a real screen reader against a real UI can settle.
+The interface now exists — [`apps/web`](../../apps/web) — but **no testing with
+assistive technology has been done against it**. CLAUDE.md treats inability to
+upload, play, pause, navigate or resume with assistive technology as a release
+blocker, and that is a claim only a real screen reader in front of a real person
+can settle.
