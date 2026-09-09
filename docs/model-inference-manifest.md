@@ -254,15 +254,44 @@ by digit, and line breaks becoming spaces all survive to the model.
 
 ### Output duration is not stable between runs
 
-`plain-short` produced **2.13 s** of audio in one run and **6.77 s** in another,
-from identical input and identical settings — a factor of 3.
+The most important finding of this run, and the one most likely to affect the
+product.
 
-Generation is stochastic, so some variation is expected and byte-identical
-output must never be asserted. A 3× spread in *duration* for a five-word
-sentence is a different matter: it suggests the model is appending material
-beyond the sentence, which is a known XTTS failure mode. Nobody has listened
-yet, so whether the longer output is slower speech, a trailing artefact, or
-babble is **unknown**.
+`මම ගෙදර යනවා.` — five words, model input `mama gedhara yanavaa.` — was
+synthesised **six times in one process** with identical input and settings:
+
+| Run | 1 | 2 | 3 | 4 | 5 | 6 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Duration | 1.90 s | 2.27 s | 4.45 s | 4.31 s | 5.57 s | 2.55 s |
+| RMS | 0.086 | 0.086 | 0.082 | 0.082 | 0.082 | 0.085 |
+
+**Spread 2.93×**, and a separate earlier run of the same sentence produced
+6.77 s. All eight runs passed every automated check.
+
+Generation is stochastic, so variation is expected and byte-identical output
+must never be asserted. A near-3× spread in *duration* for a five-word sentence
+is a different matter.
+
+**The RMS is the informative part.** It stays between 0.082 and 0.086 regardless
+of duration. If the extra length were trailing silence, RMS would fall roughly
+in proportion — a 5.57 s clip with 2 s of speech would measure far quieter than
+a 1.90 s clip that is all speech. It does not. So the longer outputs contain
+*audio*, not padding.
+
+That leaves two candidates, and this evidence cannot separate them:
+
+- the model continues generating speech-like material after the sentence ends, a
+  known XTTS failure mode; or
+- speech rate itself varies substantially run to run.
+
+**Only listening can tell them apart**, and nobody has listened. Compare
+`plain-short-1.wav` (1.90 s) against `plain-short-5.wav` (5.57 s): if the second
+contains the sentence followed by extra sound, it is the first; if it is simply
+the same sentence spoken slowly, it is the second. This is the single most
+useful listening test available right now.
+
+If it is trailing material, it is serious for a document reader: a listener
+would hear invented sound after each sentence, cached and replayed every time.
 
 This is measured, not resolved, and it has consequences:
 
@@ -272,8 +301,13 @@ This is measured, not resolved, and it has consequences:
 - Latency targets must be stated as percentiles over repeated measurements. A
   single timing is close to meaningless.
 - An output-length sanity check belongs in the serving path, not only in the
-  smoke test — but its thresholds have to be calibrated against listening first,
-  because the current `MIN_CHARS_PER_SECOND` of 2.0 passed the 6.77 s run.
+  smoke test — but its thresholds have to be calibrated against listening first.
+  The current `MIN_CHARS_PER_SECOND` of 2.0 passed every one of these runs,
+  including the 6.77 s one, which is exactly the "provisional and uncalibrated"
+  caveat in `audio_checks.py` proving itself in practice.
+- If the cause is trailing generation, the fix is upstream of thresholds —
+  generation settings, or trimming against a detected end of speech — and must
+  be evaluated by listening rather than by duration alone.
 
 What this establishes:
 
@@ -382,6 +416,10 @@ Required by CLAUDE.md before serving, and still missing:
   intelligibility, pronunciation, whether the written-out numbers sound right —
   is open until someone plays the smoke-test WAVs. The written number forms are
   confirmed; how they sound from this model is not.
+- **The cause of the 2.93x duration spread**, which listening to
+  `plain-short-1.wav` against `plain-short-5.wav` would settle in under a
+  minute. Until then it is unknown whether the model appends material after a
+  sentence.
 - GPU figures: first-audio latency, real-time factor, sustained throughput, and
   peak VRAM on serving hardware. The CPU run recorded above is not a substitute.
 - Whether 402 or 200 text tokens binds in practice, measured with the real
