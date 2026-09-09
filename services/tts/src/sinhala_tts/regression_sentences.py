@@ -28,6 +28,11 @@ class RegressionCase:
     case_id: str
     text: str
     why: str
+    # Whether the text is a single sentence, so appended audio after it is a
+    # fault rather than the second sentence being narrated correctly. Set
+    # False for multi-sentence cases; the appended-audio check is skipped for
+    # them because flagging them would be a false positive.
+    single_utterance: bool = True
 
 
 CASES: tuple[RegressionCase, ...] = (
@@ -40,6 +45,7 @@ CASES: tuple[RegressionCase, ...] = (
         case_id="plain-longer",
         text="අද දවසේ කාලගුණය ඉතා හොඳයි. අපි උදෑසන පාසල් ගියෙමු.",
         why="Two sentences, to check the model does not stop after the first.",
+        single_utterance=False,
     ),
     RegressionCase(
         case_id="page-reference",
