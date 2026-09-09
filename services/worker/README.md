@@ -45,7 +45,11 @@ read rather than presenting it as blank.
 - Word boundaries reconstructed from geometry, not only from space characters,
   since many PDFs contain none.
 - Legacy Sinhala font identification from span font metadata, with subset
-  prefixes normalised away, plus a weaker fallback on the shape of the text.
+  prefixes normalised away; a per-font verdict on all that font's text on a
+  page, for fonts whose names identify nothing; and a script guard so text
+  this reader has no voice for is shown but never spoken.
+- Content drawn outside the printed page area left out, since it is invisible
+  to a sighted reader and must not be narrated to anyone else.
 - Printed page labels from `/PageLabels`, so a citation to "page vi" means what
   the reader would see.
 - Selective page extraction, so the first requested section can be produced
@@ -115,11 +119,66 @@ it. PyMuPDF is faster and also exposes spans, but it is AGPL-3.0 unless
 separately licensed, and this project already carries one unresolved licence
 question in the XTTS weights.
 
+## What a real book showed
+
+The first real document run through this was a 168-page Grade 11 Sinhala
+history textbook. It is set almost entirely in FM-Abhaya: **244,126 of its
+248,055 characters are legacy**. Without font identification, a reader would
+have narrated a quarter of a million characters of Latin gibberish, confidently,
+to someone who could not see the page.
+
+Three defects only a real book could have surfaced:
+
+| | |
+| --- | --- |
+| **Off-page content** | One page drew 3,322 of its 3,792 characters outside the sheet — a whole duplicated article, invisible when rendered, which extraction interleaved character by character with the four visible lines. |
+| **A font that identifies nothing** | 3,293 characters were set in `KQAHVM+CIDFont+F2`. No name to match, no Sinhala in the output, and a per-line non-ASCII rate below any usable threshold. All of it was being narrated. |
+| **The wrong signal** | FM-Abhaya's non-ASCII rate is 0.073 — *below* the 0.08 threshold meant to catch it. A non-ASCII test alone would have missed the entire book. |
+
+The signal that works is **interior capitals**: legacy fonts map glyphs to Latin
+code points without regard to case, so decoded text is full of words like
+`wOHdmk` and `fomd¾;fïka;=j`. Aggregated per font, on that book:
+
+| font | interior capitals | non-ASCII |
+| --- | ---: | ---: |
+| FM-Abhaya (legacy) | 0.202 | 0.073 |
+| FM-Abhaya Bold (legacy) | 0.221 | 0.068 |
+| CIDFont+F2 (legacy, unnamed) | 0.191 | 0.056 |
+| Times New Roman (real English) | 0.083 | 0.016 |
+| English control sentences | 0.033 | 0.000 |
+
+Aggregating per **font per page** is what makes this reliable — `NASA and the
+UNESCO report` scores 0.167 on its own but 0.033 inside a paragraph, and it is
+the paragraph that describes the font. Per page rather than per document so
+that a page is classified the same whether it was requested alone or as part of
+the whole book.
+
+Readable output on that book went from 6,798 characters, essentially all of it
+gibberish, to **559 characters — all genuine**: the English translation of the
+presentation inscription, acronyms in the glossary, and the printed roman page
+numbers.
+
+## Sinhala only
+
+The reader serves Sinhala and has a Sinhala voice. Sri Lankan textbooks are
+trilingual, and this one sets Tamil in legacy fonts too, but no catalogue of
+Tamil fonts is kept here — that would promise support this reader does not
+offer.
+
+Such text is still never narrated. `is_unreadable_script` withholds anything
+that carries no Sinhala and is overwhelmingly outside ASCII, without naming a
+language: the answer is the same for every script this reader has no voice for.
+It is shown on the page, and not spoken.
+
 ## Not yet verified
 
-Everything here is tested against generated PDFs, which are correct by
-construction and therefore easier than real ones. It has **not** been run
-against a real Sinhala book, a real legacy-font document, or a real scan. The
-thresholds in `fonts.py` and `layout.py` are reasoned, not calibrated against
-ground truth, and CLAUDE.md is explicit that a reference project's numbers must
-not be adopted as proven defaults. Treat them as starting points to measure.
+One book is not a corpus. The thresholds above are measured rather than
+borrowed, but measured on a single document, and CLAUDE.md is explicit that they
+must be calibrated against ground truth rather than adopted as proven defaults.
+Re-measure as more real documents arrive.
+
+Still untested against real inputs: a **scanned** book, a Unicode Sinhala book
+(this one had almost none), and a genuinely multi-column layout. That book also
+declares no `/PageLabels`, so printed page numbers were reported as absent —
+correctly, since they exist only in the page footers, which is a job for the
+header and footer increment.

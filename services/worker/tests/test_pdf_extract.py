@@ -248,3 +248,128 @@ def test_the_document_lists_what_still_needs_work() -> None:
     assert [page.page_index for page in document.pages_needing_ocr] == [1]
     assert [page.page_index for page in document.pages_needing_review] == [1, 2]
     assert any("images with no readable text" in note for note in document.notes)
+
+
+# --------------------------------------------------------------------------
+# Content drawn outside the printed page
+#
+# Found in a real 168-page textbook: one page drew 3,322 of its 3,792
+# characters off the sheet — an entire duplicated article, which extraction
+# then interleaved character by character with the four visible lines.
+# --------------------------------------------------------------------------
+
+
+def test_text_drawn_outside_the_page_is_left_out() -> None:
+    """It is invisible when the page is rendered, so it must not be narrated.
+
+    A listener should get what a sighted reader gets, and this is not on the
+    page at all.
+    """
+    page = pages(
+        Page(
+            blocks=(
+                Text("මම ගෙදර යනවා", x=72, y=700),
+                Text("කිසිවෙක් නොදකින පෙළ", x=900, y=700),
+            )
+        )
+    )[0]
+    assert page.readable_text == "මම ගෙදර යනවා"
+
+
+def test_off_page_content_does_not_interleave_with_visible_text() -> None:
+    """The failure mode: two runs at the same height merged into one line.
+
+    Every word is present, the sentences are nonsense, and nothing about the
+    output looks broken.
+    """
+    page = pages(
+        Page(
+            blocks=(
+                Text("පළමු", x=72, y=700),
+                Text("දෙවන", x=760, y=700),
+                Text("තෙවන", x=72, y=680),
+            )
+        )
+    )[0]
+    assert [line.text for line in page.lines] == ["පළමු", "තෙවන"]
+
+
+def test_dropping_off_page_content_is_reported() -> None:
+    """A producer leaving this much on the pasteboard is worth knowing about."""
+    page = pages(Page(blocks=(Text("හැංගුණු පෙළ " * 4, x=900, y=700),)))[0]
+    assert any("outside the printed area" in note for note in page.notes)
+
+
+def test_ordinary_pages_are_not_accused_of_hiding_anything() -> None:
+    assert not any("outside the printed area" in note for note in pages(sinhala_page())[0].notes)
+
+
+# --------------------------------------------------------------------------
+# Fonts whose names identify nothing
+#
+# The real book set 3,293 characters in a font called only "CIDFont+F2".
+# Nothing in the name to match, no Sinhala in the output, and a per-line
+# non-ASCII rate below any usable threshold. All of it was being narrated.
+# --------------------------------------------------------------------------
+
+#: Legacy text long enough for the font to be judged on it, as it would be on
+#: a real page.
+UNNAMED_LEGACY_BODY = (
+    "f.ù .sh oYl follg wdikak ld,h f,dal b;sydih ;=< iqúfYaIS jQ ;dlaI‚l "
+    "jkialï /ila isÿjQ ld,hls' f;dr;=re ;dlaIKh ikaksfõokh m%uqL lr.;a fiiq "
+    "lafIa;% /ilo fkdis;+ whqßka fjkia jQ nj wm oksuq' tu ksid wOHdmkh o "
+)
+
+
+def unnamed_legacy_page(*, with_known_legacy: bool = True) -> Page:
+    blocks = [
+        Text(UNNAMED_LEGACY_BODY, font="CIDFont+F2", y=700 - index * 16) for index in range(3)
+    ]
+    if with_known_legacy:
+        blocks.append(Text(LEGACY_LINE, font="ABCDEF+FMAbhaya", y=620))
+    return Page(blocks=tuple(blocks))
+
+
+def test_a_font_that_identifies_nothing_is_judged_on_all_its_text() -> None:
+    """One line carries too little signal. A page of it does not."""
+    page = pages(unnamed_legacy_page())[0]
+    assert page.readable_text == ""
+    assert page.quality is QualityState.UNDECODABLE
+
+
+def test_the_note_explains_what_the_font_was_judged_on() -> None:
+    page = pages(unnamed_legacy_page())[0]
+    notes = [note for span in page.lines[0].spans for note in span.notes]
+    assert any("CIDFont+F2" in note for note in notes)
+
+
+def test_without_legacy_context_it_is_flagged_rather_than_withheld() -> None:
+    """No known legacy font on the page means less certainty about why.
+
+    Review, not removal: withholding on the weaker evidence could silently hide
+    a page that reads perfectly.
+    """
+    page = pages(unnamed_legacy_page(with_known_legacy=False))[0]
+    assert page.quality is QualityState.NEEDS_REVIEW
+    assert page.readable_text != ""
+
+
+def test_readable_text_in_an_unknown_font_is_left_alone() -> None:
+    """The same rule must not withhold ordinary English set in an odd font."""
+    english = (
+        "From the government, I received this as a gift. I will read it and light up my "
+        "knowledge. On my country's own behalf, I will protect the national resources, and "
+        "offer this book to another one as a fresh garland of roses in the coming year. "
+    )
+    page = pages(Page(blocks=(Text(english, font="CIDFont+F7", y=700),)))[0]
+    assert page.quality is QualityState.ACCEPTED
+    assert page.readable_text
+
+
+def test_another_script_is_shown_but_not_read() -> None:
+    """The book is trilingual; this reader has a Sinhala voice only."""
+    page = pages(
+        Page(blocks=(Text("Aµ]ß öÁ¸Qh÷Á ¡¼uøÚU Põ¨÷£ß £» ©õnÁ¸®", font="OtherScript", y=700),))
+    )[0]
+    assert page.readable_text == ""
+    assert page.text != ""
