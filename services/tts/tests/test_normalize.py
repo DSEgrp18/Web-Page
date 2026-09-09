@@ -1,0 +1,211 @@
+"""The normaliser that runs before the vendored front end.
+
+The companion file ``test_text_frontend_characterisation.py`` records what the
+raw front end does, including three defects. This file asserts that the two
+which cause data loss are fixed by the time text reaches the model, and that the
+third is still present and still deliberately unfixed.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from sinhala_tts.normalize import (
+    NORMALIZER_VERSION,
+    contains_sinhala,
+    expand_numbers,
+    is_speakable,
+    normalize_whitespace,
+    to_model_input,
+    to_speech_text,
+)
+from sinhala_tts.vendor.sinhala_text import to_ascii
+
+# --------------------------------------------------------------------------
+# DEFECT 1 fixed: numbers survive to the model
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("display", "spoken"),
+    [
+        ("පිටුව 42 බලන්න", "පිටුව හතළිස් දෙක බලන්න"),
+        ("2024 වර්ෂය", "දෙදහස් විසි හතර වර්ෂය"),
+        ("අංක 7 සහ අංක 8", "අංක හත සහ අංක අට"),
+    ],
+)
+def test_numbers_are_written_out_before_the_lossy_front_end(display: str, spoken: str) -> None:
+    assert to_speech_text(display) == spoken
+
+
+def test_the_page_number_now_reaches_the_model() -> None:
+    """The regression that motivated this module.
+
+    Raw, the front end narrates "පිටුව 42 බලන්න" as "pituva balanna" — the
+    listener is told to look at a page and not told which.
+    """
+    assert to_ascii("පිටුව 42 බලන්න") == "pituva balanna"
+    assert to_model_input("පිටුව 42 බලන්න") == "pituva hathalis dheka balanna"
+
+
+def test_decimals_read_the_fraction_digit_by_digit() -> None:
+    """3.14 is "three point one four", not "three point fourteen"."""
+    assert to_speech_text("3.14") == "තුන දශම එක හතර"
+
+
+def test_thousands_separators_are_understood() -> None:
+    assert to_speech_text("1,500.50") == "එක්දහස් පන්සියය දශම පහ බින්දුව"
+
+
+def test_percent_marker_precedes_the_number() -> None:
+    """Sinhala reverses the written order: 50% is සියයට පනහ."""
+    assert to_speech_text("50% සහ 25%") == "සියයට පනහ සහ සියයට විසි පහ"
+
+
+def test_numbers_too_large_are_read_digit_by_digit_not_dropped() -> None:
+    """Clumsy on purpose. Nothing is lost and nothing is invented."""
+    assert to_speech_text("12345") == "එක දෙක තුන හතර පහ"
+
+
+def test_expansion_does_not_glue_the_number_to_the_next_word() -> None:
+    """A regex that consumed the trailing space would recreate defect 2 here."""
+    spoken = to_speech_text("පිටුව 42 බලන්න")
+    assert " බලන්න" in spoken
+    assert "  " not in spoken
+
+
+def test_numbers_can_be_left_alone() -> None:
+    """With expansion off the digits are still deleted downstream, which is why
+    it defaults to on. The switch exists for comparison during evaluation."""
+    assert to_speech_text("පිටුව 42 බලන්න", numbers_as_words=False) == "පිටුව 42 බලන්න"
+    assert to_model_input("පිටුව 42 බලන්න", numbers_as_words=False) == "pituva balanna"
+
+
+# --------------------------------------------------------------------------
+# DEFECT 2 fixed: line breaks no longer join words
+# --------------------------------------------------------------------------
+
+
+def test_newlines_become_spaces_instead_of_disappearing() -> None:
+    assert to_ascii("මම\nගෙදර") == "mamagedhara"  # raw front end, unchanged
+    assert to_model_input("මම\nගෙදර") == "mama gedhara"
+
+
+def test_tabs_become_spaces() -> None:
+    assert to_model_input("column\tvalue") == "cholumn value"
+
+
+def test_runs_of_whitespace_collapse() -> None:
+    assert normalize_whitespace("  spaced   \n\n  out  ") == "spaced out"
+
+
+def test_zero_width_characters_are_removed_not_spaced() -> None:
+    """A soft hyphen or zero-width space must not split a word in two.
+
+    PDF layout inserts soft hyphens at line breaks, so turning one into a space
+    would break the word it was meant to be invisible inside.
+    """
+    assert normalize_whitespace("සම්­පූර්ණ") == "සම්පූර්ණ"
+    assert normalize_whitespace("වචන​යක්") == "වචනයක්"
+
+
+def test_zero_width_joiner_is_preserved_for_the_front_end() -> None:
+    """U+200D is meaningful in Sinhala conjuncts. The front end removes it at
+    the right moment; this module must not remove it early."""
+    assert "‍" in normalize_whitespace("ක්‍ෂ")
+    assert to_model_input("ක්‍ෂ") == "ksha"
+
+
+# --------------------------------------------------------------------------
+# DEFECT 3 still present, on purpose
+# --------------------------------------------------------------------------
+
+
+def test_english_only_text_is_still_mangled() -> None:
+    """Not fixed here, and the test says so.
+
+    Routing English-only segments differently would change pronunciation on
+    reasoning alone. That needs a listening comparison first, so the behaviour
+    is left alone and recorded rather than quietly altered.
+    """
+    assert to_model_input("computer") == "chomputher"
+
+
+def test_english_inside_sinhala_is_unaffected() -> None:
+    assert to_model_input("මෙය PDF ලේඛනයකි") == "meya pdf leekanayaki"
+
+
+def test_contains_sinhala_detects_the_dispatch_condition() -> None:
+    assert contains_sinhala("මෙය PDF ලේඛනයකි")
+    assert not contains_sinhala("computer")
+    assert not contains_sinhala("2024")
+
+
+# --------------------------------------------------------------------------
+# Empty output must never reach the model
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("text", ["", "   ", "()[]{}#@", "\n\n\t"])
+def test_text_that_normalises_to_nothing_is_not_speakable(text: str) -> None:
+    """Synthesising an empty string yields a silent clip that a cache would
+    store as valid audio, and a listener would experience as a skipped sentence
+    with no explanation."""
+    assert not is_speakable(to_model_input(text))
+
+
+def test_real_text_is_speakable() -> None:
+    assert is_speakable(to_model_input("මම ගෙදර යනවා."))
+    assert is_speakable(to_model_input("42"))
+
+
+# --------------------------------------------------------------------------
+# Invariants
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "පිටුව 42 බලන්න",
+        "2024 වර්ෂය දෙදහස්",
+        "1,500.50 සහ 50%",
+        "මෙය PDF ලේඛනයකි",
+        "line one\nline two",
+        "ක්‍ෂ ඥ ඤ",
+    ],
+)
+def test_model_input_is_always_ascii(text: str) -> None:
+    """Any non-ASCII byte reaching the tokenizer becomes [UNK]."""
+    assert to_model_input(text).isascii()
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["පිටුව 42 බලන්න", "  2024  වර්ෂය  ", "3.14 සහ 50%"],
+)
+def test_output_has_no_double_or_edge_spaces(text: str) -> None:
+    for produced in (to_speech_text(text), to_model_input(text)):
+        assert "  " not in produced
+        assert produced == produced.strip()
+
+
+def test_normalizer_version_is_declared() -> None:
+    """Cache identity includes it, so it has to exist and be a plain string."""
+    assert isinstance(NORMALIZER_VERSION, str)
+    assert NORMALIZER_VERSION
+
+
+def test_expand_numbers_leaves_text_without_digits_untouched() -> None:
+    assert expand_numbers("මම ගෙදර යනවා.") == "මම ගෙදර යනවා."
+
+
+def test_speech_text_stays_readable_sinhala() -> None:
+    """The middle stage must remain Sinhala a person can check, not ASCII.
+
+    Display and retrieval keep the original text; this is the separate spoken
+    form CLAUDE.md requires, and it is only useful if a reviewer can read it.
+    """
+    spoken = to_speech_text("පිටුව 42 බලන්න")
+    assert contains_sinhala(spoken)
+    assert not spoken.isascii()

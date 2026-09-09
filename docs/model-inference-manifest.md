@@ -238,23 +238,35 @@ fluent-sounding babble.
 
 Measured behaviour is locked in by
 `services/tts/tests/test_text_frontend_characterisation.py`. Three findings are
-defects for a document reader and must be fixed by a normaliser that runs
-**before** the front end, never by editing it:
+defects for a document reader. They are fixed by a normaliser that runs
+**before** the front end, never by editing it. `sinhala_tts.normalize` now does
+this for the first two; the third is deliberately left alone.
 
 1. **Digits are silently deleted.** `_KEEP` contains no digits, so
    `"2024 වර්ෂය"` → `"varshaya"` and `"පිටුව 42 බලන්න"` → `"pituva balanna"`.
    Years, page references, prices, decimals, and list numbering all vanish with
-   no indication to the listener. Numbers must be expanded to Sinhala words
-   before this lossy step, as CLAUDE.md requires.
+   no indication to the listener.
+   **Fixed** by `sinhala_numbers.py`, which writes cardinals 0–9999 as Sinhala
+   words before the lossy step. Its word forms still need native-speaker review,
+   and 10,000 and above is read digit by digit rather than guessed at.
 2. **Newlines and tabs are deleted rather than collapsed**, joining the words on
    either side: `"line one\nline two"` → `"line oneline thwo"`. PDF-extracted
    text is full of line breaks, so this would corrupt roughly one word per line
-   of a real document. Whitespace must be collapsed to single spaces first.
+   of a real document.
+   **Fixed** by `normalize_whitespace()`, which also strips soft hyphens and
+   zero-width spaces — PDF layout inserts them mid-word — while preserving
+   U+200D, which is meaningful in Sinhala conjuncts.
 3. **English-only text is romanised as if it were Sinhala**, because the
    dispatch checks whether *any* Sinhala codepoint is present: `"computer"` →
    `"chomputher"`. English *inside* a Sinhala sentence is unaffected, which is
-   what makes this easy to miss. Segment-level language handling is needed for
-   English headings, captions, and references.
+   what makes this easy to miss.
+   **Deliberately not fixed.** Calling `sinhala_to_ascii()` directly instead of
+   `to_ascii()` would skip the fold and leave `"computer"` intact — a one-line
+   change. It is not adopted because it changes pronunciation on the basis of
+   reasoning alone. This is a listening comparison to run, not a bug to patch:
+   the model was fine-tuned under the `en` token on folded ASCII, so which
+   spelling it renders better for English words is an empirical question.
+   `contains_sinhala()` is exposed to make that experiment easy.
 
 A fourth, minor: the module's own docstring lists `(`, `)` and `=` in its output
 charset. They are stripped. Trust the tests, not the docstring.
@@ -264,6 +276,11 @@ charset. They are stripped. Trust the tests, not the docstring.
 Required by CLAUDE.md before serving, and still missing:
 
 - Real synthesis run from this repository. No audio has been generated.
+- Native-speaker review of the Sinhala number word forms in
+  `services/tts/src/sinhala_tts/sinhala_numbers.py`. Until that happens,
+  narrated numbers are unverified.
+- Whether writing numbers out at all is the right default, judged by listening
+  rather than by reading the text.
 - First-audio latency, real-time factor, sustained throughput, and peak VRAM.
 - Whether 402 or 200 text tokens binds in practice, measured with the real
   tokenizer.

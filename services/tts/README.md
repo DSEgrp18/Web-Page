@@ -73,6 +73,45 @@ the fine-tune. Number expansion and whitespace normalisation belong in a
 normaliser that runs *before* `to_ascii()`, because the front end is lossy and
 nothing can be recovered afterwards.
 
-That normaliser is the next increment. When it lands, the `DEFECT` tests stay as
-they are — asserting the raw front end is unchanged — and new tests assert the
-corrected end-to-end pipeline.
+## The normaliser
+
+`sinhala_tts.normalize` is that wrapper. Defects 1 and 2 are fixed there;
+defect 3 is deliberately left alone, because changing English pronunciation on
+reasoning alone would be a quality change adopted without a listening test.
+
+```text
+display text  ──to_speech_text()──▶  spoken text  ──to_model_input()──▶  model text
+"පිටුව 42 බලන්න"                   "පිටුව හතළිස් දෙක බලන්න"        "pituva hathalis dheka balanna"
+   store and display                  store alongside display          never store; only tokenise
+```
+
+The middle stage is deliberate. CLAUDE.md requires the spoken text to be kept
+separate from the display text and forbids speech-expanded text being the only
+source for display or retrieval — a reader searching for "42" must not be
+matched against "හතළිස් දෙක". The middle stage is also the only one a reviewer
+can read, which is what makes a pronunciation complaint diagnosable.
+
+Callers must check `is_speakable()` before synthesising. Text can normalise to
+nothing (a segment of only symbols), and synthesising an empty string produces
+a silent clip that a cache would happily store as valid audio.
+
+`NORMALIZER_VERSION` belongs in the audio cache key alongside the text hash,
+document version, model version, voice, and generation settings. Bump it
+whenever the produced text changes, or stale audio will be served.
+
+### Numbers need a native-speaker review
+
+`sinhala_numbers.py` writes cardinals 0–9999 as words: `42` → `හතළිස් දෙක`,
+`2024` → `දෙදහස් විසි හතර`. The forms are standard spoken Sinhala, but they
+have **not been reviewed by a native speaker yet**, and `test_sinhala_numbers.py`
+is written so that review is a matter of reading expected values rather than
+code.
+
+The structural risk is the standalone/combining split: `විස්ස` alone but `විසි`
+before another word, `සියය` but `එකසිය`, `දෙදහස` but `දෙදහස්`. Correcting a form
+in the table fixes every number that uses it.
+
+Numbers of 10,000 and above are **not** attempted. Sinhala composition with
+`ලක්ෂ` is more intricate, and a confident wrong form is worse than the digit
+deletion this fixes, because it sounds right. Those are read digit by digit
+instead — clumsy, but nothing is lost and nothing is invented.
