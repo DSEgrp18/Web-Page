@@ -185,9 +185,25 @@ out = model.inference(
 | Setting | Value | Source |
 | --- | --- | --- |
 | `temperature` | **0.65** | Working service, deliberately overriding the config's 0.75 — a book reader wants consistency between sentences more than expressive variation |
-| `length_penalty` | 1.0 | `config.json` default, not overridden |
-| `repetition_penalty` | 5.0 | `config.json` default, not overridden |
-| `top_k` / `top_p` | 50 / 0.85 | `config.json` defaults, not overridden |
+| `length_penalty` | 1.0 | `Xtts.inference` default |
+| `repetition_penalty` | **10.0** | `Xtts.inference` default — **not** the config's 5.0 |
+| `top_k` / `top_p` | 50 / 0.85 | `Xtts.inference` defaults, same as the config's |
+| `do_sample` / `num_beams` | `True` / 1 | `Xtts.inference` defaults; sampling, not greedy |
+| `enable_text_splitting` | `False` | `Xtts.inference` default |
+
+**The config's generation settings are not in effect.** `Xtts.inference()`
+carries its own defaults in its signature, and the caller passes only `text`,
+`language`, the conditioning, `speed` and `temperature`. Anything not passed
+takes the *method's* default, not the value in `config.json`.
+
+For `top_k`, `top_p` and `length_penalty` the two agree, so it makes no
+difference. For `repetition_penalty` they do not: the config says 5.0, the
+method default is **10.0**, and 10.0 is what runs.
+
+This was recorded incorrectly here at first, from reading `config.json` and
+assuming an unpassed value falls back to it. Worth stating plainly because the
+same assumption would misreport every future settings change: to know what a
+run actually used, read the call site and the method signature, not the config.
 | `speed` | clamped to 0.5–2.0 | Working service; outside this range audio degrades badly |
 
 Output is a float32 waveform at 24 kHz. The working service clips to [-1, 1]
@@ -325,17 +341,65 @@ The thresholds also do not separate the cases cleanly. Measured pauses *inside*
 speech were 0.16–0.26 s and pauses *before* appended material were 0.26–0.70 s.
 Those ranges overlap, so no threshold can be both safe and complete.
 
-#### What to try next, in order
+#### Generation settings do not fix it
 
-1. **Generation settings.** The config's `repetition_penalty` of 5.0,
-   `length_penalty` of 1.0, `top_k` of 50 and `top_p` of 0.85 have not been
-   varied. The stop-token behaviour is the likely lever, and settings cost
-   nothing to test against the same fixed sentence with `--repeat`.
-2. **Retry on detection.** Generation is stochastic and roughly half of runs are
-   clean, so regenerating a flagged segment is cheap and safe, unlike trimming.
-   It needs a bounded retry count and must not mask a persistent failure.
-3. **Trimming, only if the first two fail**, and only after evaluating how often
-   it cuts real speech.
+Tested on 2026-09-09 with `scripts/settings_experiment.py`: the fixed sentence
+`මම ගෙදර යනවා.`, four runs per configuration, one variable changed at a time.
+
+| Configuration | Clean | Median duration | Mean appended |
+| --- | ---: | ---: | ---: |
+| baseline | 1/4 | 3.80 s | 1.38 s |
+| temperature 0.30 | 0/4 | 4.94 s | 2.49 s |
+| top_k 20, top_p 0.60 | 0/4 | 3.76 s | 1.99 s |
+| length_penalty 0.5 *(inert, see below)* | 0/4 | 3.78 s | 1.46 s |
+| repetition_penalty 5.0 | 2/4 | 2.85 s | 0.99 s |
+| greedy (`do_sample=False`) | 0/4 | 3.43 s | 0.90 s |
+
+**No configuration eliminated the appended audio.**
+
+**The decisive result is greedy.** With sampling disabled, all four runs
+produced *identical* output — 3.43 s, 0.90 s appended, every time. Determinism
+works, and the model still appends. So this is **not a sampling excursion; it is
+learned behaviour**, and no decoding strategy will remove it. That closes off
+the whole category of fixes.
+
+Two secondary findings:
+
+- **Lower temperature made it worse**, not better (2.49 s mean appended against
+  the baseline's 1.38 s). The hypothesis that a more conservative sampler would
+  stop more reliably was simply wrong.
+- **`length_penalty` was never applied.** Transformers ignores it when
+  `num_beams == 1`, which is XTTS's default, and says so in a warning that is
+  easy to miss among load messages. Confirmed by reading the validation source.
+  Those four runs are therefore extra baseline samples, not a tested variation —
+  which puts the baseline at **1 clean run in 8**, or about 12%.
+- `repetition_penalty` 5.0, the value `config.json` documents but the caller
+  never passes, was the best of the six at 2/4. With four runs that is not a
+  result, only a reason to test it properly.
+
+#### Where that leaves the fix
+
+Retrying a flagged segment still works, because sampling makes each attempt
+independent — but the arithmetic is poor. At the measured ~12% clean rate, four
+attempts reach only about 40%. Even at `repetition_penalty` 5.0's optimistic
+50%, four attempts cost four times the GPU for 94% coverage. For narrating whole
+books that is a serious cost, not a rounding error.
+
+So the options are now, in order:
+
+1. **Establish whether `repetition_penalty` 5.0 genuinely helps**, with enough
+   repeats to mean something (20+ per configuration). Cheap, and it is the
+   documented value we are not using.
+2. **Evaluate trimming**, which the earlier evidence deferred and this evidence
+   promotes. The measurement to make first is how often trimming at the first
+   long pause would cut *real* speech — using sentences with commas, and
+   multi-sentence segments. If that rate is near zero for single sentences, a
+   trimmer bounded to single-sentence segments becomes defensible.
+3. **Retry as a fallback**, bounded, for segments that still fail after trimming.
+
+Trimming remains the option that can silently truncate a document, so it needs
+that measurement before it is adopted, not after. But settings cannot fix this,
+and paying 4× GPU cost per segment is not a plan.
 
 This is a release blocker for narration quality, not a cosmetic issue.
 
@@ -462,10 +526,11 @@ Required by CLAUDE.md before serving, and still missing:
   intelligibility, pronunciation, whether the written-out numbers sound right —
   is open until someone plays the smoke-test WAVs. The written number forms are
   confirmed; how they sound from this model is not.
-- **A fix for the appended audio**, now confirmed by listening. Detection
-  exists; nothing prevents it yet. Generation settings are untried, and a
-  bounded retry on detection is the cheap safe option given roughly half of
-  runs are clean.
+- **A fix for the appended audio.** Detection exists; nothing prevents it.
+  Generation settings have now been tested and do not fix it — greedy decoding
+  is fully deterministic and still appends, so it is learned behaviour rather
+  than sampling noise. Trimming needs its false-cut rate measured; retry costs
+  multiples of GPU time at the measured ~12% clean rate.
 - GPU figures: first-audio latency, real-time factor, sustained throughput, and
   peak VRAM on serving hardware. The CPU run recorded above is not a substitute.
 - Whether 402 or 200 text tokens binds in practice, measured with the real
