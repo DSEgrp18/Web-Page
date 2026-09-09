@@ -247,7 +247,12 @@ def main() -> int:
                 wav = wav.detach().to(device="cpu", dtype=torch.float32).numpy()
             samples = np.asarray(wav, dtype=np.float32)
 
-            report = check_audio(samples, EXPECTED_SAMPLE_RATE, model_text=model_text)
+            report = check_audio(
+                samples,
+                EXPECTED_SAMPLE_RATE,
+                model_text=model_text,
+                expect_single_utterance=case.single_utterance,
+            )
             real_time_factor = (
                 synthesis_seconds / report.duration_seconds
                 if report.duration_seconds
@@ -282,6 +287,11 @@ def main() -> int:
                     "audio": asdict(report),
                 }
             )
+            if report.trailing_audio_seconds > 0:
+                print(
+                    f"  {report.trailing_audio_seconds:.2f}s of sound after the first "
+                    f"utterance, across {report.speech_regions} regions"
+                )
 
         durations = [run["audio"]["duration_seconds"] for run in runs]
         if args.repeat > 1:

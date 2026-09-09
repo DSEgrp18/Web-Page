@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .speech_regions import find_speech_regions, trailing_audio_seconds
+
 # The model's output rate, from config.json model_args.output_sample_rate.
 EXPECTED_SAMPLE_RATE = 24000
 
@@ -74,6 +76,12 @@ MAX_CHARS_PER_SECOND = 45.0
 MIN_DURATION_SECONDS = 0.15
 
 
+# Appended sound beyond this is worth a human ear. Below it, a short burst after
+# a pause is as likely to be breath or a natural sentence-final sound.
+# Provisional, like everything else here.
+MAX_TRAILING_SECONDS = 0.3
+
+
 @dataclass(frozen=True)
 class AudioReport:
     """What was measured, and what looks wrong.
@@ -88,6 +96,8 @@ class AudioReport:
     peak: float
     rms: float
     clipped_fraction: float
+    trailing_audio_seconds: float = 0.0
+    speech_regions: int = 0
     problems: list[str] = field(default_factory=list)
 
     @property
@@ -109,12 +119,19 @@ def check_audio(
     *,
     model_text: str | None = None,
     expected_sample_rate: int = EXPECTED_SAMPLE_RATE,
+    expect_single_utterance: bool = False,
 ) -> AudioReport:
     """Inspect decoded samples and report anything that looks wrong.
 
     ``samples`` is the float waveform as the model returns it, before any WAV
     encoding. ``model_text`` is the ASCII actually given to the model; when
     supplied, it enables the speech-rate check.
+
+    Set ``expect_single_utterance`` when the text was one sentence. This model
+    sometimes keeps generating after a sentence ends — confirmed by listening,
+    and measured in ``speech_regions`` — and this reports it. Leave it off for
+    text holding more than one sentence, where a second stretch of speech is
+    correct and flagging it would be a false positive.
 
     Never raises for bad audio — it returns a report. Deciding what to do with a
     problem (retry, route for review, refuse to cache) belongs to the caller.
@@ -132,6 +149,8 @@ def check_audio(
             peak=0.0,
             rms=0.0,
             clipped_fraction=0.0,
+            trailing_audio_seconds=0.0,
+            speech_regions=0,
             problems=["no samples were produced"],
         )
 
@@ -186,6 +205,15 @@ def check_audio(
                     "so speech is probably missing"
                 )
 
+    trailing = trailing_audio_seconds(samples, sample_rate) if sample_rate else 0.0
+    regions = len(find_speech_regions(samples, sample_rate)) if sample_rate else 0
+
+    if expect_single_utterance and trailing > MAX_TRAILING_SECONDS:
+        problems.append(
+            f"{trailing:.2f}s of sound after the sentence ended, across "
+            f"{regions} speech regions: the model probably kept generating"
+        )
+
     return AudioReport(
         sample_rate=sample_rate,
         sample_count=sample_count,
@@ -193,5 +221,7 @@ def check_audio(
         peak=peak,
         rms=rms,
         clipped_fraction=clipped_fraction,
+        trailing_audio_seconds=trailing,
+        speech_regions=regions,
         problems=problems,
     )

@@ -16,12 +16,17 @@ performance claim.
 | Working inference implementation inspected | Yes |
 | Text front end behaviour measured | Yes — see `services/tts/tests/` |
 | **Real synthesis run from this repository** | **Yes, on CPU — 2026-09-09** |
-| Speech quality judged by listening | Not yet |
+| Speech quality judged by listening | Partly — appended-audio fault confirmed |
 | GPU benchmark on serving hardware | No |
 
 The checkpoint loads and produces audio through the documented procedure. See
-"First measured run" below. Nobody has listened to the output yet, and no GPU
-figures exist, so there are no quality or latency claims here.
+"First measured run" below.
+
+One quality question has been answered by listening, and it is a bad answer:
+**the model sometimes keeps generating after a sentence ends**, appending
+invented sound. Everything else about quality — intelligibility, pronunciation,
+whether the written-out numbers sound right — remains unheard. No GPU figures
+exist. There are no latency claims here.
 
 ## Artifact identity
 
@@ -278,20 +283,61 @@ in proportion — a 5.57 s clip with 2 s of speech would measure far quieter tha
 a 1.90 s clip that is all speech. It does not. So the longer outputs contain
 *audio*, not padding.
 
-That leaves two candidates, and this evidence cannot separate them:
+#### Cause: confirmed by listening
 
-- the model continues generating speech-like material after the sentence ends, a
-  known XTTS failure mode; or
-- speech rate itself varies substantially run to run.
+**The project owner listened to `plain-short-1.wav` (1.90 s) against
+`plain-short-5.wav` (5.57 s) on 2026-09-09 and confirmed the second contains the
+sentence followed by extra sound.**
 
-**Only listening can tell them apart**, and nobody has listened. Compare
-`plain-short-1.wav` (1.90 s) against `plain-short-5.wav` (5.57 s): if the second
-contains the sentence followed by extra sound, it is the first; if it is simply
-the same sentence spoken slowly, it is the second. This is the single most
-useful listening test available right now.
+The model keeps generating after the sentence ends. This is a known XTTS failure
+mode, and it is **not** a speech-rate difference.
 
-If it is trailing material, it is serious for a document reader: a listener
-would hear invented sound after each sentence, cached and replayed every time.
+Measuring the waveform envelope shows the structure. The sentence itself ends
+between 1.00 s and 1.44 s in every clip; what varies is what follows:
+
+| Clip | Sentence ends | Pause | Sound after the pause |
+| --- | ---: | ---: | ---: |
+| 1.90 s | 1.26 s | 0.62 s | none |
+| 2.27 s | 1.44 s | 0.62 s | none |
+| 4.45 s | 1.36 s | 0.44 s | 2.06 s |
+| 4.31 s | 1.44 s | 0.70 s | 1.94 s |
+| 5.57 s | 1.40 s | 0.52 s | 3.24 s |
+
+The appended material is separated by a silence, which makes it detectable.
+`sinhala_tts.speech_regions` does that, and `check_audio` reports it when the
+caller declares the text was a single sentence.
+
+**It is not rare.** Across the eight smoke cases and six variance runs, appended
+audio was detected in roughly half. Some of those are false positives —
+`plain-longer` genuinely holds two sentences, and a pause before an English
+acronym looks the same to a detector — but `plain-short` at 3.42 s of appended
+sound is not one of them.
+
+#### Why detection, and not trimming
+
+The detector reports; it does not cut. Automatically trimming risks truncating
+real speech, and for a reader used by people who cannot see the page, silently
+dropping the end of a sentence is far worse than a stretch of unwanted sound: a
+listener can tell that trailing noise is not part of the book, but cannot tell
+that a sentence was cut short.
+
+The thresholds also do not separate the cases cleanly. Measured pauses *inside*
+speech were 0.16–0.26 s and pauses *before* appended material were 0.26–0.70 s.
+Those ranges overlap, so no threshold can be both safe and complete.
+
+#### What to try next, in order
+
+1. **Generation settings.** The config's `repetition_penalty` of 5.0,
+   `length_penalty` of 1.0, `top_k` of 50 and `top_p` of 0.85 have not been
+   varied. The stop-token behaviour is the likely lever, and settings cost
+   nothing to test against the same fixed sentence with `--repeat`.
+2. **Retry on detection.** Generation is stochastic and roughly half of runs are
+   clean, so regenerating a flagged segment is cheap and safe, unlike trimming.
+   It needs a bounded retry count and must not mask a persistent failure.
+3. **Trimming, only if the first two fail**, and only after evaluating how often
+   it cuts real speech.
+
+This is a release blocker for narration quality, not a cosmetic issue.
 
 This is measured, not resolved, and it has consequences:
 
@@ -416,10 +462,10 @@ Required by CLAUDE.md before serving, and still missing:
   intelligibility, pronunciation, whether the written-out numbers sound right —
   is open until someone plays the smoke-test WAVs. The written number forms are
   confirmed; how they sound from this model is not.
-- **The cause of the 2.93x duration spread**, which listening to
-  `plain-short-1.wav` against `plain-short-5.wav` would settle in under a
-  minute. Until then it is unknown whether the model appends material after a
-  sentence.
+- **A fix for the appended audio**, now confirmed by listening. Detection
+  exists; nothing prevents it yet. Generation settings are untried, and a
+  bounded retry on detection is the cheap safe option given roughly half of
+  runs are clean.
 - GPU figures: first-audio latency, real-time factor, sustained throughput, and
   peak VRAM on serving hardware. The CPU run recorded above is not a substitute.
 - Whether 402 or 200 text tokens binds in practice, measured with the real

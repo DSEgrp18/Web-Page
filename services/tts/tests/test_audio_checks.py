@@ -122,3 +122,46 @@ def test_report_summary_is_readable() -> None:
     summary = check_audio(speech_like(1.0), RATE).summary()
     assert summary.startswith("OK:")
     assert "Hz" in summary
+
+
+# --------------------------------------------------------------------------
+# Appended audio after the sentence ends
+# --------------------------------------------------------------------------
+# The model sometimes keeps generating past the end of a sentence. Confirmed by
+# listening: the same five-word sentence produced 1.90s of clean audio in one
+# run and 5.57s in another, where the extra was sound rather than silence.
+
+
+def test_appended_audio_is_reported_for_a_single_sentence() -> None:
+    audio = np.concatenate(
+        [speech_like(1.40), np.zeros(int(RATE * 0.52), dtype=np.float32), speech_like(3.65)]
+    )
+    report = check_audio(audio, RATE, expect_single_utterance=True)
+    assert not report.ok
+    assert any("after the sentence ended" in problem for problem in report.problems)
+    assert report.trailing_audio_seconds > 3.0
+    assert report.speech_regions == 2
+
+
+def test_clean_output_reports_no_appended_audio() -> None:
+    """Speech then silence: what a correctly terminated utterance looks like."""
+    audio = np.concatenate([speech_like(1.26), np.zeros(int(RATE * 0.62), dtype=np.float32)])
+    report = check_audio(audio, RATE, expect_single_utterance=True)
+    assert report.ok, report.problems
+    assert report.trailing_audio_seconds == 0.0
+    assert report.speech_regions == 1
+
+
+def test_multi_sentence_text_is_not_flagged_by_default() -> None:
+    """A second stretch of speech is correct when the text held two sentences.
+
+    Flagging it would be a false positive, which is why the check is opt-in
+    rather than always on.
+    """
+    audio = np.concatenate(
+        [speech_like(1.40), np.zeros(int(RATE * 0.52), dtype=np.float32), speech_like(2.0)]
+    )
+    report = check_audio(audio, RATE)
+    assert report.ok, report.problems
+    # Still measured and reported, just not treated as a fault.
+    assert report.trailing_audio_seconds > 1.5
