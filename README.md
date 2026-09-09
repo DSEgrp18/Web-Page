@@ -22,7 +22,8 @@ rather than written ahead of them.
 | --- | --- |
 | Repository governance, CI, branch protection | In place |
 | Legacy FM-Abhaya font data (vendored, verified) | In place, decoder not implemented |
-| Sinhala XTTS inference integration | Not started; model bundle exists out of band |
+| Sinhala TTS text front end | Vendored and tested; three defects documented |
+| Sinhala XTTS inference | Not started. Procedure, settings, and limits recorded in [the manifest](docs/model-inference-manifest.md); no audio generated yet |
 | Document upload, extraction, and playback | Not started |
 | Retrieval and document question answering | Not started |
 
@@ -67,7 +68,9 @@ commercial deployment.
 ## Repository layout
 
 ```text
+services/tts/        Sinhala XTTS text front end (inference adapter to follow)
 data/legacy_fonts/   Vendored FM-Abhaya to Unicode mapping (MIT, hash-verified)
+docs/                Inference manifest and repository setup evidence
 scripts/             Repository verification scripts
 .github/             CI, code owners, issue and pull request templates
 CLAUDE.md            Governing project specification
@@ -77,9 +80,8 @@ SECURITY.md          Vulnerability and private-data reporting
 LICENSE              MIT licence for this repository's code
 ```
 
-Application directories (`apps/web/`, `services/api/`, `services/worker/`,
-`services/tts/`, `evaluation/`, `infra/`, `docs/`) are created by the pull
-requests that introduce them.
+The remaining directories (`apps/web/`, `services/api/`, `services/worker/`,
+`evaluation/`, `infra/`) are created by the pull requests that introduce them.
 
 ## Contributing
 

@@ -58,6 +58,32 @@ jobs:
       - name: ShellCheck
         run: shellcheck --severity=style scripts/*.sh
 
+  tts-text-frontend:
+    name: TTS text front end
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/tts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install test tooling
+        # The text front end is pure standard library, so these tests need no
+        # torch, no CUDA, and not the 5.6 GB checkpoint. That is deliberate: it
+        # keeps the text path testable on every pull request.
+        run: python -m pip install --disable-pip-version-check "pytest>=8" "ruff>=0.15"
+      - name: Lint
+        run: ruff check .
+      - name: Format check
+        run: ruff format --check .
+      - name: Tests
+        run: python -m pytest
+
   # Aggregate gate. This is the single required status check on main, so it must
   # always report a conclusion, even when a job above is skipped or cancelled.
   #
@@ -68,7 +94,7 @@ jobs:
   ci:
     name: ci
     if: always()
-    needs: [vendored-assets, repo-hygiene, shell-scripts]
+    needs: [vendored-assets, repo-hygiene, shell-scripts, tts-text-frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
