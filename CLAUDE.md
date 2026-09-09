@@ -82,6 +82,26 @@ Define small typed interfaces for extraction, OCR, and TTS, with implementations
 
 ## Integrating the existing model
 
+### Available local model assets
+
+The owner's trained model has been copied to `models/xtts_si_female/` in this workspace. The actual source folder was verified as `C:/D/Github Projects/PDF-Tool/voice-service/models/xtts_si_female/` (underscores belong in the directory name, not separate path components).
+
+Local destination: `C:/D/Github Projects/Web-Page/models/xtts_si_female/`.
+
+| Required file | Verified bytes |
+| --- | ---: |
+| `model.pth` | 5,607,762,519 |
+| `vocab.json` | 376,645 |
+| `config.json` | 4,526 |
+| `sinhala_text.py` | 10,652 |
+| `reference.wav` | 271,916 |
+
+Only these five files belong in this local model bundle. Do not copy the source `archive/` or `__pycache__/`. The owner identifies `archive/` as an accidentally extracted duplicate checkpoint; leave the original source and archive untouched. Load `model.pth` as a checkpoint, not as an archive to unpack.
+
+The owner confirms that `sinhala_text.py` / `to_ascii()` is the required text frontend, `reference.wav` is the separately supplied speaker-conditioning clip, and `vocab.json` must match the checkpoint. Keep all five assets together; do not replace the tokenizer or omit the reference audio. Runtime inference and dependency compatibility still need verification.
+
+`/models/` is ignored by Git. Never force-add these assets, embed them in application images by accident, or upload them to GitHub. Configure the model directory through the application environment when implementing serving, mount it explicitly into the inference container, and provide a separate authorized artifact-delivery process for teammates and deployment. This local folder does not exist automatically on their machines.
+
 Before connecting real inference, establish:
 
 - Checkpoint location and exact artifact version/checksum.
@@ -109,7 +129,7 @@ Use an internal adapter equivalent to `synthesize(text, voice_id, settings) -> a
 
 ### Model-specific checks from the reference project
 
-The supplied seed documentation reports a model using `sinhala_text.py` / `to_ascii()`, an `en` language token, and speaker conditioning from `reference.wav`. These are leads to verify against the actual supplied model, not established facts about this repository.
+The owner confirms the bundled `sinhala_text.py` / `to_ascii()` frontend and `reference.wav` conditioning asset. The seed documentation additionally reports an `en` language token; verify that token and all runtime settings against the actual config and working script before inference.
 
 - Inspect the working script before passing raw Sinhala or choosing a language token. Never infer the token from the final entry of a language list or assume that the UI language is the inference token.
 - If the model requires its bundled romanizer, preserve and version that exact implementation. Fail clearly when a required preprocessing asset is missing.
@@ -140,10 +160,10 @@ Text corrections create a new document version and invalidate affected audio and
 
 ### Legacy fonts and extraction validation
 
-The user-supplied reference contains `data/legacy_fonts/fm_abhaya.tsv` and `fm_abhaya_cases.tsv`, with six supplied conversion examples. These assets are currently external to this repository; do not claim they are installed or depend on an absolute local path at runtime.
+This repository includes `data/legacy_fonts/fm_abhaya.tsv` and `fm_abhaya_cases.tsv`, with six supplied conversion examples copied unchanged from the user-supplied reference. Their README records provenance and copy-verification hashes, and the upstream MIT license is included. Resolve these assets relative to the repository/package; do not depend on the seed project's absolute local path. The converter itself is not implemented yet.
 
 - Inspect per-span font metadata and normalize subset prefixes when identifying a legacy font. Pages may mix Unicode headings and legacy body text; decode at span/line level rather than applying one mapping to the entire page.
-- Reuse a documented mapping rather than inventing one. Before vendoring the reference data, verify provenance and retain the applicable license and attribution.
+- Reuse the documented mapping rather than inventing one. Preserve its included license and attribution, and verify provenance for any future additions or replacements.
 - The supplied table specifies two ordered passes, `[rules]` then `[letters]`, each using longest-match-first application. Preserve its documented semantics and test all supplied examples character-for-character.
 - Do not apply an FM-Abhaya table to another font family without validated compatibility. Route unsupported or failed conversions to OCR/review and announce the limitation.
 - A high proportion of Sinhala codepoints does not prove correct conversion. Evaluate unmapped letters and invalid combining-mark sequences, including English and mixed-language negative examples.
@@ -306,6 +326,87 @@ Indicative schedule: 12 weeks for a 3–4 person team with working inference; re
 - Document actual setup, environment variables, migrations, commands, and deployment steps as they are implemented. Do not invent runnable commands before tooling exists.
 - Keep a model/inference manifest, architecture notes, evaluation protocol, benchmark results, and operator runbook.
 - Product UI should explain user-relevant state and limitations without exposing infrastructure jargon.
+
+## Git commits, identity, and automatic pushing
+
+The project owner explicitly requests that Claude Code **commit and push automatically after every small, completed implementation increment**. This is standing authorization for ordinary commits and pushes to the current task branch; do not repeatedly ask for permission. It does not authorize bypassing branch protections, force-pushing shared history, merging without review, or publishing secrets/private assets.
+
+A small increment is one coherent, reviewable change, such as an endpoint, reader control, adapter, bug fix, or configuration improvement. Do not wait until the entire feature or task is finished, and do not create commits for every individual file edit.
+
+For each increment:
+
+1. Inspect the branch, remote, working tree, and existing changes. Use a short-lived task branch, never implement directly on protected `main`.
+2. Complete the change and run relevant available checks. Fix failures caused by the change before committing; disclose unavailable checks without claiming success.
+3. Review the diff for unrelated edits, credentials, private documents, model weights, generated audio, and other large artifacts. Stage only files belonging to the increment.
+4. Commit with a concise descriptive message, preferably `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, or `ci:`.
+5. Push the commit to the verified task branch, setting its upstream on the first push. Verify success and report the branch and commit hash with a concise outcome.
+6. If authentication, connectivity, permissions, or a non-fast-forward rejection blocks pushing, preserve the local commit, explain the blocker, and resolve it without force-pushing or discarding teammates' work. Never report an unpushed commit as pushed.
+
+### Human authorship only
+
+- For work Claude Code performs on behalf of the project owner, use the owner's confirmed Git name and email for author and committer. Check the effective Git identity first; do not invent an identity or copy a teammate's from repository history.
+- If the correct identity is unknown or mismatched, obtain the owner's name/email once before committing. Prefer repository-local Git configuration; never change global Git identity for this project.
+- Do not add Claude, Anthropic, an AI bot, `Co-authored-by: Claude`, or generated-by attribution to commits or pull-request descriptions. Honor this through Claude Code's supported attribution configuration when available, verifying the installed version's setting format before editing it.
+- Inspect the actual commit metadata/message to confirm the human identity and absence of automatically inserted AI trailers. GitHub attribution also depends on the email being associated with the owner's account; use a confirmed account email or GitHub noreply address.
+- These instructions apply to the owner's assisted changes. The other two collaborators retain authorship of their own commits. Never rewrite their authorship, impersonate them, or remove legitimate human attribution.
+- Configure changes prospectively. Do not rewrite already-pushed history just to change attribution without a separate explicit request.
+
+## Three-person GitHub collaboration
+
+This project is developed by the owner and two other members. Repository setup is an implementation task, not something already completed by this document.
+
+### Initial setup
+
+- Inspect the existing Git remote and GitHub repository before creating anything. Preserve the intended repository and its existing history.
+- Obtain missing repository owner/name, visibility preference, and the two collaborators' GitHub usernames before dependent setup. Do not guess identities or publish a private repository.
+- Keep the owner as administrator and grant collaborators the least privilege needed to push task branches and review PRs, normally write access.
+- Use protected `main` as the integration/release branch and short-lived branches such as `feat/<issue>-<topic>`, `fix/<issue>-<topic>`, or `chore/<topic>`. Follow an established branch convention if one already exists.
+- Track bounded work in GitHub issues with acceptance criteria and a named owner. Divide ownership by area while allowing cross-review; keep coordination in `CONTRIBUTING.md` and issues.
+- Add `.github/PULL_REQUEST_TEMPLATE.md`, issue templates, `CONTRIBUTING.md`, and `.github/CODEOWNERS` using confirmed usernames. Cover frontend/accessibility, backend/document processing, and inference/operations with a primary and backup reviewer where practical.
+- Create or update a draft PR after the first useful increment and keep pushing small commits to that PR. Mark it ready only when its acceptance criteria and relevant checks pass. The owner's standing workflow authorization includes these task PRs, but not automatic merging.
+
+### Main-branch rules
+
+Configure available GitHub rulesets/branch protection to require:
+
+- Pull requests for changes to `main`, with at least one approval from another team member.
+- Required CI checks and resolved review conversations before merging.
+- Dismissal of stale approvals when new commits change reviewed code.
+- An up-to-date branch before merging, or a supported merge queue if later justified.
+- No force pushes or branch deletion; avoid routine administrator bypass.
+- Review of workflow, deployment, and sensitive infrastructure changes by the responsible human owner.
+
+Use a merge strategy that preserves the intended human attribution; verify squash author/message before a human merges. Automatically pushing task commits does not mean automatically merging or deploying them to production.
+
+Protection features depend on the repository's visibility, GitHub plan, and permissions. Verify availability during setup and document any unenforced rule explicitly. A `CODEOWNERS` or workflow file alone does not enable server-side branch protection.
+
+## CI/CD implementation requirements
+
+Build workflows alongside the first runnable services, using actual project commands. Do not add required status names for checks that do not exist or let a skipped placeholder stand in for a passing test.
+
+### Pull requests and task-branch pushes
+
+- Run formatting/linting, type checks, focused unit/contract tests, and frontend production builds for implemented components.
+- Add PostgreSQL/Redis integration tests for authorization, job idempotency, and cache invalidation as those components arrive.
+- Run an accessibility smoke test on core reader flows; retain manual screen-reader testing as a separate release requirement.
+- Validate Docker builds and scan relevant dependency/secret changes using available tooling. Cache dependencies and cancel superseded branch runs.
+- Keep an always-reported aggregate required check so path-filtered jobs cannot leave PRs permanently pending or bypass meaningful checks. Configure its dependencies to fail on errors or cancellations.
+- Use minimal workflow token permissions and pin external actions to reviewed immutable revisions. Never expose deployment/model credentials to untrusted PR code or run it on a privileged self-hosted GPU runner.
+- Fast PR tests may use labelled adapters. Real-model smoke tests run on a trusted, access-controlled GPU environment before inference releases; distinguish these results clearly.
+
+### Staging and production
+
+- After a reviewed merge to `main`, build immutable images tagged with the commit SHA, deploy to staging when configured, and run health, migration, API, and playback smoke tests.
+- Promote the tested image/artifact to production through a release tag or explicit workflow dispatch, with human approval through a protected environment where supported. Do not deploy production on every task-branch push.
+- Separate staging/production secrets and storage, use short-lived cloud authentication where supported, and serialize deployments per environment.
+- Make schema migrations explicit and backward-compatible where possible. Back up before risky migrations and document recovery; application rollback alone may not reverse database changes.
+- Record the application SHA, image digest, model checksum, and retrieval/prompt configuration for each release. Do not replace model weights during ordinary application deployment.
+- On failed deployment smoke tests, stop promotion and restore the previous known-good compatible release when safe. Surface the failure and verify recovery.
+- Avoid paid nightly GPU jobs by default. Add scheduled evaluations only with an agreed budget and useful regression coverage.
+
+### Setup completion evidence
+
+When implementing repository setup, report which files were created, which remote protections and collaborator permissions were actually applied, the required status names, and a verified CI run. Report pending invitations, unavailable plan features, missing credentials, and unconfigured deployment environments honestly. Never describe the repository as protected or deployed merely because configuration files were committed.
 
 ## Reference documentation
 

@@ -1,0 +1,76 @@
+# ---------------------------------------------------------------------------
+# Secrets. Templates ending in .example are the only env files ever committed.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+!**/testdata/**/*.key
+secrets/
+
+# ---------------------------------------------------------------------------
+# Model artifacts. The Sinhala XTTS bundle is delivered out of band and mounted
+# into the inference container; it must never enter Git history.
+# See CLAUDE.md, "Available local model assets".
+# ---------------------------------------------------------------------------
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+/models/
+/checkpoints/
+
+# ---------------------------------------------------------------------------
+# Private and runtime data. data/legacy_fonts stays tracked.
+# ---------------------------------------------------------------------------
+/data/uploads/
+/data/private/
+/data/raw/
+/data/generated/
+/data/cache/
+/uploads/
+/generated_audio/
+
+# ---------------------------------------------------------------------------
+# Dependencies, build output, caches
+# ---------------------------------------------------------------------------
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+coverage/
+playwright-report/
+test-results/
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# ---------------------------------------------------------------------------
+# Editors and operating systems
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# ---------------------------------------------------------------------------
+# Local tooling
+# ---------------------------------------------------------------------------
+*.log
+.claude/settings.local.json

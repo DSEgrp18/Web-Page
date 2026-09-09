@@ -1,0 +1,35 @@
+# Normalise stored line endings to LF. The team develops on Windows while CI,
+# Docker images, and the GPU inference host run Linux; committing CRLF breaks
+# shell entrypoints and produces noisy cross-platform diffs.
+* text=auto eol=lf
+
+# Preserve vendored Unicode tables byte-for-byte across checkouts. These carry
+# verified SHA-256 provenance (see data/legacy_fonts/README.md) and must not be
+# normalised or the hashes stop matching upstream.
+data/legacy_fonts/*.tsv -text
+
+# Windows-only scripts keep CRLF so they remain runnable when checked out.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets: never diff, never normalise.
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.pth binary
+*.pt binary
+*.ckpt binary
+*.safetensors binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Lockfiles are generated; collapse them in review diffs.
+package-lock.json linguist-generated=true -diff
+pnpm-lock.yaml linguist-generated=true -diff
+poetry.lock linguist-generated=true -diff
+uv.lock linguist-generated=true -diff
