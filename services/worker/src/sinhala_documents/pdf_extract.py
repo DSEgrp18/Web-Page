@@ -25,13 +25,19 @@ from __future__ import annotations
 
 import io
 from collections.abc import Iterable, Sequence
+from dataclasses import replace
 from pathlib import Path
 
 import pdfplumber
 from pdfminer.pdfdocument import PDFPasswordIncorrect
 from pdfminer.pdfparser import PDFSyntaxError
 
-from .fonts import identify_legacy_font, looks_like_legacy_text
+from .fonts import (
+    font_encoding_looks_wrong,
+    identify_legacy_font,
+    is_unreadable_script,
+    looks_like_legacy_text,
+)
 from .layout import suspects_multiple_columns
 from .model import (
     BoundingBox,
@@ -58,19 +64,45 @@ _SIZE_PRECISION = 1
 #: 7pt type and a heading in 24pt do not share a word gap.
 _WORD_GAP_RATIO = 0.25
 
+#: Characters drawn outside the page box before it is worth remarking on. A
+#: handful is ordinary rounding at the margin; hundreds mean the producer left
+#: something on the pasteboard.
+_OFF_PAGE_NOTE_THRESHOLD = 20
+
 _LEGACY_CONVERTIBLE_NOTE = (
     "Text is in the legacy Sinhala font {name}. A conversion table exists for this family "
     "but the converter is not implemented, so the text cannot be read yet."
 )
 
 _LEGACY_UNSUPPORTED_NOTE = (
-    "Text is in the legacy Sinhala font {name}, for which there is no validated conversion "
+    "Text is in the legacy font {name}, for which there is no validated conversion "
     "table. It needs optical recognition or manual review."
+)
+
+_LEGACY_VARIANT_NOTE = (
+    "Text is in the legacy font {name}, which looks like a variant of {family}. Whether "
+    "the {family} conversion table applies to it has not been validated, so the text "
+    "cannot be read yet."
 )
 
 _SUSPECT_ENCODING_NOTE = (
     "The extracted characters do not look like Sinhala or ordinary English, which can mean "
     "an unrecognised legacy font. It needs checking."
+)
+
+_OTHER_SCRIPT_NOTE = (
+    "This text is written in another script, which this reader has no voice for. It is "
+    "shown but not read aloud."
+)
+
+_UNNAMED_LEGACY_NOTE = (
+    "All the text set in {name} on this page decodes to nonsense, and this page also uses "
+    "a known legacy Sinhala font. It is being treated as legacy text and cannot be read yet."
+)
+
+_SUSPECT_FONT_NOTE = (
+    "All the text set in {name} on this page decodes to something that is neither Sinhala "
+    "nor ordinary English. It needs checking."
 )
 
 
@@ -89,9 +121,19 @@ def _classify_span(
     """Decide how a run of text was encoded and whether it can be narrated."""
     legacy = identify_legacy_font(raw_font)
     if legacy is not None:
-        template = _LEGACY_CONVERTIBLE_NOTE if legacy.convertible else _LEGACY_UNSUPPORTED_NOTE
-        note = template.format(name=legacy.raw_name)
+        if legacy.convertible:
+            note = _LEGACY_CONVERTIBLE_NOTE.format(name=legacy.raw_name)
+        elif legacy.variant_of:
+            note = _LEGACY_VARIANT_NOTE.format(name=legacy.raw_name, family=legacy.variant_of)
+        else:
+            note = _LEGACY_UNSUPPORTED_NOTE.format(name=legacy.raw_name)
         return ExtractionMethod.LEGACY, QualityState.UNDECODABLE, (note,)
+
+    if is_unreadable_script(text):
+        # Extracted correctly, in a script this reader cannot speak. Withheld
+        # rather than flagged: a Sinhala voice handed Tamil or Devanagari
+        # produces confident noise, and a listener cannot tell.
+        return ExtractionMethod.NATIVE, QualityState.UNDECODABLE, (_OTHER_SCRIPT_NOTE,)
 
     if looks_like_legacy_text(text):
         # The font name did not give it away. This is a weak, uncalibrated
@@ -177,6 +219,25 @@ def _spans(chars: Sequence[dict]) -> tuple[TextSpan, ...]:
     return tuple(spans)
 
 
+def visible(page: pdfplumber.page.Page) -> pdfplumber.page.Page:
+    """The page clipped to the area that is actually printed.
+
+    A PDF content stream may draw outside the page box, and the result is
+    invisible when the page is rendered. Real files do this: a 168-page Grade 11
+    history textbook drew 3,322 of one page's 3,792 characters off the sheet —
+    an entire duplicated article, which extraction then interleaved character by
+    character with the four visible lines.
+
+    Nothing warns about it. The text is real text, and the merged result reads
+    as fluent nonsense. Since it is invisible on the page, a listener should not
+    hear it either: matching what a sighted reader gets is the whole point.
+    """
+    try:
+        return page.crop(page.bbox)
+    except Exception:  # noqa: BLE001 - an odd page box is not a reason to lose the page
+        return page
+
+
 def _lines(page: pdfplumber.page.Page) -> tuple[TextLine, ...]:
     try:
         # keep_blank_chars keeps the space characters that are genuinely in the
@@ -195,6 +256,62 @@ def _lines(page: pdfplumber.page.Page) -> tuple[TextLine, ...]:
     return tuple(lines)
 
 
+def _reclassify_by_font(lines: tuple[TextLine, ...]) -> tuple[TextLine, ...]:
+    """Judge each unidentified font once, on all its text on this page.
+
+    Encoding is a property of a font, not of a line, so the evidence for it is
+    every character set in that font. A font named only ``CIDFont+F2`` gives the
+    name-based check nothing to work with, and twenty characters give the
+    shape-based check too little; the page's worth of text in that font settles
+    it either way.
+
+    Aggregating per *page* rather than per document is deliberate: a page must
+    be classified the same whether it was requested on its own or as part of the
+    whole book, or the same text would be narrated in one request and withheld
+    in another.
+
+    The verdict is only ever escalated. A font the name check already identified
+    is left alone, and text that reads normally is never demoted.
+    """
+    aggregate: dict[str, str] = {}
+    for line in lines:
+        for span in line.spans:
+            if span.method is ExtractionMethod.NATIVE:
+                aggregate[span.raw_font] = aggregate.get(span.raw_font, "") + span.text
+
+    wrong = {font for font, text in aggregate.items() if font_encoding_looks_wrong(text)}
+    if not wrong:
+        return lines
+
+    # A page that also carries a font positively identified as legacy is a page
+    # set in a pre-Unicode workflow. That context is what separates "this font
+    # decodes to nonsense" from "this font decodes to nonsense and we know why".
+    known_legacy = any(
+        span.method is ExtractionMethod.LEGACY for line in lines for span in line.spans
+    )
+    method = ExtractionMethod.LEGACY if known_legacy else ExtractionMethod.NATIVE
+    quality = QualityState.UNDECODABLE if known_legacy else QualityState.NEEDS_REVIEW
+    note = _UNNAMED_LEGACY_NOTE if known_legacy else _SUSPECT_FONT_NOTE
+
+    return tuple(
+        TextLine(
+            spans=tuple(
+                replace(
+                    span,
+                    method=method,
+                    quality=quality,
+                    notes=(note.format(name=span.raw_font),),
+                )
+                if span.raw_font in wrong and span.method is ExtractionMethod.NATIVE
+                else span
+                for span in line.spans
+            ),
+            box=line.box,
+        )
+        for line in lines
+    )
+
+
 def _page_kind(has_text: bool, image_count: int) -> PageKind:
     if has_text and image_count:
         return PageKind.MIXED
@@ -206,7 +323,11 @@ def _page_kind(has_text: bool, image_count: int) -> PageKind:
 
 
 def _page_notes(
-    kind: PageKind, image_count: int, lines: tuple[TextLine, ...], columns: bool
+    kind: PageKind,
+    image_count: int,
+    lines: tuple[TextLine, ...],
+    columns: bool,
+    off_page: int = 0,
 ) -> tuple[str, ...]:
     """Why this page is the way it is, in words a reader can be told.
 
@@ -239,16 +360,27 @@ def _page_notes(
             f"{withheld} of {len(lines)} lines on this page use a legacy Sinhala font and "
             f"cannot be read yet."
         )
+
+    if off_page >= _OFF_PAGE_NOTE_THRESHOLD:
+        # Not shown to the reader as a loss — it is not visible on the page
+        # either — but a producer that draws this much off the sheet is worth
+        # knowing about when a page is reported as unexpectedly empty.
+        notes.append(
+            f"{off_page} characters are drawn outside the printed area of this page and have "
+            f"been left out, as they are not visible in the document."
+        )
     return tuple(notes)
 
 
 def extract_page(page: pdfplumber.page.Page, index: int, label: str | None) -> PageExtraction:
     """Everything one page yields, with the notes needed to explain it."""
-    image_count = len(page.images)
-    lines = _lines(page)
+    printed = visible(page)
+    image_count = len(printed.images)
+    lines = _reclassify_by_font(_lines(printed))
     has_text = any(line.text.strip() for line in lines)
     kind = _page_kind(has_text, image_count)
-    columns = has_text and suspects_multiple_columns(page.chars, float(page.width))
+    columns = has_text and suspects_multiple_columns(printed.chars, float(page.width))
+    off_page = len(page.chars) - len(printed.chars)
 
     return PageExtraction(
         page_index=index,
@@ -258,7 +390,7 @@ def extract_page(page: pdfplumber.page.Page, index: int, label: str | None) -> P
         kind=kind,
         lines=lines,
         image_count=image_count,
-        notes=_page_notes(kind, image_count, lines, columns),
+        notes=_page_notes(kind, image_count, lines, columns, off_page),
     )
 
 
