@@ -80,24 +80,33 @@ _LEGACY_NAMES = frozenset(
     }
 )
 
-#: Families whose names suggest a variant of a family we *can* convert, without
-#: proving it. ``FMAbabld`` is almost certainly FM-Abhaya Bold — it sets the
-#: headings in a book whose body is FM-Abhaya — but "almost certainly" is not
-#: the standard CLAUDE.md sets for applying a mapping table, because a wrong
-#: table produces fluent Sinhala saying something the author never wrote.
-#:
-#: So this changes the note, not the verdict. Whoever implements the converter
-#: gets told where to look; nothing is decoded on a guess.
+#: Families that are styled variants of another, and are converted with that
+#: family's table. Recorded separately from the table itself so it stays visible
+#: that these are not the family the table was published for.
 _VARIANT_OF = {
     "fmababld": "fmabhaya",
     "fmabhayabld": "fmabhaya",
 }
 
-#: Legacy families this project can actually convert. Only FM-Abhaya has a
-#: mapping table in ``data/legacy_fonts/``, and CLAUDE.md forbids applying it to
-#: another family without validated compatibility — a wrong mapping produces
-#: fluent-looking Sinhala that says something else, which is worse than none.
-CONVERTIBLE_FAMILIES = frozenset({"fmabhaya"})
+#: Legacy families this project can convert. Only FM-Abhaya has a mapping table
+#: in ``data/legacy_fonts/``, and CLAUDE.md forbids applying it to another family
+#: without *validated* compatibility — a wrong mapping produces fluent-looking
+#: Sinhala that says something else, which is worse than none.
+#:
+#: ``fmababld`` is here on validated evidence, not resemblance. It sets the
+#: headings of a Grade 11 history textbook whose body is FM-Abhaya, and putting
+#: its 383 spans through the FM-Abhaya table produced well-formed Sinhala for
+#: 382 of them. The decisive part is that the book checks the answer itself: its
+#: inscription page prints the same four lines in Sinhala and in English, and the
+#: conversion matches the printed translation line for line —
+#:
+#:   ``තිළිණය ලෙසින් රජයෙන් මේ පොත ලදිමි``
+#:   "From the government, I received this as a gift"
+#:
+#: The project owner, a Sinhala speaker, reviewed the converted headings and
+#: confirmed them on 2026-09-09. Evidence plus a native reader is the standard
+#: CLAUDE.md asks for; neither alone would have been enough.
+CONVERTIBLE_FAMILIES = frozenset({"fmabhaya", "fmababld"})
 
 #: Unicode Sinhala fonts whose names begin with a legacy vendor prefix or would
 #: otherwise be caught by the rules above.

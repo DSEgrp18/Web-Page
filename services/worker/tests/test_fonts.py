@@ -148,16 +148,27 @@ def test_the_readable_fonts_in_that_book_are_left_alone(raw: str) -> None:
     assert identify_legacy_font(raw) is None
 
 
-def test_a_suspected_variant_is_reported_without_being_decoded() -> None:
+def test_a_validated_variant_converts_with_the_family_table() -> None:
     """FMAbabld sets the headings of a book whose body is FM-Abhaya.
 
-    It is almost certainly FM-Abhaya Bold. "Almost certainly" is not the
-    standard for applying a mapping table, so the suspicion is recorded and the
-    verdict is not changed.
+    Resemblance alone was not enough to apply the table — a wrong mapping
+    produces fluent Sinhala saying something else. What settled it was evidence:
+    382 of its 383 spans converted to well-formed Sinhala, the book prints the
+    same four lines in Sinhala and English so the conversion could be checked
+    against the printed translation, and the project owner confirmed the result.
+
+    ``variant_of`` stays set, so it remains visible that this is not the family
+    the table was published for.
     """
     font = identify_legacy_font("RFWEJF+FMAbabldBold")
+    assert font.convertible is True
     assert font.variant_of == "fmabhaya"
-    assert font.convertible is False
+
+
+def test_a_family_with_no_table_stays_unconvertible() -> None:
+    """Validation was for one pairing, not a licence to guess at others."""
+    assert identify_legacy_font("DL-Manel").convertible is False
+    assert identify_legacy_font("FMBindumathi").convertible is False
 
 
 def test_times_new_roman_survives_suffix_stripping() -> None:

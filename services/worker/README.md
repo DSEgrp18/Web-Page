@@ -56,13 +56,14 @@ read rather than presenting it as blank.
   before the rest of the book.
 - Multi-column reading order flagged as uncertain.
 
+- **FM-Abhaya conversion**, decoding legacy spans into Sinhala Unicode using
+  the vendored mapping table.
+
 ## What is not implemented, and is announced rather than faked
 
-- **Legacy font conversion.** The FM-Abhaya mapping is vendored in
-  `data/legacy_fonts/` but the converter is not written. Legacy spans are
-  identified and withheld. A wrong mapping does not fail loudly — it produces
-  fluent Sinhala saying something the author never wrote — so guessing is worse
-  than refusing.
+- **Legacy families other than FM-Abhaya.** It is the only one with a mapping
+  table. A wrong mapping does not fail loudly — it produces fluent Sinhala
+  saying something the author never wrote — so the rest are withheld.
 - **OCR.** Image-only pages are classified and reported.
 - **Column reordering.** Detected and declared uncertain, not repaired.
 - **Header and footer removal.** Needs the whole document and its own tests,
@@ -105,6 +106,7 @@ src/sinhala_documents/model.py         Extraction types: method, quality, geomet
 src/sinhala_documents/validation.py    Cheap checks before an untrusted file is parsed.
 src/sinhala_documents/pdf_extract.py   Native PDF text, lines, spans, page classification.
 src/sinhala_documents/fonts.py         Legacy Sinhala font identification.
+src/sinhala_documents/legacy_fm_abhaya.py  FM-Abhaya to Sinhala Unicode conversion.
 src/sinhala_documents/page_labels.py   Printed page numbers from /PageLabels.
 src/sinhala_documents/layout.py        Multi-column reading-order suspicion.
 tests/pdf_fixtures.py                  In-memory PDF writer. No binaries are committed.
@@ -157,6 +159,76 @@ Readable output on that book went from 6,798 characters, essentially all of it
 gibberish, to **559 characters — all genuine**: the English translation of the
 presentation inscription, acronyms in the glossary, and the printed roman page
 numbers.
+
+## Converting FM-Abhaya
+
+With the converter in place, that book yields **258,864 readable characters —
+97.4% of everything on its pages**, and 146 of its 168 pages are fully
+accepted, as real Sinhala:
+
+> හිට්ලර් 1933 දී බලයට පත් වූයේ එරට පාර්ලිමේන්තුවේ තවත් මන්ත්‍රීවරුන්ගේ සහය ලබාගනිමිනි.
+
+The algorithm is the table's own, documented in its header: two ordered passes,
+each a longest-match-first left-to-right **scan**. Scanning rather than repeated
+global replacement is the whole game — a scan never re-reads what it emitted,
+and the table contains reordering rules whose output would otherwise be
+rewritten by the next rule.
+
+All six supplied examples convert character-for-character.
+
+### One addition beyond the table
+
+Sinhala writes several vowel signs to the *left* of the consonant they modify,
+and legacy fonts store them that way; Unicode stores them after. The table
+resolves this with combined entries — `fod` → `දො` — but only for the spellings
+it lists. The same word set with the variant code point `Þ` has no `fÞ` entry,
+so the sign is converted separately and left stranded in front, producing
+`ෙදාරේසාමි` instead of `දොරේසාමි`. This affected 316 of 5,435 spans.
+
+The repair moves a mark back after its consonant, then composes with NFC (`ො` is
+canonically `ෙ` followed by `ා`). It is deliberately narrow: it only touches
+marks that are **already malformed** — no consonant, mark or ZWJ before them —
+so correctly converted text cannot be disturbed. In `දෙර` the sign already
+follows its consonant and is left alone, even though another consonant follows
+it.
+
+This goes beyond the table's documented passes, so it is counted in
+`ConversionReport.repaired_marks` and **wants a native speaker's confirmation**
+on real pages.
+
+### Borrowing the table for a variant
+
+The book's headings are set in `FMAbabld` — almost certainly FM-Abhaya Bold, but
+CLAUDE.md forbids applying one family's table to another on a resemblance,
+because a wrong mapping produces fluent Sinhala saying something else.
+
+It is enabled now, on evidence rather than likeness:
+
+- 382 of its 383 spans convert to well-formed Sinhala under the FM-Abhaya table.
+- **The book checks the answer itself.** Its inscription page prints the same
+  four lines in Sinhala and in English, and the conversion matches the printed
+  translation line for line — `තිළිණය ලෙසින් රජයෙන් මේ පොත ලදිමි` against "From
+  the government, I received this as a gift".
+- The project owner, a Sinhala speaker, reviewed the converted headings and
+  confirmed them.
+
+Evidence plus a native reader is the standard CLAUDE.md asks for; neither alone
+would have been enough. The pairing stays visible in `variant_of` and in the
+note attached to every converted span, so nothing pretends the table was
+published for this font.
+
+What remains withheld on that book: 193 FM-Abhaya spans whose conversion came
+out malformed, an `FMSamanthax` family with no table at all, the `CIDFont+F2`
+page, and four spans in another script.
+
+### What the checks can and cannot tell you
+
+`convert_with_report` measures unmapped Latin and invalid combining sequences.
+These find *malformed* output. They cannot tell you the conversion is **right**,
+and they cannot tell you the input was FM-Abhaya in the first place — ordinary
+English put through the table sometimes converts to orthographically legal
+Sinhala. The font name is the gate. CLAUDE.md says orthography checks cannot
+establish transcription accuracy; that is what it means in practice.
 
 ## Sinhala only
 
