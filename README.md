@@ -72,7 +72,9 @@ scripts/             Repository verification scripts
 .github/             CI, code owners, issue and pull request templates
 CLAUDE.md            Governing project specification
 CONTRIBUTING.md      How we work: branches, reviews, definition of done
+CODE_OF_CONDUCT.md   Expected conduct and how to report a concern
 SECURITY.md          Vulnerability and private-data reporting
+LICENSE              MIT licence for this repository's code
 ```
 
 Application directories (`apps/web/`, `services/api/`, `services/worker/`,
@@ -83,11 +85,40 @@ requests that introduce them.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming, review requirements,
 and the definition of done, and [CLAUDE.md](CLAUDE.md) for the governing
-specification.
+specification. Participation is covered by our
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Licence
 
-No licence has been chosen yet, so default copyright applies: the source is
-publicly readable but not licensed for reuse. The vendored data in
-`data/legacy_fonts/` is separately licensed under MIT by its upstream authors;
-see [data/legacy_fonts/LICENSE](data/legacy_fonts/LICENSE).
+Three different sets of terms apply to three different things. Read this before
+reusing any part of the project.
+
+**The source code in this repository is MIT licensed.** See [LICENSE](LICENSE).
+You may use, modify, and redistribute it, including commercially, with
+attribution.
+
+**The vendored legacy-font data is separately MIT licensed** by its upstream
+authors (akuruAI/Pandukabhaya, derived from UCSC Language Technology Research
+Laboratory research). See [data/legacy_fonts/LICENSE](data/legacy_fonts/LICENSE)
+and the provenance notes in
+[data/legacy_fonts/README.md](data/legacy_fonts/README.md).
+
+**The Sinhala XTTS model is not covered by the MIT licence above, and is not
+distributed here.** The MIT licence applies to this repository's code only. It
+grants no rights whatsoever to the model weights, which live outside Git and are
+supplied out of band.
+
+That matters, because the underlying XTTS-v2 weights are published under the
+Coqui Public Model Licence (CPML), which **restricts use to non-commercial
+purposes**. Fine-tuning a model does not automatically remove the terms attached
+to the weights it was derived from. Whether and how CPML applies to the
+fine-tuned Sinhala checkpoint used by this project **has not yet been resolved**,
+and must be settled before any commercial deployment.
+
+Permission to use the supplied speaker reference audio must also be confirmed
+before public release.
+
+In short: the code is free to reuse; running it with this project's voice is not
+yet cleared for commercial use. If you intend to deploy commercially, resolve the
+model licensing question first — do not treat the MIT licence on this repository
+as covering it.
