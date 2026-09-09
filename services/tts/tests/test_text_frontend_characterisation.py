@@ -8,9 +8,14 @@ the defects below from being rediscovered from scratch every few months.
 Three of the behaviours recorded here are defects for our use case, and each is
 marked `DEFECT`. They are fixed by *wrapping* the front end with a normaliser
 that runs before it, never by editing it — editing it would change what the
-model hears and invalidate the fine-tune. When that normaliser lands, the
-`DEFECT` tests below should be updated to assert the corrected pipeline while
-these keep asserting the raw front end's unchanged behaviour.
+model hears and invalidate the fine-tune.
+
+That normaliser now exists, in `sinhala_tts.normalize`. `test_normalize.py`
+asserts that defects 1 and 2 no longer reach the model, and that defect 3 is
+still present and still deliberately unfixed. The assertions below stay as they
+are: their job is to prove the *raw front end* is unchanged, which is what makes
+the wrapper's fixes trustworthy. If one of them starts failing, the vendored
+file has been altered.
 
 CLAUDE.md, "Model-specific checks from the reference project", requires exactly
 this: test years, prices, decimals, page references, and mixed-language input
