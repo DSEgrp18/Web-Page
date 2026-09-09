@@ -228,3 +228,59 @@ def test_placeholder_audio_passes_the_audio_checks(adapter: DevelopmentAdapter) 
     result = adapter.synthesize(SENTENCE, "si-female")
     assert result.metadata.audio_report is not None
     assert result.metadata.audio_report.ok, result.metadata.audio_report.problems
+
+
+# --------------------------------------------------------------------------
+# Knowing the cache key before generating anything
+# --------------------------------------------------------------------------
+
+
+def test_the_predicted_cache_key_is_the_one_synthesis_produces(
+    adapter: DevelopmentAdapter,
+) -> None:
+    """Caching is worthless if finding out whether audio exists costs a synthesis.
+
+    There is one implementation of the key, and both paths go through it. If
+    these ever diverge, every cache lookup misses and every segment is generated
+    again — silently, and only visible as a GPU bill.
+    """
+    predicted = adapter.cache_key(SENTENCE, "si-female", document_version="v1")
+    actual = adapter.synthesize(SENTENCE, "si-female", document_version="v1").metadata.cache_key()
+    assert predicted == actual
+
+
+def test_the_predicted_key_changes_with_everything_the_real_one_does(
+    adapter: DevelopmentAdapter,
+) -> None:
+    base = adapter.cache_key(SENTENCE, "si-female", document_version="v1")
+    assert base != adapter.cache_key("පිටුව 43 බලන්න.", "si-female", document_version="v1")
+    assert base != adapter.cache_key(SENTENCE, "si-male", document_version="v1")
+    assert base != adapter.cache_key(SENTENCE, "si-female", document_version="v2")
+    assert base != adapter.cache_key(
+        SENTENCE, "si-female", SynthesisSettings(temperature=0.3), document_version="v1"
+    )
+
+
+def test_predicting_a_key_applies_the_same_text_guards(adapter: DevelopmentAdapter) -> None:
+    """An unspeakable segment is refused at lookup, not at generation."""
+    with pytest.raises(TextNotSpeakableError):
+        adapter.cache_key("()[]{}", "si-female")
+
+
+def test_an_adapter_says_whether_it_is_the_real_model(adapter: DevelopmentAdapter) -> None:
+    """Callers need this without synthesising, to label audio and key the cache."""
+    assert adapter.is_real_model is False
+    assert adapter.model_version == "development-adapter"
+
+
+def test_the_recorded_voice_id_is_not_the_one_that_was_asked_for(
+    adapter: DevelopmentAdapter,
+) -> None:
+    """The prefix has to reach the cache key, not just the response.
+
+    Otherwise a placeholder generated today would share a key with real
+    narration generated later.
+    """
+    assert adapter.voice_id_for("si-female") == "development-si-female"
+    result = adapter.synthesize(SENTENCE, "si-female")
+    assert result.metadata.voice_id == "development-si-female"

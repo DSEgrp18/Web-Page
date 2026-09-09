@@ -1,0 +1,308 @@
+"""What the reader keeps, and the interface a real database will implement.
+
+CLAUDE.md names PostgreSQL, Redis and object storage as the production shape.
+None of it exists yet, and standing up three servers before there is anything to
+put in them would be infrastructure for its own sake — it would also make this
+slice untestable without them.
+
+So there is one interface and one in-memory implementation. The interface is the
+part that matters: every method takes an ``owner`` and enforces it, so
+authorisation is a property of the store rather than something each endpoint
+remembers to check. A Postgres implementation drops in behind it.
+
+**Nothing here survives a restart.** That is stated in the health report and in
+the README rather than left to be discovered.
+
+Ownership is enforced by returning *nothing* for another owner's document,
+never by raising a distinguishable error. A "403 Forbidden" on a document that
+exists tells the caller it exists; a 404 does not. For private books belonging to
+identifiable students, that difference matters.
+"""
+
+from __future__ import annotations
+
+import threading
+import uuid
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
+from enum import StrEnum
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:16]}"
+
+
+class JobState(StrEnum):
+    """The states CLAUDE.md names, and no others.
+
+    ``cancelled`` is distinct from ``failed`` because a reader who deletes a
+    document while it is processing has not encountered an error.
+    """
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+    @property
+    def is_final(self) -> bool:
+        return self in (JobState.SUCCEEDED, JobState.FAILED, JobState.CANCELLED)
+
+
+@dataclass(frozen=True)
+class Job:
+    """A unit of background work a reader can be told about."""
+
+    job_id: str
+    document_id: str
+    owner: str
+    kind: str
+    state: JobState = JobState.QUEUED
+    stage: str = "queued"
+    """Where the work has got to, in words fit to show a person."""
+
+    detail: str | None = None
+    """Why it failed, with no document content in it.
+
+    CLAUDE.md forbids logging private passages by default, and a failure
+    message is a log line that also reaches a screen.
+    """
+
+    created_at: str = field(default_factory=_now)
+    updated_at: str = field(default_factory=_now)
+
+
+@dataclass(frozen=True)
+class Document:
+    """An uploaded book, and what became of it."""
+
+    document_id: str
+    owner: str
+    filename: str
+    size_bytes: int
+    created_at: str = field(default_factory=_now)
+    version: str | None = None
+    """Set once preparation succeeds. Part of every audio cache key."""
+
+    page_count: int = 0
+    segment_count: int = 0
+    notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Progress:
+    """Where a reader had got to.
+
+    Carries the document version: text that has been corrected since is a
+    different document, and dropping the reader at the same segment id in
+    changed text would put them somewhere they never were.
+    """
+
+    document_id: str
+    owner: str
+    document_version: str
+    segment_id: str
+    offset_seconds: float = 0.0
+    updated_at: str = field(default_factory=_now)
+
+
+@dataclass(frozen=True)
+class AudioRecord:
+    """One generated segment, and the proof of what generated it."""
+
+    cache_key: str
+    document_id: str
+    owner: str
+    segment_id: str
+    wav: bytes
+    duration_seconds: float
+    is_real_model: bool
+    """False for the development tone.
+
+    Served on every response so a placeholder can never be mistaken for
+    narration, which CLAUDE.md requires and which no listener could check.
+    """
+
+    voice_id: str
+    model_version: str
+
+
+class Store(ABC):
+    """Everything the API persists. A database implements this, not the routes."""
+
+    @abstractmethod
+    def put_document(self, document: Document) -> Document: ...
+
+    @abstractmethod
+    def get_document(self, document_id: str, owner: str) -> Document | None: ...
+
+    @abstractmethod
+    def list_documents(self, owner: str) -> list[Document]: ...
+
+    @abstractmethod
+    def delete_document(self, document_id: str, owner: str) -> bool: ...
+
+    @abstractmethod
+    def put_source(self, document_id: str, data: bytes) -> None: ...
+
+    @abstractmethod
+    def get_source(self, document_id: str) -> bytes | None: ...
+
+    @abstractmethod
+    def put_job(self, job: Job) -> Job: ...
+
+    @abstractmethod
+    def get_job(self, job_id: str, owner: str) -> Job | None: ...
+
+    @abstractmethod
+    def get_job_for_worker(self, job_id: str) -> Job | None:
+        """A job without an owner check, for background work.
+
+        Every other read is owner-scoped. This one cannot be: the worker running
+        a job has no request and no caller, and the job itself is what records
+        whose document it belongs to. Kept explicit and separately named so that
+        an unscoped read is always a deliberate choice, never a forgotten
+        argument.
+        """
+
+    @abstractmethod
+    def jobs_for(self, document_id: str, owner: str) -> list[Job]: ...
+
+    @abstractmethod
+    def put_audio(self, record: AudioRecord) -> AudioRecord: ...
+
+    @abstractmethod
+    def get_audio(self, cache_key: str, owner: str) -> AudioRecord | None: ...
+
+    @abstractmethod
+    def put_progress(self, progress: Progress) -> Progress: ...
+
+    @abstractmethod
+    def get_progress(self, document_id: str, owner: str) -> Progress | None: ...
+
+
+class InMemoryStore(Store):
+    """A dictionary with a lock. Everything is lost when the process stops.
+
+    Good enough to build and test the reader against, and honest about what it
+    is: the health report says so, so nobody deploys it by accident.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._documents: dict[str, Document] = {}
+        self._sources: dict[str, bytes] = {}
+        self._jobs: dict[str, Job] = {}
+        self._audio: dict[str, AudioRecord] = {}
+        self._progress: dict[str, Progress] = {}
+
+    # -- documents ---------------------------------------------------------
+
+    def put_document(self, document: Document) -> Document:
+        with self._lock:
+            self._documents[document.document_id] = document
+        return document
+
+    def get_document(self, document_id: str, owner: str) -> Document | None:
+        with self._lock:
+            document = self._documents.get(document_id)
+        # Another owner's document is *absent*, not forbidden. See the module
+        # docstring: a 403 on an existing id confirms that it exists.
+        return document if document and document.owner == owner else None
+
+    def list_documents(self, owner: str) -> list[Document]:
+        with self._lock:
+            return sorted(
+                (d for d in self._documents.values() if d.owner == owner),
+                key=lambda d: d.created_at,
+                reverse=True,
+            )
+
+    def delete_document(self, document_id: str, owner: str) -> bool:
+        """Remove the document and everything derived from it.
+
+        CLAUDE.md requires deletion to remove derived text, audio and caches,
+        not just the row that points at them. Anything left behind is private
+        content that outlived the reader's decision to delete it.
+        """
+        with self._lock:
+            document = self._documents.get(document_id)
+            if document is None or document.owner != owner:
+                return False
+            del self._documents[document_id]
+            self._sources.pop(document_id, None)
+            self._progress.pop(self._progress_key(document_id, owner), None)
+            for job_id, job in list(self._jobs.items()):
+                if job.document_id == document_id:
+                    del self._jobs[job_id]
+            for key, record in list(self._audio.items()):
+                if record.document_id == document_id:
+                    del self._audio[key]
+            return True
+
+    def put_source(self, document_id: str, data: bytes) -> None:
+        with self._lock:
+            self._sources[document_id] = data
+
+    def get_source(self, document_id: str) -> bytes | None:
+        with self._lock:
+            return self._sources.get(document_id)
+
+    # -- jobs --------------------------------------------------------------
+
+    def put_job(self, job: Job) -> Job:
+        job = replace(job, updated_at=_now())
+        with self._lock:
+            self._jobs[job.job_id] = job
+        return job
+
+    def get_job(self, job_id: str, owner: str) -> Job | None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+        return job if job and job.owner == owner else None
+
+    def get_job_for_worker(self, job_id: str) -> Job | None:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def jobs_for(self, document_id: str, owner: str) -> list[Job]:
+        with self._lock:
+            mine = [
+                j for j in self._jobs.values() if j.document_id == document_id and j.owner == owner
+            ]
+        return sorted(mine, key=lambda j: j.created_at)
+
+    # -- audio -------------------------------------------------------------
+
+    def put_audio(self, record: AudioRecord) -> AudioRecord:
+        with self._lock:
+            self._audio[record.cache_key] = record
+        return record
+
+    def get_audio(self, cache_key: str, owner: str) -> AudioRecord | None:
+        with self._lock:
+            record = self._audio.get(cache_key)
+        # Cached audio is still private content. CLAUDE.md: keep private audio
+        # access-controlled even when it is cached.
+        return record if record and record.owner == owner else None
+
+    # -- progress ----------------------------------------------------------
+
+    @staticmethod
+    def _progress_key(document_id: str, owner: str) -> str:
+        return f"{owner}:{document_id}"
+
+    def put_progress(self, progress: Progress) -> Progress:
+        with self._lock:
+            self._progress[self._progress_key(progress.document_id, progress.owner)] = progress
+        return progress
+
+    def get_progress(self, document_id: str, owner: str) -> Progress | None:
+        with self._lock:
+            return self._progress.get(self._progress_key(document_id, owner))

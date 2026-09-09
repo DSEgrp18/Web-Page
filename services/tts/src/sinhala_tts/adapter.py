@@ -233,6 +233,60 @@ class TtsAdapter(ABC):
     @abstractmethod
     def readiness(self) -> ReadinessState: ...
 
+    @property
+    @abstractmethod
+    def is_real_model(self) -> bool:
+        """False for anything that does not produce speech from the checkpoint."""
+
+    @property
+    @abstractmethod
+    def model_version(self) -> str:
+        """Identity of what would generate audio right now."""
+
+    def voice_id_for(self, voice_id: str) -> str:
+        """The voice id that will be *recorded*, which need not be the one asked for.
+
+        The development adapter answers a request for ``si-female`` with
+        ``development-si-female``, and that difference has to reach the cache key
+        rather than being applied only on the way out.
+        """
+        return voice_id
+
+    def cache_key(
+        self,
+        text: str,
+        voice_id: str,
+        settings: SynthesisSettings | None = None,
+        *,
+        document_version: str | None = None,
+    ) -> str:
+        """The key :meth:`synthesize` would produce, without generating anything.
+
+        Caching is worthless if finding out whether audio exists costs a
+        synthesis. This builds the same identity from the same parts — there is
+        one implementation of the key, in :meth:`SynthesisMetadata.cache_key`,
+        and both paths go through it.
+
+        The text guards run here too, so an unspeakable segment is refused at
+        lookup rather than at generation.
+        """
+        spoken, model_text = self.prepare_text(text)
+        return SynthesisMetadata(
+            voice_id=self.voice_id_for(voice_id),
+            is_real_model=self.is_real_model,
+            model_version=self.model_version,
+            settings=settings or SynthesisSettings(),
+            normalizer_version=NORMALIZER_VERSION,
+            device="",
+            readiness=self.readiness,
+            sample_rate=0,
+            duration_seconds=0.0,
+            spoken_text=spoken,
+            model_text=model_text,
+            generated_at="",
+            document_version=document_version,
+        ).cache_key()
+
     @abstractmethod
     def synthesize(
         self,
@@ -293,6 +347,17 @@ class DevelopmentAdapter(TtsAdapter):
     def readiness(self) -> ReadinessState:
         return ReadinessState.READY
 
+    @property
+    def is_real_model(self) -> bool:
+        return False
+
+    @property
+    def model_version(self) -> str:
+        return "development-adapter"
+
+    def voice_id_for(self, voice_id: str) -> str:
+        return f"development-{voice_id}"
+
     def synthesize(
         self,
         text: str,
@@ -316,9 +381,9 @@ class DevelopmentAdapter(TtsAdapter):
         elapsed = time.perf_counter() - started
 
         metadata = SynthesisMetadata(
-            voice_id=f"development-{voice_id}",
-            is_real_model=False,
-            model_version="development-adapter",
+            voice_id=self.voice_id_for(voice_id),
+            is_real_model=self.is_real_model,
+            model_version=self.model_version,
             settings=settings,
             normalizer_version=NORMALIZER_VERSION,
             device="none",
@@ -378,6 +443,22 @@ class XttsAdapter(TtsAdapter):
     @property
     def readiness(self) -> ReadinessState:
         return self._state
+
+    @property
+    def is_real_model(self) -> bool:
+        return True
+
+    @property
+    def model_version(self) -> str:
+        """The loaded bundle's version, loading it if that has not happened yet.
+
+        A cache key must describe the model that would actually generate the
+        audio, so this cannot answer before the bundle is known. Workers load at
+        start-up, so in practice the load has already happened.
+        """
+        self.load()
+        assert self._loaded is not None
+        return self._loaded.version
 
     @property
     def failure_reason(self) -> str | None:

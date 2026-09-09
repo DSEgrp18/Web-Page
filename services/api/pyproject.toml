@@ -1,0 +1,35 @@
+[project]
+name = "sinhala-reader-api"
+version = "0.0.1"
+description = "Reader API: documents, preparation jobs, segments, audio, and progress"
+requires-python = ">=3.12"
+
+# FastAPI for the app, python-multipart for file uploads. Everything else the
+# API needs comes from the two service packages beside it.
+#
+# Deliberately absent: PostgreSQL, Redis, Celery, and an object store. CLAUDE.md
+# names them as the intended production shape, and none of them exists yet. The
+# storage interface in storage.py is where they arrive; adding the servers
+# before there is anything to keep in them would be infrastructure for its own
+# sake, and would make this slice untestable on a laptop.
+dependencies = [
+  "fastapi>=0.115",
+  "python-multipart>=0.0.9",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+# The two service packages are on the path directly, as they are in the worker.
+# Nothing is published, so nothing is installed.
+pythonpath = ["src", "tests", "../worker/src", "../tts/src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]

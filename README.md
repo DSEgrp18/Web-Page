@@ -69,7 +69,8 @@ commercial deployment.
 
 ```text
 services/tts/        Sinhala XTTS text front end, segmentation, synthesis adapter
-services/worker/     PDF extraction: page classification, legacy fonts, geometry
+services/worker/     PDF extraction, FM-Abhaya decoding, and the reading pipeline
+services/api/        Reader API: upload, segments, audio, progress
 data/legacy_fonts/   Vendored FM-Abhaya to Unicode mapping (MIT, hash-verified)
 docs/                Inference manifest and repository setup evidence
 scripts/             Repository verification scripts
@@ -81,8 +82,8 @@ SECURITY.md          Vulnerability and private-data reporting
 LICENSE              MIT licence for this repository's code
 ```
 
-The remaining directories (`apps/web/`, `services/api/`, `evaluation/`,
-`infra/`) are created by the pull requests that introduce them.
+The remaining directories (`apps/web/`, `evaluation/`, `infra/`) are created by
+the pull requests that introduce them.
 
 ## Contributing
 
