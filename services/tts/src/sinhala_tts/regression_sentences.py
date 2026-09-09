@@ -83,6 +83,28 @@ CASES: tuple[RegressionCase, ...] = (
         why="Dense conjuncts and ZWJ, where the romanisation is most likely to be wrong.",
     ),
     RegressionCase(
+        case_id="comma-clauses",
+        text="අද, මම පාසල් ගොස්, පසුව ගෙදර ආවෙමි.",
+        why=(
+            "One sentence with two commas, so it contains real internal pauses. "
+            "This is the case that would expose trailing-audio trimming cutting "
+            "genuine speech: listen for whether it ends mid-sentence."
+        ),
+    ),
+    RegressionCase(
+        case_id="long-single-sentence",
+        text=(
+            "පොත් කියවීම මගින් දැනුම වර්ධනය වන අතර, එය සිතීමේ හැකියාව ද "
+            "වර්ධනය කරන බැවින්, සෑම දිනකම ස්වල්ප වේලාවක් කියවීමට වෙන් කර ගැනීම "
+            "ඉතා වැදගත් වේ."
+        ),
+        why=(
+            "A long single sentence with several clauses. Tests both the "
+            "false-cut risk from internal pauses and how close a realistic "
+            "sentence comes to the model's utterance ceiling."
+        ),
+    ),
+    RegressionCase(
         case_id="line-broken",
         text="මෙම වාක්‍යය\nදෙකට කැඩී\nඇත.",
         why=(

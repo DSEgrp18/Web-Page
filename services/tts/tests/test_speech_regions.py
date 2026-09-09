@@ -13,6 +13,7 @@ from sinhala_tts.speech_regions import (
     find_speech_regions,
     frame_energy,
     trailing_audio_seconds,
+    trim_to_first_utterance,
 )
 
 RATE = 24000
@@ -106,3 +107,43 @@ def test_three_regions_measure_from_the_first_boundary() -> None:
     trailing = trailing_audio_seconds(audio, RATE)
     # 0.7s + 0.97s of appended sound, with the pauses between them excluded.
     assert 1.4 <= trailing <= 1.9, trailing
+
+
+# --------------------------------------------------------------------------
+# Trimming
+# --------------------------------------------------------------------------
+
+
+def test_trimming_leaves_clean_audio_untouched() -> None:
+    """Safe to apply unconditionally: clean output must pass through."""
+    audio = np.concatenate([tone(1.26), silence(0.62)])
+    trimmed, removed = trim_to_first_utterance(audio, RATE)
+    assert removed == 0.0
+    assert len(trimmed) == len(audio)
+
+
+def test_trimming_removes_appended_audio() -> None:
+    audio = np.concatenate([tone(1.40), silence(0.52), tone(3.65)])
+    trimmed, removed = trim_to_first_utterance(audio, RATE)
+    assert removed > 3.5
+    # The sentence plus padding survives; the appended sound does not.
+    assert 1.4 <= len(trimmed) / RATE <= 1.7
+
+
+def test_trimming_keeps_padding_after_the_last_word() -> None:
+    """Cutting exactly at the energy boundary clips the final consonant."""
+    audio = np.concatenate([tone(1.00), silence(0.50), tone(2.00)])
+    trimmed, _ = trim_to_first_utterance(audio, RATE, tail_padding_ms=150)
+    assert len(trimmed) / RATE > 1.10
+
+
+def test_trimming_a_multi_sentence_clip_destroys_the_second_sentence() -> None:
+    """Documenting the danger, not endorsing it.
+
+    This is why the caller must guarantee one sentence per segment: the result
+    sounds like a sentence that ended, not one that is missing.
+    """
+    two_sentences = np.concatenate([tone(1.5), silence(0.5), tone(1.5)])
+    trimmed, removed = trim_to_first_utterance(two_sentences, RATE)
+    assert removed > 1.4
+    assert len(trimmed) / RATE < 2.0
