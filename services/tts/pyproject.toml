@@ -1,0 +1,34 @@
+[project]
+name = "sinhala-tts"
+version = "0.0.1"
+description = "Sinhala XTTS text front end and inference adapter for the accessible reader"
+requires-python = ">=3.12"
+
+# Deliberately empty. The text front end is pure standard library, so these
+# tests run anywhere without torch, CUDA, or the 5.6 GB checkpoint. Inference
+# dependencies arrive with the adapter that needs them, pinned against the
+# runtime they were measured in rather than copied from another project.
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+# src is put on the path directly so the tests need no install step. There is
+# no packaging or distribution story yet, and inventing one would mean
+# documenting commands nobody has run.
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+# The vendored front end defines what the model heard during training. Linting
+# it would invite edits that silently change pronunciation. See
+# src/sinhala_tts/vendor/PROVENANCE.md.
+extend-exclude = ["src/sinhala_tts/vendor/sinhala_text.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
