@@ -175,3 +175,50 @@ def trailing_audio_seconds(
     if len(regions) < 2:
         return 0.0
     return sum(region.duration_seconds for region in regions[1:])
+
+
+# Padding kept after the end of the detected speech. The energy-based boundary
+# lands where the sound drops below the threshold, which is slightly *inside*
+# a trailing consonant or breath; cutting exactly there clips the end of the
+# last word. Generous rather than tight, because the cost is asymmetric: a
+# little extra silence is unnoticeable, a clipped word is not.
+TAIL_PADDING_MS = 150
+
+
+def trim_to_first_utterance(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    tail_padding_ms: int = TAIL_PADDING_MS,
+    **kwargs: object,
+) -> tuple[np.ndarray, float]:
+    """Cut everything after the first speech region, returning (audio, removed).
+
+    For audio that already holds a single utterance this returns the input
+    unchanged and 0.0, so it is safe to apply unconditionally to clean output.
+
+    .. danger::
+
+       **Only ever apply this to a segment known to hold one sentence.** On a
+       segment with two sentences it will delete the second, and the listener
+       will never know: they hear a sentence that ends, not a sentence that is
+       missing. Sentence-aware segmentation is the precondition, not an
+       optimisation.
+
+       Even within one sentence this can cut real speech, at a pause long enough
+       to look like the end. Measured pauses inside speech reached 0.26 s and
+       pauses before appended material started at 0.26 s, so the ranges touch.
+       The remaining protection is the threshold plus the padding above, and
+       neither is a guarantee. Evaluate the false-cut rate on real sentences
+       with commas before enabling this anywhere near a reader.
+    """
+    samples = np.asarray(samples)
+    regions = find_speech_regions(samples, sample_rate, **kwargs)  # type: ignore[arg-type]
+    if len(regions) < 2:
+        return samples, 0.0
+
+    end_seconds = regions[0].end_seconds + tail_padding_ms / 1000.0
+    cut = min(samples.size, int(end_seconds * sample_rate))
+    if cut >= samples.size:
+        return samples, 0.0
+    return samples[:cut], (samples.size - cut) / sample_rate

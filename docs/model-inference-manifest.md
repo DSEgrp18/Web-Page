@@ -363,6 +363,12 @@ works, and the model still appends. So this is **not a sampling excursion; it is
 learned behaviour**, and no decoding strategy will remove it. That closes off
 the whole category of fixes.
 
+The owner listened to `greedy-1.wav` and confirmed the appended 0.90 s is
+audible follow-up noise. That matters twice over: it rules greedy out as a fix,
+and it confirms the detector's reading corresponds to something a listener
+actually hears at *small* magnitudes, not only in the obvious three-second
+cases.
+
 Two secondary findings:
 
 - **Lower temperature made it worse**, not better (2.49 s mean appended against
@@ -377,6 +383,62 @@ Two secondary findings:
   never passes, was the best of the six at 2/4. With four runs that is not a
   result, only a reason to test it properly.
 
+#### Trimming was evaluated, and it is unsafe
+
+Implemented as `trim_to_first_utterance` and evaluated on 2026-09-09 against
+sentences chosen to make it fail: one with two commas, and one long multi-clause
+sentence. It failed them.
+
+The clean runs — the ones the detector left alone — give a speech-rate baseline
+of **10–11 characters of model input per second**. Comparing that against what
+survives trimming:
+
+| Case | Characters | Clean rate | Rate after trimming | |
+| --- | ---: | ---: | ---: | --- |
+| `page-reference` | 30 | 10.0 c/s | 14.1–18.9 c/s | partly cut |
+| `comma-clauses` | 45 | 11.0 c/s | 23.6–24.9 c/s | about half cut |
+| `long-single-sentence` | 194 | — | **59–60 c/s** | about 80% destroyed |
+
+Nothing speaks at 60 characters a second. The trimmer cut those sentences apart
+at their own comma pauses, keeping 3.2 s of a 12.3 s sentence and discarding the
+rest — exactly the silent truncation the earlier increment refused to risk, now
+demonstrated rather than hypothesised.
+
+**Trimming at the first long pause is rejected.** The code stays, unused and
+documented as dangerous, because the evaluation is worth keeping runnable.
+
+#### The detector over-flags realistic prose
+
+The same evaluation exposed a fault in the detector itself. On
+`long-single-sentence` it reported "7.68 s of sound after the sentence ended
+across 3 speech regions" — but those three regions are the sentence's own
+comma-separated clauses. The whole 12.3 s is real speech.
+
+So `expect_single_utterance` is **reliable only for short sentences without
+internal pauses**, and must not gate anything on real document text as it
+stands.
+
+#### A better rule, from this data
+
+Expected duration is predictable from text length at the measured 10–11 c/s, and
+that separates the cases where the gap rule cannot:
+
+| Case | Characters | Expected | Observed | Excess |
+| --- | ---: | ---: | ---: | ---: |
+| `plain-short` | 21 | ~2.0 s | 3.95–4.64 s | 2.0–2.6 s — real, confirmed by ear |
+| `page-reference` | 30 | ~2.9 s | 3.01–3.85 s | up to 0.9 s — real |
+| `comma-clauses` | 45 | ~4.3 s | 3.89–4.50 s | none — gap rule was wrong |
+| `long-single-sentence` | 194 | ~18.5 s | 12.2–13.2 s | none, and **shorter than expected** |
+
+A duration-expectation rule flags the two cases that are genuinely faulty and
+clears the two the gap rule got wrong. It needs calibrating on more clean
+samples before it replaces anything, since a single speech-rate estimate from
+two clips is not a calibration.
+
+The last row raises a separate question: `long-single-sentence` runs *shorter*
+than its text predicts, which could mean the model is dropping content on long
+input. That is potentially worse than appended noise, and is unexamined.
+
 #### Where that leaves the fix
 
 Retrying a flagged segment still works, because sampling makes each attempt
@@ -385,21 +447,24 @@ attempts reach only about 40%. Even at `repetition_penalty` 5.0's optimistic
 50%, four attempts cost four times the GPU for 94% coverage. For narrating whole
 books that is a serious cost, not a rounding error.
 
-So the options are now, in order:
+Settings cannot fix it, and trimming at the first pause destroys real sentences.
+So the options are now:
 
-1. **Establish whether `repetition_penalty` 5.0 genuinely helps**, with enough
-   repeats to mean something (20+ per configuration). Cheap, and it is the
-   documented value we are not using.
-2. **Evaluate trimming**, which the earlier evidence deferred and this evidence
-   promotes. The measurement to make first is how often trimming at the first
-   long pause would cut *real* speech — using sentences with commas, and
-   multi-sentence segments. If that rate is near zero for single sentences, a
-   trimmer bounded to single-sentence segments becomes defensible.
-3. **Retry as a fallback**, bounded, for segments that still fail after trimming.
+1. **Replace the gap rule with a duration-expectation rule**, calibrated on
+   enough clean samples to count as a calibration rather than a guess. Until the
+   detector stops flagging ordinary prose, nothing can be built on top of it.
+2. **Establish whether `repetition_penalty` 5.0 genuinely helps**, with 20+
+   repeats. It is the documented value we are not using, and it was the best of
+   the six tested.
+3. **Bounded retry**, once the detector is trustworthy enough to decide what to
+   retry. At the measured ~12% clean rate this is expensive, and retrying a
+   false positive would loop on audio that was never faulty.
+4. **Investigate whether long input loses content**, since
+   `long-single-sentence` runs shorter than its length predicts.
 
-Trimming remains the option that can silently truncate a document, so it needs
-that measurement before it is adopted, not after. But settings cannot fix this,
-and paying 4× GPU cost per segment is not a plan.
+Trimming stays implemented but unused, its danger documented and a test
+asserting that it destroys a second sentence. Keeping the evaluation runnable is
+worth more than deleting the code.
 
 This is a release blocker for narration quality, not a cosmetic issue.
 

@@ -55,6 +55,7 @@ from sinhala_tts.normalize import (  # noqa: E402
     to_speech_text,
 )
 from sinhala_tts.regression_sentences import CASES, case_by_id  # noqa: E402
+from sinhala_tts.speech_regions import trim_to_first_utterance  # noqa: E402
 
 # Confirmed from the config, the front end's own self-test, and the owner's
 # working service. The config's `languages` list is XTTS's stock 17 and does not
@@ -168,6 +169,16 @@ def main() -> int:
     parser.add_argument("--precision", choices=["fp16", "fp32"], default="fp16")
     parser.add_argument("--no-audio", action="store_true")
     parser.add_argument(
+        "--trim",
+        action="store_true",
+        help=(
+            "also write a trimmed copy of each single-sentence case, cutting "
+            "everything after the first utterance. Writes both files so the two "
+            "can be compared by ear: the question trimming has to answer is how "
+            "often it cuts real speech, and only listening answers it"
+        ),
+    )
+    parser.add_argument(
         "--repeat",
         type=int,
         default=1,
@@ -211,7 +222,8 @@ def main() -> int:
     print()
 
     results = []
-    failures = 0
+    failed_runs = 0
+    total_runs = 0
 
     for case in cases:
         spoken = to_speech_text(case.text)
@@ -225,7 +237,8 @@ def main() -> int:
         if not is_speakable(model_text):
             print("  SKIPPED: normalises to nothing speakable")
             results.append({"case_id": case.case_id, "skipped": "not speakable"})
-            failures += 1
+            failed_runs += 1
+            total_runs += 1
             continue
 
         runs = []
@@ -264,8 +277,9 @@ def main() -> int:
             print(f"  synthesis {synthesis_seconds:.1f}s, real-time factor {real_time_factor:.2f}x")
             for problem in report.problems:
                 print(f"  PROBLEM: {problem}")
+            total_runs += 1
             if not report.ok:
-                failures += 1
+                failed_runs += 1
 
             if not args.no_audio:
                 suffix = f"-{attempt}" if args.repeat > 1 else ""
@@ -278,6 +292,25 @@ def main() -> int:
                     subtype="PCM_16",
                 )
                 print(f"  wrote {destination.name}")
+
+                if args.trim and case.single_utterance:
+                    trimmed, removed = trim_to_first_utterance(samples, EXPECTED_SAMPLE_RATE)
+                    if removed > 0:
+                        trimmed_path = out_dir / f"{case.case_id}{suffix}-trimmed.wav"
+                        sf.write(
+                            trimmed_path,
+                            np.clip(trimmed, -1.0, 1.0),
+                            EXPECTED_SAMPLE_RATE,
+                            format="WAV",
+                            subtype="PCM_16",
+                        )
+                        kept = len(trimmed) / EXPECTED_SAMPLE_RATE
+                        print(
+                            f"  wrote {trimmed_path.name} "
+                            f"({removed:.2f}s removed, {kept:.2f}s kept)"
+                        )
+                    else:
+                        print("  nothing to trim")
 
             runs.append(
                 {
@@ -327,17 +360,20 @@ def main() -> int:
         "load_seconds": round(load_seconds, 2),
         "conditioning_seconds": round(conditioning_seconds, 2),
         "cases": results,
-        "failures": failures,
+        "failed_runs": failed_runs,
+        "total_runs": total_runs,
     }
     report_path = out_dir / "smoke-report.json"
     report_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"{len(cases) - failures}/{len(cases)} cases passed automated checks")
+    # Counted in runs, not cases: with --repeat a single case contributes
+    # several results, and dividing failures by cases produced a negative count.
+    print(f"{total_runs - failed_runs}/{total_runs} runs passed automated checks")
     print(f"report: {report_path}")
     print()
     print("Automated checks cannot tell you whether the speech is intelligible or")
     print("correctly pronounced. Listen to the WAVs before trusting any of this.")
-    return 1 if failures else 0
+    return 1 if failed_runs else 0
 
 
 if __name__ == "__main__":
