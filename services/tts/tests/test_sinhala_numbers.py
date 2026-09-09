@@ -1,9 +1,14 @@
 """Sinhala cardinal number forms.
 
 Every expected value here is a claim about Sinhala, not about code, so this file
-is the one a native speaker should read. If a form is wrong, correcting the
-table in ``sinhala_numbers.py`` fixes every number that uses it, and the failure
-here will name exactly which.
+is the one a native speaker reads. **Reviewed and confirmed by the project owner
+on 2026-09-09.**
+
+That settles the spelling. It does not settle pronunciation: the checkpoint was
+fine-tuned on romanised ASCII, so a correctly written numeral can still be
+spoken badly, and only listening will tell. If a number ever sounds wrong,
+correcting the table in ``sinhala_numbers.py`` fixes every number that uses it,
+and the failure here will name exactly which.
 """
 
 from __future__ import annotations
