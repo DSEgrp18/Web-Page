@@ -1,0 +1,36 @@
+[project]
+name = "sinhala-documents"
+version = "0.0.1"
+description = "Document extraction for the Sinhala accessible reader"
+requires-python = ">=3.12"
+
+# pdfplumber sits on pdfminer.six, which is a pure-Python PDF parser. Two
+# properties decided this over the alternatives:
+#
+# * It exposes per-character font names and geometry. CLAUDE.md requires legacy
+#   Sinhala fonts to be identified from per-span font metadata, and sentences to
+#   stay traceable to a place on a page. An extractor that returns only a string
+#   cannot do either.
+# * It is MIT, as is pdfminer.six. PyMuPDF is faster and also exposes spans, but
+#   it is AGPL-3.0 unless separately licensed, and this project already has one
+#   unresolved licence question in the XTTS weights. A second one is not worth
+#   the speed.
+#
+# Deliberately absent: any OCR engine. Image-only pages are classified and
+# reported here; recognising them is a later increment with its own evaluation.
+dependencies = ["pdfplumber>=0.11.4"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
