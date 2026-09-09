@@ -4,11 +4,17 @@ version = "0.0.1"
 description = "Sinhala XTTS text front end and inference adapter for the accessible reader"
 requires-python = ">=3.12"
 
-# Deliberately empty. The text front end is pure standard library, so these
-# tests run anywhere without torch, CUDA, or the 5.6 GB checkpoint. Inference
-# dependencies arrive with the adapter that needs them, pinned against the
-# runtime they were measured in rather than copied from another project.
-dependencies = []
+# numpy only. The audio checks operate on the float waveform the model returns,
+# which is a numpy array in the real pipeline, so they are written against it
+# rather than against a hand-rolled sequence type.
+#
+# Deliberately absent: torch, coqui-tts, and everything else needed to actually
+# run the model. The text path and the audio checks must stay testable on any
+# machine without CUDA or the 5.6 GB checkpoint, which is what keeps them
+# verifiable on every pull request. Inference dependencies arrive with the
+# adapter that needs them, pinned against the runtime they were measured in
+# rather than copied from another project.
+dependencies = ["numpy>=1.26"]
 
 [dependency-groups]
 dev = ["pytest>=8"]

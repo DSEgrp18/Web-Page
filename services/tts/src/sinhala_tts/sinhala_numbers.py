@@ -12,19 +12,21 @@ The front end cannot be fixed, because its behaviour is what the model heard
 during training. Numbers therefore have to be written out as Sinhala words
 *before* the front end runs, while the digits still exist.
 
-.. warning::
+Review status
+-------------
+**The written word forms were reviewed and confirmed by the project owner, a
+native Sinhala speaker, on 2026-09-09** — covering the tables below and the
+expected values in ``tests/test_sinhala_numbers.py``.
 
-   **The word forms in this module need review by a native Sinhala speaker.**
+That confirms the forms are *written* correctly. It does not confirm how they
+*sound* from this model, which is a separate question answered only by
+listening: the checkpoint was fine-tuned on romanised ASCII, so a correctly
+spelled Sinhala numeral can still be pronounced badly.
 
-   They were assembled from standard spoken Sinhala cardinal forms, and the
-   structure — separate standalone and combining forms for tens, hundreds and
-   thousands — is the part worth checking hardest. ``විස්ස`` alone but ``විසි``
-   before another word is the pattern the tables encode; if any individual form
-   is wrong, correcting the table here fixes every number that uses it.
-
-   Until that review happens, treat narrated numbers as unverified. The tables
-   are deliberately plain dictionaries so a reviewer can correct them without
-   reading any logic.
+The tables stay plain dictionaries so a future correction needs no reading of
+logic. The structure worth re-checking if a number ever sounds wrong is the
+standalone/combining split — ``විස්ස`` alone but ``විසි`` before another word;
+correcting one entry fixes every number that uses it.
 
 Scope
 -----

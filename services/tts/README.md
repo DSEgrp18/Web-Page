@@ -42,8 +42,36 @@ print Sinhala test output.
 
 ```text
 src/sinhala_tts/vendor/    The training front end, vendored unchanged. Do not edit.
-tests/                     Characterisation and integrity tests.
+src/sinhala_tts/           Normaliser, number expansion, audio checks, regression set.
+scripts/                   Real-model smoke test. Needs the checkpoint; not run in CI.
+tests/                     Characterisation, integrity, and unit tests. Run in CI.
 ```
+
+## Real-model smoke test
+
+`scripts/smoke_synthesize.py` is the only thing here that loads the checkpoint.
+It runs the fixed regression sentences through the normaliser, synthesises them,
+applies the audio checks, and writes WAVs plus a JSON report.
+
+It **does not run in CI**: it needs the 5.6 GB bundle and the full inference
+stack, and CLAUDE.md requires real-model checks to run on trusted hardware and
+be reported separately from fast pull-request checks.
+
+```bash
+SINHALA_TTS_MODEL_DIR=/path/to/xtts_si_female \
+PYTHONPATH=src python scripts/smoke_synthesize.py --out ../../data/generated/smoke
+```
+
+Use an environment that already has torch, coqui-tts, and soundfile installed;
+the manifest records which versions are load-bearing. `--cases plain-short` runs
+a single case, which is worth doing first because loading the checkpoint on CPU
+is slow.
+
+A non-zero exit means a case failed an automated check. That is a signal to
+listen, not a verdict on quality: **nothing automated here can tell you whether
+the speech is intelligible or correctly pronounced.** That is why the WAVs are
+written out, and why `data/generated/` is git-ignored — generated audio never
+enters the repository.
 
 ## What the tests establish
 
@@ -99,17 +127,21 @@ a silent clip that a cache would happily store as valid audio.
 document version, model version, voice, and generation settings. Bump it
 whenever the produced text changes, or stale audio will be served.
 
-### Numbers need a native-speaker review
+### Numbers
 
 `sinhala_numbers.py` writes cardinals 0–9999 as words: `42` → `හතළිස් දෙක`,
-`2024` → `දෙදහස් විසි හතර`. The forms are standard spoken Sinhala, but they
-have **not been reviewed by a native speaker yet**, and `test_sinhala_numbers.py`
-is written so that review is a matter of reading expected values rather than
-code.
+`2024` → `දෙදහස් විසි හතර`. The written forms were **reviewed and confirmed by
+the project owner, a native Sinhala speaker, on 2026-09-09**.
 
-The structural risk is the standalone/combining split: `විස්ස` alone but `විසි`
-before another word, `සියය` but `එකසිය`, `දෙදහස` but `දෙදහස්`. Correcting a form
-in the table fixes every number that uses it.
+Spelling confirmed is not pronunciation confirmed. The checkpoint was fine-tuned
+on romanised ASCII, so a correctly written numeral can still be spoken badly.
+That question is answered by listening to the smoke-test output, not by reading
+the table.
+
+If a number does sound wrong, the structure to re-check is the
+standalone/combining split — `විස්ස` alone but `විසි` before another word,
+`සියය` but `එකසිය`, `දෙදහස` but `දෙදහස්`. Correcting one entry fixes every
+number that uses it.
 
 Numbers of 10,000 and above are **not** attempted. Sinhala composition with
 `ලක්ෂ` is more intricate, and a confident wrong form is worse than the digit

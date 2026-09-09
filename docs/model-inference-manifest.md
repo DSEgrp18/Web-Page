@@ -15,10 +15,13 @@ performance claim.
 | Model assets inspected | Yes |
 | Working inference implementation inspected | Yes |
 | Text front end behaviour measured | Yes — see `services/tts/tests/` |
-| **Real synthesis run and benchmarked** | **No — not yet done** |
+| **Real synthesis run from this repository** | **Yes, on CPU — 2026-09-09** |
+| Speech quality judged by listening | Not yet |
+| GPU benchmark on serving hardware | No |
 
-No audio has been generated during this work. First-audio latency, real-time
-factor, and VRAM figures are therefore absent rather than estimated.
+The checkpoint loads and produces audio through the documented procedure. See
+"First measured run" below. Nobody has listened to the output yet, and no GPU
+figures exist, so there are no quality or latency claims here.
 
 ## Artifact identity
 
@@ -206,6 +209,94 @@ These pins were measured in the owner's runtime. Re-verify them in the container
 before trusting them there; CLAUDE.md is explicit that package pins must not be
 copied between projects without testing.
 
+## First measured run
+
+2026-09-09, `services/tts/scripts/smoke_synthesize.py`, on the development
+machine. **These are CPU numbers and are not a performance claim.** They exist
+to prove the pipeline works end to end and to give later GPU figures something
+to be compared against.
+
+| | |
+| --- | --- |
+| Device | CPU (`torch 2.13.0+cpu`; CUDA not available in that environment) |
+| Precision | fp32 |
+| Model load | 66-112 s across runs |
+| Speaker conditioning | 0.9-1.8 s (once per process, then cached) |
+| Language token | `en` |
+| Temperature | 0.65 |
+
+All eight regression cases were synthesised and **all eight passed** the
+decoded-sample checks: 24 kHz as expected, non-silent (RMS 0.079–0.088), no
+clipping, no truncation.
+
+| Case | Audio | Synthesis | Real-time factor |
+| --- | ---: | ---: | ---: |
+| `plain-short` | 6.77 s | 67.6 s | 9.99× |
+| `plain-longer` | 5.19 s | 31.9 s | 6.15× |
+| `page-reference` | 3.01 s | 15.9 s | 5.28× |
+| `year` | 4.60 s | 31.0 s | 6.75× |
+| `decimal-and-percent` | 4.09 s | 22.7 s | 5.55× |
+| `mixed-english` | 2.92 s | 13.8 s | 4.72× |
+| `conjuncts` | 4.03 s | 17.5 s | 4.34× |
+| `line-broken` | 3.48 s | 14.6 s | 4.21× |
+
+The normaliser reached the model intact in every case:
+
+| Display | Model input |
+| --- | --- |
+| `පිටුව 42 බලන්න.` | `pituva hathalis dheka balanna.` |
+| `2024 වර්ෂයේ දී එය සිදු විය.` | `dhedhahas visi hathara varshayee dhii eya sidhu viya.` |
+| `ප්‍රතිශතය 12.5% ක් විය.` | `prathishathaya siyayata dholaha dhashama paha k viya.` |
+| `මෙම වාක්‍යය\nදෙකට කැඩී\nඇත.` | `mema vaakyaya dhekata kaedii aetha.` |
+
+Numbers, the percent marker moving in front of its number, decimals read digit
+by digit, and line breaks becoming spaces all survive to the model.
+
+### Output duration is not stable between runs
+
+`plain-short` produced **2.13 s** of audio in one run and **6.77 s** in another,
+from identical input and identical settings — a factor of 3.
+
+Generation is stochastic, so some variation is expected and byte-identical
+output must never be asserted. A 3× spread in *duration* for a five-word
+sentence is a different matter: it suggests the model is appending material
+beyond the sentence, which is a known XTTS failure mode. Nobody has listened
+yet, so whether the longer output is slower speech, a trailing artefact, or
+babble is **unknown**.
+
+This is measured, not resolved, and it has consequences:
+
+- Segment length cannot be predicted from text length, so any chunking bound
+  derived from characters or tokens needs a margin against the model's 25.8 s
+  ceiling rather than a tight fit.
+- Latency targets must be stated as percentiles over repeated measurements. A
+  single timing is close to meaningless.
+- An output-length sanity check belongs in the serving path, not only in the
+  smoke test — but its thresholds have to be calibrated against listening first,
+  because the current `MIN_CHARS_PER_SECOND` of 2.0 passed the 6.77 s run.
+
+What this establishes:
+
+- The documented load procedure is correct, including the soundfile
+  conditioning path that avoids torchcodec.
+- `language="en"` produces audio rather than failing, consistent with the
+  fine-tune being trained under that token.
+- The normaliser reaches the model intact: `පිටුව 42 බලන්න.` was synthesised as
+  `pituva hathalis dheka balanna.`, and its audio is 1.2 s longer than the
+  shorter sentence — the expanded number is present in the output rather than
+  being dropped as it was before.
+
+What it does **not** establish:
+
+- **Anything about quality.** No one has listened. The checks confirm the audio
+  is not silent, not clipped, and not truncated; they cannot tell whether the
+  speech is intelligible, correctly pronounced, or even Sinhala.
+- Anything about serving latency. Real-time factors of 4-10× mean synthesis
+  takes that many times longer than the audio lasts, which is a CPU
+  characteristic, not a property of the model. The 5 s first-segment target in
+  CLAUDE.md cannot be assessed until this runs on a GPU.
+- Anything about VRAM, since none was used.
+
 ## Hardware observed
 
 The development machine has an **NVIDIA GeForce RTX 2050 with 4 GB VRAM**
@@ -215,19 +306,31 @@ will be slow and are not representative of serving hardware.
 
 No GPU serving host has been chosen or measured.
 
-## Divergence from CLAUDE.md to resolve before serving
+## CPU fallback: decided
 
 The working service falls back to CPU automatically on CUDA OOM, both at load
 time and mid-inference, and logs a warning. CLAUDE.md says the opposite:
 
 > never silently substitute voices or move overloaded inference to CPU
 
-Both positions are defensible — the desktop app treats a slow voice as better
-than no voice, while a web service silently moving to CPU turns a latency target
-into a stall nobody is told about. This must be decided explicitly when the
-adapter is built. The likely resolution is to keep the fallback but make it
-**visible**: report degraded mode through readiness and surface it to the user
-as a status, rather than hiding it in a log line.
+**Decision, taken by the project owner on 2026-09-09: keep the fallback, but
+make it visible.** A slow voice beats no voice, so the fallback stays; what
+CLAUDE.md actually objects to is the silence, not the CPU.
+
+That means, when the adapter is built:
+
+- Degraded mode is reported through readiness, distinctly from "not loaded" and
+  from "healthy on GPU". Process liveness, model readiness, and degraded
+  performance are three different states.
+- The reader is told, accessibly, that narration is currently slower than usual.
+  A politely announced status, not an alert, and not a silent stall.
+- The generated segment records which device produced it, so a latency
+  regression can be attributed rather than guessed at.
+- A log line alone does not satisfy this. Nobody reading the application is
+  reading the logs.
+
+`scripts/smoke_synthesize.py` already follows this: its OOM path prints a
+warning and records the device actually used in the report.
 
 ## Text front end
 
@@ -275,13 +378,12 @@ charset. They are stripped. Trust the tests, not the docstring.
 
 Required by CLAUDE.md before serving, and still missing:
 
-- Real synthesis run from this repository. No audio has been generated.
-- Native-speaker review of the Sinhala number word forms in
-  `services/tts/src/sinhala_tts/sinhala_numbers.py`. Until that happens,
-  narrated numbers are unverified.
-- Whether writing numbers out at all is the right default, judged by listening
-  rather than by reading the text.
-- First-audio latency, real-time factor, sustained throughput, and peak VRAM.
+- **Listening.** Nobody has heard any generated audio. Every quality question —
+  intelligibility, pronunciation, whether the written-out numbers sound right —
+  is open until someone plays the smoke-test WAVs. The written number forms are
+  confirmed; how they sound from this model is not.
+- GPU figures: first-audio latency, real-time factor, sustained throughput, and
+  peak VRAM on serving hardware. The CPU run recorded above is not a substitute.
 - Whether 402 or 200 text tokens binds in practice, measured with the real
   tokenizer.
 - Whether the derived 25.8 s utterance ceiling matches observed behaviour.
