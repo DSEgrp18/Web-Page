@@ -47,6 +47,67 @@ scripts/                   Real-model smoke test. Needs the checkpoint; not run 
 tests/                     Characterisation, integrity, and unit tests. Run in CI.
 ```
 
+## The adapter
+
+`sinhala_tts.adapter` is the boundary the rest of the application talks to:
+
+```python
+result = adapter.synthesize(text, voice_id, settings, document_version="v1")
+result.samples  # float32 waveform
+result.metadata  # what produced it, and its cache key
+```
+
+Everything above this line deals in text and audio segments. It never imports
+torch, never knows where the checkpoint lives, and never needs a GPU to be
+tested.
+
+| Implementation | Needs | Output |
+| --- | --- | --- |
+| `XttsAdapter` | The bundle and the inference stack | Real speech |
+| `DevelopmentAdapter` | Nothing | **A placeholder tone, not speech** |
+
+### The development adapter is not a voice
+
+It exists so the reader, the API, and the job pipeline can be built and tested
+without the 5.6 GB bundle. Its output is a 440 Hz tone — deliberately not
+something that could pass a casual listen and reach a demo.
+
+Every result it produces carries `is_real_model=False` and a `development-`
+voice id, and that flag is part of the cache key, so a placeholder can never be
+served from cache in place of narration. It applies the same text validation as
+the real adapter, so a segment rejected in production is rejected here too.
+
+### What each segment records
+
+CLAUDE.md requires the model version and synthesis settings on every generated
+segment, and requires cache identity to cover the text hash, document version,
+model version, normalizer version, voice, and generation settings. Both are in
+`SynthesisMetadata`, so cached audio can be traced to exactly what made it — and
+bumping `NORMALIZER_VERSION` invalidates audio whose speech would now differ.
+
+### Readiness is not liveness
+
+`ReadinessState` separates `NOT_LOADED`, `LOADING`, `READY`, `DEGRADED` and
+`FAILED`. `DEGRADED` means serving on CPU after the GPU could not hold the
+model: still working, far slower than the latency targets assume.
+
+That is the owner's decision from 2026-09-09 — keep the CPU fallback, make it
+visible — expressed at the boundary. `health()` returns a note saying narration
+will be slow and that the reader should be told. A log line does not satisfy
+this; nobody using the reader is reading the logs.
+
+### What it does not promise
+
+**In-flight generation cannot be cancelled.** A torch forward pass runs to
+completion inside one call and there is no safe way to interrupt it in process.
+`timeout_seconds` bounds how long a caller waits *for a slot*, not how long the
+GPU is busy. Claiming otherwise would surface later as a worker that reports a
+timeout while still holding the device.
+
+Concurrency is bounded in the adapter, not left to the caller, because the
+caller cannot see the GPU. The default is one generation at a time: XTTS does
+not fit twice in the VRAM this was developed on.
+
 ## Real-model smoke test
 
 `scripts/smoke_synthesize.py` is the only thing here that loads the checkpoint.
