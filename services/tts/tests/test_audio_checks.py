@@ -17,6 +17,7 @@ from sinhala_tts.audio_checks import (
     EXPECTED_SAMPLE_RATE,
     MAX_UTTERANCE_SECONDS,
     check_audio,
+    expected_duration_seconds,
 )
 
 RATE = EXPECTED_SAMPLE_RATE
@@ -102,14 +103,14 @@ def test_a_long_sentence_producing_a_fragment_is_caught() -> None:
     """Half a second of audio for a paragraph of text: speech went missing."""
     report = check_audio(speech_like(0.5), RATE, model_text="x" * 400)
     assert not report.ok
-    assert any("characters per second" in problem for problem in report.problems)
+    assert any("speech is probably missing" in problem for problem in report.problems)
 
 
 def test_a_short_text_producing_minutes_of_audio_is_caught() -> None:
     """The model looping, which it does when conditioning goes wrong."""
     report = check_audio(speech_like(20.0), RATE, model_text="ada")
     assert not report.ok
-    assert any("characters per second" in problem for problem in report.problems)
+    assert any("kept generating" in problem for problem in report.problems)
 
 
 def test_speech_rate_is_not_checked_without_text() -> None:
@@ -165,3 +166,44 @@ def test_multi_sentence_text_is_not_flagged_by_default() -> None:
     assert report.ok, report.problems
     # Still measured and reported, just not treated as a fault.
     assert report.trailing_audio_seconds > 1.5
+
+
+# --------------------------------------------------------------------------
+# The duration expectation model
+# --------------------------------------------------------------------------
+# Speech rate is not constant: it climbs with text length because every clip
+# carries a fixed overhead. Fitted to measured clips as 1.2s + chars/17.
+
+
+def test_expected_duration_matches_the_measurements_it_was_fitted_to() -> None:
+    """Both ends of the measured range, not just the middle."""
+    assert expected_duration_seconds("x" * 30) == pytest.approx(2.94, abs=0.1)
+    assert expected_duration_seconds("x" * 194) == pytest.approx(12.61, abs=0.2)
+
+
+def test_expected_duration_of_empty_text_is_zero() -> None:
+    assert expected_duration_seconds("") == 0.0
+    assert expected_duration_seconds("   ") == 0.0
+
+
+def test_a_clip_matching_its_expectation_passes() -> None:
+    """194 characters taking 12.6s is correct, and used to be flagged.
+
+    This is the false positive that made the old rule unusable on real prose:
+    a long sentence read at its natural pace looked like appended audio.
+    """
+    report = check_audio(speech_like(12.6), RATE, model_text="x" * 194)
+    assert report.ok, report.problems
+
+
+def test_a_short_sentence_running_long_is_flagged() -> None:
+    """21 characters taking 5.57s, the case confirmed by listening."""
+    report = check_audio(speech_like(5.57), RATE, model_text="x" * 21)
+    assert not report.ok
+    assert any("kept generating" in problem for problem in report.problems)
+
+
+def test_the_same_short_sentence_at_a_normal_length_passes() -> None:
+    """21 characters taking 1.90s, the clean run of the same sentence."""
+    report = check_audio(speech_like(1.90), RATE, model_text="x" * 21)
+    assert report.ok, report.problems

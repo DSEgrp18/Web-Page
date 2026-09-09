@@ -66,11 +66,38 @@ NEAR_SILENCE_RMS = 5e-3
 CLIPPING_LEVEL = 0.999
 MAX_CLIPPED_FRACTION = 0.01
 
-# Speech-rate sanity, in characters of model input per second. Deliberately
-# wide: it is meant to catch "one word of audio for a whole paragraph" and
-# "ninety seconds for three words", not to judge pacing. Uncalibrated.
-MIN_CHARS_PER_SECOND = 2.0
-MAX_CHARS_PER_SECOND = 45.0
+# Expected duration, as a function of text length.
+#
+# Speech rate is NOT constant. Measured over 30 clips, apparent characters per
+# second climbs steadily with text length — 7.7 at 21 characters, 10 at 30, 12
+# at 44, 15 at 194 — because every clip carries a fixed overhead of onset and
+# leading and trailing silence, which weighs proportionally more on a short one.
+#
+# Treating rate as constant is what made a perfectly good 194-character sentence
+# look like it had lost content: a rate measured on short clips predicted 18.5 s
+# for something that legitimately takes 12.6 s.
+#
+# Fitting overhead plus a marginal rate to the clean clips gives:
+#
+#     duration ~= 1.2 s + characters / 17
+#
+# which predicts 2.94 s for 30 characters (measured 2.92) and 12.6 s for 194
+# (measured 12.58).
+#
+# Calibrated on 30 CPU clips of one voice reading Sinhala. Re-fit on the serving
+# hardware and on real document text before trusting it as a gate.
+EXPECTED_OVERHEAD_SECONDS = 1.2
+EXPECTED_CHARS_PER_SECOND = 17.0
+
+# How far past the expectation is suspicious. Clean clips measured 0.8-1.26x
+# expected; clips with confirmed appended audio measured 1.78-2.80x. 1.4 sits in
+# the gap, but the gap was measured on one sentence, so it is not a wide margin.
+MAX_DURATION_RATIO = 1.4
+
+# Audio far below expectation suggests the model stopped early. Deliberately
+# loose: no clip has yet been observed doing this, so this is a tripwire rather
+# than a calibrated bound.
+MIN_DURATION_RATIO = 0.5
 
 # Below this, no audio worth serving was produced regardless of the text.
 MIN_DURATION_SECONDS = 0.15
@@ -80,6 +107,18 @@ MIN_DURATION_SECONDS = 0.15
 # a pause is as likely to be breath or a natural sentence-final sound.
 # Provisional, like everything else here.
 MAX_TRAILING_SECONDS = 0.3
+
+
+def expected_duration_seconds(model_text: str) -> float:
+    """How long this model input should take to speak.
+
+    Takes the model input, not the display text: the tokenizer sees romanised
+    ASCII, and romanisation changes length substantially.
+    """
+    characters = len(model_text.strip())
+    if not characters:
+        return 0.0
+    return EXPECTED_OVERHEAD_SECONDS + characters / EXPECTED_CHARS_PER_SECOND
 
 
 @dataclass(frozen=True)
@@ -190,19 +229,18 @@ def check_audio(
         )
 
     if model_text:
-        characters = len(model_text.strip())
-        if characters and duration > 0:
-            rate = characters / duration
-            if rate < MIN_CHARS_PER_SECOND:
+        expected = expected_duration_seconds(model_text)
+        if expected > 0 and duration > 0:
+            ratio = duration / expected
+            if ratio > MAX_DURATION_RATIO:
                 problems.append(
-                    f"only {rate:.1f} characters per second: "
-                    f"{characters} characters took {duration:.2f}s"
+                    f"{duration:.2f}s of audio for text expected to take "
+                    f"{expected:.2f}s ({ratio:.2f}x): the model probably kept generating"
                 )
-            elif rate > MAX_CHARS_PER_SECOND:
+            elif ratio < MIN_DURATION_RATIO:
                 problems.append(
-                    f"{rate:.1f} characters per second: "
-                    f"{characters} characters in only {duration:.2f}s, "
-                    "so speech is probably missing"
+                    f"only {duration:.2f}s of audio for text expected to take "
+                    f"{expected:.2f}s ({ratio:.2f}x): speech is probably missing"
                 )
 
     trailing = trailing_audio_seconds(samples, sample_rate) if sample_rate else 0.0
