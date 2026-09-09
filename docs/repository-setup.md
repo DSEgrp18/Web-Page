@@ -22,6 +22,28 @@ organizations for **public** repositories only. Making this repository private
 without upgrading the organization to Team would disable every branch rule
 described below.
 
+### About metadata
+
+The description was replaced on 2026-09-09 (previously "Web page for pdf
+reader") with one that states what the project is and that it is early:
+
+> Accessible Sinhala PDF reader and study assistant for blind and low-vision
+> readers: Sinhala text-to-speech narration, keyboard and screen-reader
+> navigation, and document-grounded question answering with page citations.
+> Early development.
+
+Sixteen topics were set, covering accessibility (`accessibility`, `a11y`,
+`wcag`, `screen-reader`, `assistive-technology`, `low-vision`), the domain
+(`sinhala`, `text-to-speech`, `tts`, `xtts`, `pdf-reader`,
+`document-accessibility`), and the study-mode direction (`rag`,
+`retrieval-augmented-generation`, `question-answering`, `research-project`).
+
+Topics for the planned stack (Next.js, FastAPI, Celery, pgvector) were
+deliberately **not** added: none of it is implemented, and topics are how people
+discover a repository by technology. They should be added as each lands.
+
+The website field is empty because nothing is deployed.
+
 ## Members and permissions
 
 | Member | Organization role | Effective repository permission |
@@ -43,16 +65,39 @@ Reducing their effective permission to write requires changing their
 billing, settings, and every other repository — not just this one. That is a
 team decision and has been left to the owner.
 
-This is mitigated but not resolved by the ruleset below: because the ruleset has
-an empty bypass list, the branch rules apply to organization owners too. They
-cannot silently push to `main`. They can still edit or delete the ruleset
-itself, which is recorded in the organization audit log.
+This is partly mitigated by the classic push restriction described under
+"Who can merge": only the owner may push to or merge into `main`. It is not
+resolved, because organization ownership carries repository administration, so
+either of them can edit or remove that restriction and the ruleset. Such changes
+are recorded in the organization audit log.
 
 ## Branch ruleset
 
 Ruleset `main branch protection` (id `22613529`), enforcement **active**,
-targeting `~DEFAULT_BRANCH`, with an **empty bypass list** — nobody bypasses,
-including the owner and the other organization owners.
+targeting `~DEFAULT_BRANCH`.
+
+**Bypass:** repository administrators bypass this ruleset
+(`RepositoryRole` actor `5`, `bypass_mode: always`), added at the owner's
+request on 2026-09-09 so the owner is not blocked when teammates are
+unavailable.
+
+This is a deliberate reversal of the earlier "no bypass for anyone" decision and
+its consequences should be stated plainly:
+
+- The owner can merge their own pull requests to `main` with **no approving
+  review**, and can push directly to `main`, bypassing CI. The required review
+  and the `ci` gate therefore no longer constrain the owner's own changes.
+- The bypass is granted to a *role*, not a person. GitHub rulesets cannot name
+  an individual user as a bypass actor, so it applies to anyone with repository
+  admin — which currently means all three members. What still prevents the other
+  two from merging is the classic push restriction below, not the ruleset.
+- Review remains fully enforced for anyone without admin, and would become
+  meaningful again for the other two members if their organization role were
+  reduced (open item 1).
+
+The bypass was confirmed to work in practice: pull request #3 was merged to
+`main` by the owner on 2026-09-09 with zero approving reviews. (Pull request #1,
+which carried the same content, was closed unmerged.)
 
 | Rule | Setting |
 | --- | --- |
@@ -93,9 +138,12 @@ evaluated and the more restrictive wins.
 | Deletions | Blocked |
 
 The effect intended by the owner: teammates open pull requests and review them,
-but only the owner performs the merge. The one approval required by the ruleset
-still applies to the owner's own pull requests, so this does not let the owner
-merge unreviewed work.
+but only the owner performs the merge.
+
+Combined with the ruleset bypass above, the current position is: teammates must
+have their work reviewed and cannot merge it themselves; the owner can merge
+anything at any time, including their own unreviewed work. This is the owner's
+explicit choice, recorded here so it is visible rather than implicit.
 
 **Enforcement caveat, stated plainly.** This restriction was applied and read
 back from the API, but it was **not** live-tested against another account, since
@@ -128,8 +176,16 @@ remote: - Required status check "ci" is expected.
 The local probe commit was discarded and `main` was reset to `origin/main`; no
 probe commit exists in history.
 
-Reading the rules that apply to `main` for the requesting user also returns all
-five rules, confirming no bypass is in effect for owners.
+**This test predates the admin bypass and no longer describes the owner's
+position.** It was run while the bypass list was empty, and it proves the rules
+were genuinely enforced server-side rather than merely configured. It does *not*
+prove they still block the owner: since the bypass was added, an equivalent push
+from an admin account would be expected to succeed. The test has not been re-run,
+because re-running it now would place a junk commit on `main`.
+
+The rules remain enforced for any account without repository admin. That has not
+been live-tested, since it would require a non-admin account and all three
+members are administrators.
 
 ## Merge and security settings
 
@@ -211,3 +267,9 @@ check. No required status name exists for a check that does not run.
    environment, or deployment credentials are configured. Nothing is deployed.
 5. **GPU smoke tests.** No trusted GPU runner is configured, so real-model
    synthesis tests do not run anywhere yet.
+6. **Code of conduct.** None present. GitHub's community profile reports the
+   repository at 75%, missing a licence and a code of conduct. Its
+   `issue_template: false` result is a false negative: that check looks for the
+   legacy single-file template, not the `.github/ISSUE_TEMPLATE/` forms
+   directory, which is present and working.
+7. **Website field.** Empty until something is deployed.
