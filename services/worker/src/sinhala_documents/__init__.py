@@ -16,6 +16,12 @@ from .model import (
     TextSpan,
 )
 from .pdf_extract import extract_document, extract_page
+from .pipeline import (
+    ReadableDocument,
+    ReadablePage,
+    ReadableSegment,
+    prepare_document,
+)
 from .validation import (
     MAX_PAGES,
     MAX_UPLOAD_BYTES,
@@ -34,10 +40,14 @@ __all__ = [
     "PageExtraction",
     "PageKind",
     "QualityState",
+    "ReadableDocument",
+    "ReadablePage",
+    "ReadableSegment",
     "TextLine",
     "TextSpan",
     "check_pdf_bytes",
     "check_pdf_file",
     "extract_document",
     "extract_page",
+    "prepare_document",
 ]
