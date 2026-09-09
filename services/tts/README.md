@@ -53,8 +53,8 @@ tests/                     Characterisation, integrity, and unit tests. Run in C
 
 ```python
 result = adapter.synthesize(text, voice_id, settings, document_version="v1")
-result.samples          # float32 waveform
-result.metadata         # what produced it, and its cache key
+result.samples  # float32 waveform
+result.metadata  # what produced it, and its cache key
 ```
 
 Everything above this line deals in text and audio segments. It never imports

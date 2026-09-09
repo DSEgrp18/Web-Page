@@ -78,9 +78,15 @@ jobs:
         # checkpoint — that is deliberate, and it is what keeps the text path
         # and the audio checks verifiable on every pull request. The real-model
         # smoke test runs separately, on hardware that has the bundle.
+        #
+        # ruff is pinned exactly rather than floated. An unpinned ">=0.15"
+        # resolved to a newer release that formats Markdown code blocks as well
+        # as Python, so a README that passed locally failed here. A check that
+        # changes behaviour on its own schedule is worse than one that is
+        # slightly old; Dependabot proposes upgrades and they get reviewed.
         run: |
           python -m pip install --disable-pip-version-check \
-            "pytest>=8" "ruff>=0.15" "numpy>=1.26"
+            "pytest>=8" "ruff==0.15.20" "numpy>=1.26"
       - name: Lint
         run: ruff check .
       - name: Format check
