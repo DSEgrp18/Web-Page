@@ -162,8 +162,9 @@ numbers.
 
 ## Converting FM-Abhaya
 
-With the converter in place, that book yields **246,097 readable characters —
-92.8% of everything on its pages**, as real Sinhala:
+With the converter in place, that book yields **258,864 readable characters —
+97.4% of everything on its pages**, and 146 of its 168 pages are fully
+accepted, as real Sinhala:
 
 > හිට්ලර් 1933 දී බලයට පත් වූයේ එරට පාර්ලිමේන්තුවේ තවත් මන්ත්‍රීවරුන්ගේ සහය ලබාගනිමිනි.
 
@@ -194,6 +195,31 @@ it.
 This goes beyond the table's documented passes, so it is counted in
 `ConversionReport.repaired_marks` and **wants a native speaker's confirmation**
 on real pages.
+
+### Borrowing the table for a variant
+
+The book's headings are set in `FMAbabld` — almost certainly FM-Abhaya Bold, but
+CLAUDE.md forbids applying one family's table to another on a resemblance,
+because a wrong mapping produces fluent Sinhala saying something else.
+
+It is enabled now, on evidence rather than likeness:
+
+- 382 of its 383 spans convert to well-formed Sinhala under the FM-Abhaya table.
+- **The book checks the answer itself.** Its inscription page prints the same
+  four lines in Sinhala and in English, and the conversion matches the printed
+  translation line for line — `තිළිණය ලෙසින් රජයෙන් මේ පොත ලදිමි` against "From
+  the government, I received this as a gift".
+- The project owner, a Sinhala speaker, reviewed the converted headings and
+  confirmed them.
+
+Evidence plus a native reader is the standard CLAUDE.md asks for; neither alone
+would have been enough. The pairing stays visible in `variant_of` and in the
+note attached to every converted span, so nothing pretends the table was
+published for this font.
+
+What remains withheld on that book: 193 FM-Abhaya spans whose conversion came
+out malformed, an `FMSamanthax` family with no table at all, the `CIDFont+F2`
+page, and four spans in another script.
 
 ### What the checks can and cannot tell you
 

@@ -132,7 +132,15 @@ def test_the_note_distinguishes_decoded_from_undecodable() -> None:
     variant = pages(legacy_page("RFWEJF+FMAbabldBold"))[0].lines[0].spans[0]
     assert "Converted from" in decoded.notes[0]
     assert "no validated conversion table" in unsupported.notes[0]
-    assert "has not been validated" in variant.notes[0]
+    # A variant says whose table decoded it, so the borrowing stays visible.
+    assert "variant of fmabhaya" in variant.notes[0]
+
+
+def test_a_validated_variant_is_readable() -> None:
+    """The book's headings. Withholding them cost every chapter title."""
+    page = pages(legacy_page("RFWEJF+FMAbabldBold"))[0]
+    assert page.quality is QualityState.ACCEPTED
+    assert page.readable_text == "පොමික පරිස්චිතය හා එම කාරණය වී ඇත"
 
 
 def test_a_unicode_heading_survives_a_legacy_body() -> None:

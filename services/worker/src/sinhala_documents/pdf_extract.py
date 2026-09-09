@@ -101,6 +101,12 @@ _CONVERTED_NOTE = (
     "was decoded, not proofread."
 )
 
+_CONVERTED_VARIANT_NOTE = (
+    "Converted from the legacy Sinhala font {name}, a variant of {family}, using the "
+    "{family} mapping. That pairing was validated against a real book rather than assumed. "
+    "The text was decoded, not proofread."
+)
+
 _CONVERSION_FAILED_NOTE = (
     "Text is in the legacy Sinhala font {name}, but converting it produced malformed "
     "Sinhala, so it cannot be read aloud. It needs review."
@@ -137,7 +143,7 @@ def _box(item: dict) -> BoundingBox:
 Verdict = tuple[ExtractionMethod, QualityState, tuple[str, ...], str]
 
 
-def _convert_legacy(text: str, name: str) -> Verdict:
+def _convert_legacy(text: str, name: str, variant_of: str | None = None) -> Verdict:
     """Decode FM-Abhaya text, and decide whether the result may be spoken.
 
     This is the only place text is rewritten. The original characters are kept
@@ -169,12 +175,12 @@ def _convert_legacy(text: str, name: str) -> Verdict:
             (_CONVERSION_FAILED_NOTE.format(name=name),),
             text,
         )
-    return (
-        ExtractionMethod.LEGACY,
-        QualityState.ACCEPTED,
-        (_CONVERTED_NOTE.format(name=name),),
-        report.text,
+    note = (
+        _CONVERTED_VARIANT_NOTE.format(name=name, family=variant_of)
+        if variant_of
+        else _CONVERTED_NOTE.format(name=name)
     )
+    return ExtractionMethod.LEGACY, QualityState.ACCEPTED, (note,), report.text
 
 
 def _classify_span(text: str, raw_font: str) -> Verdict:
@@ -182,7 +188,7 @@ def _classify_span(text: str, raw_font: str) -> Verdict:
     legacy = identify_legacy_font(raw_font)
     if legacy is not None:
         if legacy.convertible:
-            return _convert_legacy(text, legacy.raw_name)
+            return _convert_legacy(text, legacy.raw_name, legacy.variant_of)
         if legacy.variant_of:
             note = _LEGACY_VARIANT_NOTE.format(name=legacy.raw_name, family=legacy.variant_of)
         else:
