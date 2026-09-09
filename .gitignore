@@ -45,6 +45,7 @@ build/
 coverage/
 playwright-report/
 test-results/
+*.tsbuildinfo
 
 .venv/
 venv/

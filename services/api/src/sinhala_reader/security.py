@@ -63,3 +63,24 @@ def require_owner(x_reader_user: str | None = Header(default=None)) -> str:
             f"Send your identity in the {OWNER_HEADER} header.",
         )
     return x_reader_user.strip()
+
+
+#: Comma-separated origins the browser reader is served from, e.g.
+#: "http://localhost:3000". Empty means no browser may call this API at all.
+ORIGINS_ENV = "SINHALA_READER_ORIGINS"
+
+
+def allowed_origins() -> list[str]:
+    """Origins permitted to call this API from a browser.
+
+    Fails closed, like everything else here: unset means no cross-origin access,
+    not "any". A wildcard has to be typed out deliberately, and ``/readiness``
+    reports it as a limitation when it is.
+
+    The reader UI runs on a different origin from the API — a separate Next.js
+    process in development, and a separate host in deployment — so without this
+    the browser refuses every request before it is sent, and the interface can
+    only report that it is offline.
+    """
+    raw = os.environ.get(ORIGINS_ENV, "")
+    return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]

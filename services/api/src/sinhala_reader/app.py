@@ -24,6 +24,7 @@ what stands in for the real thing and what that costs.
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
 from sinhala_documents import DocumentRejected, check_pdf_bytes
 from sinhala_tts.adapter import DevelopmentAdapter, TextNotSpeakableError, TtsAdapter
 from sinhala_tts.adapter import health as adapter_health
@@ -40,7 +41,14 @@ from .schemas import (
     ProgressDetail,
     SegmentDetail,
 )
-from .security import auth_mode, is_development_auth, require_owner
+from .security import (
+    ORIGINS_ENV,
+    OWNER_HEADER,
+    allowed_origins,
+    auth_mode,
+    is_development_auth,
+    require_owner,
+)
 from .storage import Document, InMemoryStore, Job, Progress, Store, new_id
 
 #: Names the audio a placeholder in the one place a client cannot miss it.
@@ -77,6 +85,26 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         summary="Upload a Sinhala PDF, read it, and listen to it.",
     )
     app.state.deps = deps
+
+    # The reader UI is served from its own origin, so without this the browser
+    # blocks every request before it leaves the machine and the interface can
+    # only say it is offline. Unset means no browser may call this API: the
+    # origins have to be named, and `X-Reader-Real-Model` has to be exposed
+    # explicitly or the reader cannot tell a placeholder tone from speech.
+    origins = allowed_origins()
+    if origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_headers=[OWNER_HEADER, "Content-Type"],
+            expose_headers=[REAL_MODEL_HEADER],
+            # Identity travels in a header, not a cookie. Allowing credentials
+            # would let a third-party page ride along on an ambient session the
+            # moment real authentication replaces the header.
+            allow_credentials=False,
+            max_age=600,
+        )
 
     def owned(document_id: str, owner: str) -> Document:
         document = deps.store.get_document(document_id, owner)
@@ -126,6 +154,16 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             limitations.append(
                 "Authentication is a trusted header. Anyone can claim to be anyone; "
                 "do not expose this server."
+            )
+        if not origins:
+            limitations.append(
+                "No browser origin is allowed, so the reader interface cannot reach this "
+                f"server. Set {ORIGINS_ENV} to the address it is served from."
+            )
+        elif "*" in origins:
+            limitations.append(
+                "Any website may call this API from a browser. With header identity that "
+                "means any page can read any reader's documents."
             )
         return {
             "alive": report.alive,

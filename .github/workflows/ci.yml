@@ -1,11 +1,11 @@
 # Continuous integration for the Sinhala Accessible Reader.
 #
 # This workflow deliberately only runs checks over content that exists today:
-# the repository guards, the TTS text path, document extraction, and the reader
-# API. Frontend builds, container builds, database integration tests, and the
-# accessibility smoke test are added to this file in the same pull requests
-# that introduce the code they check, as required by CLAUDE.md. A check that is
-# skipped or absent must never be able to stand in for a passing test.
+# the repository guards, the TTS text path, document extraction, the reader API,
+# and the reader interface. Container builds and database integration tests are
+# added to this file in the same pull requests that introduce the code they
+# check, as required by CLAUDE.md. A check that is skipped or absent must never
+# be able to stand in for a passing test.
 #
 # Nothing here needs a GPU, the 5.6 GB checkpoint, or a sample PDF. That is what
 # keeps every job runnable on a free runner for every pull request.
@@ -160,6 +160,58 @@ jobs:
         run: ruff format --check .
       - name: Tests
         run: python -m pytest
+      - name: Check the reader interface against this API's schema
+        # Here rather than in the frontend job because the schema comes from
+        # FastAPI itself, and this is the job that already has FastAPI. No
+        # server is started and no npm packages are needed: the script uses
+        # only Node built-ins, and Node is preinstalled on the runner.
+        #
+        # apps/web/src/lib/types.ts is written by hand. This is what stops it
+        # drifting silently, which fails in the worst way available: the reader
+        # is quietly told a field is missing on every page of the book.
+        working-directory: .
+        run: |
+          export PYTHONPATH="services/api/src:services/worker/src:services/tts/src"
+          python -c "import json, sinhala_reader; print(json.dumps(sinhala_reader.create_app().openapi()))" > "${RUNNER_TEMP}/openapi.json"
+          node apps/web/scripts/verify-contract.mjs "${RUNNER_TEMP}/openapi.json"
+
+  reader-ui:
+    name: Reader UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install
+        # `npm ci` and not `npm install`: the lockfile is the pinned set, and a
+        # frontend that silently upgrades a transitive dependency between a
+        # green run and a deployment is not reproducible.
+        run: npm ci
+      - name: Lint
+        # Includes eslint-plugin-jsx-a11y, which catches the accessibility
+        # mistakes that are invisible in a browser and obvious in a screen
+        # reader. It does not replace testing with NVDA and TalkBack.
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Types
+        run: npm run typecheck
+      - name: Tests and accessibility smoke test
+        # tests/a11y.test.tsx runs axe over the core reader flows. Automated
+        # rules find a fraction of real barriers; manual screen-reader testing
+        # stays a separate release requirement, as CLAUDE.md says.
+        run: npm test
+      - name: Production build
+        run: npm run build
 
   # Aggregate gate. This is the single required status check on main, so it must
   # always report a conclusion, even when a job above is skipped or cancelled.
@@ -179,6 +231,7 @@ jobs:
         tts-text-frontend,
         document-extraction,
         reader-api,
+        reader-ui,
       ]
     runs-on: ubuntu-latest
     timeout-minutes: 5

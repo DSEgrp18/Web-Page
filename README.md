@@ -10,21 +10,28 @@ hear answers that cite the pages they came from.
 
 ## Status
 
-**Early setup. There is no running application yet.**
+**It runs locally, end to end, and it does not speak yet.**
 
-This repository currently contains project specifications, vendored legacy-font
-data, and repository tooling. Nothing here synthesises speech or reads a PDF
-today. The sections below describe what is planned; they are not a description
-of working software, and this README will be corrected as capabilities land
-rather than written ahead of them.
+You can start the API and the reader, add a Sinhala PDF, open a page, and press
+play. What comes out is a placeholder tone: the Sinhala XTTS checkpoint has not
+been connected, and every layer says so — in the audio response header, in the
+manifest, in `GET /readiness`, and out loud in the interface the first time a
+tone plays. Nothing here has been deployed, and nothing has been tested with a
+screen reader.
+
+This README is corrected as capabilities land rather than written ahead of them.
 
 | Area | State |
 | --- | --- |
 | Repository governance, CI, branch protection | In place |
-| Legacy FM-Abhaya font data (vendored, verified) | In place, decoder not implemented |
+| Legacy FM-Abhaya font data (vendored, verified) | In place |
 | Sinhala TTS text front end | Vendored and tested; three defects documented |
-| Sinhala XTTS inference | Not started. Procedure, settings, and limits recorded in [the manifest](docs/model-inference-manifest.md); no audio generated yet |
-| Document upload, extraction, and playback | Not started |
+| Sinhala XTTS inference | **Not started.** Procedure, settings, and limits recorded in [the manifest](docs/model-inference-manifest.md); no audio generated yet |
+| PDF extraction and FM-Abhaya decoding | Working. 97.4% of a real 168-page Grade 11 textbook readable; what is not is flagged, not narrated |
+| Reader API: upload, pages, segments, audio, progress | Working, with four named stopgaps: header identity, in-memory storage, thread-per-job, placeholder audio |
+| Reader interface: upload, listen, pause, resume | Working. **No testing with assistive technology has been done**, which CLAUDE.md treats as a release blocker |
+| Sinhala interface text | **Awaiting native-speaker review** ([one file](apps/web/src/lib/strings.ts)) |
+| Scanned PDFs and Sinhala OCR | Not started |
 | Retrieval and document question answering | Not started |
 
 ## Planned scope
@@ -68,6 +75,7 @@ commercial deployment.
 ## Repository layout
 
 ```text
+apps/web/            Accessible Sinhala reader interface (Next.js)
 services/tts/        Sinhala XTTS text front end, segmentation, synthesis adapter
 services/worker/     PDF extraction, FM-Abhaya decoding, and the reading pipeline
 services/api/        Reader API: upload, segments, audio, progress
@@ -82,8 +90,8 @@ SECURITY.md          Vulnerability and private-data reporting
 LICENSE              MIT licence for this repository's code
 ```
 
-The remaining directories (`apps/web/`, `evaluation/`, `infra/`) are created by
-the pull requests that introduce them.
+The remaining directories (`evaluation/`, `infra/`) are created by the pull
+requests that introduce them.
 
 ## Contributing
 

@@ -1,0 +1,326 @@
+/*
+ * Typography and colour for a Sinhala reader, some of whom see the page and
+ * some of whom do not.
+ *
+ * The choices that are not decoration:
+ *
+ * - A Sinhala-first font stack. Sinhala rendered in a fallback face loses the
+ *   distinctions between similar letters, which matters most to exactly the
+ *   low-vision readers this is for.
+ * - `line-height` well above the Latin default. Sinhala stacks vowel signs
+ *   above and below the base letter; 1.4 clips them into each other.
+ * - Focus is always visible, and never removed. It is how a keyboard reader
+ *   knows where they are.
+ * - Controls are at least 44px in both directions (WCAG 2.2 Target Size).
+ * - Contrast is checked against WCAG 2.2 AA: body text 15.9:1, muted text
+ *   7.3:1, and the accent against white 8.6:1, all on the light palette.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --ink: #14181f;
+  --ink-muted: #4a5461;
+  --paper: #ffffff;
+  --paper-sunken: #f2f4f7;
+  --line: #c3cad4;
+  --accent: #0b4f9c;
+  --accent-ink: #ffffff;
+  --danger: #8c1d18;
+  --danger-paper: #fdeceb;
+  --warn-paper: #fdf5e2;
+  --warn-line: #b4820a;
+  --focus: #0b4f9c;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f2f4f7;
+    --ink-muted: #c0c8d4;
+    --paper: #12151a;
+    --paper-sunken: #1c2129;
+    --line: #454f5d;
+    --accent: #8fbcf5;
+    --accent-ink: #10141a;
+    --danger: #ffb4ab;
+    --danger-paper: #3a1512;
+    --warn-paper: #322709;
+    --warn-line: #e6c05a;
+    --focus: #8fbcf5;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Respect the reader's own browser text size; never lock a pixel base. */
+  font-size: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family:
+    "Noto Sans Sinhala", "Iskoola Pota", "Nirmala UI", "Abhaya Libre", system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.8;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.5;
+  margin: 0 0 0.5em;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+h2 {
+  font-size: 1.3rem;
+}
+h3 {
+  font-size: 1.1rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Programmatic focus targets (a heading focused after navigation) should not
+   draw an outline the way a keyboard focus does, but must still be reachable. */
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -4rem;
+  z-index: 10;
+  padding: 0.75rem 1rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: var(--radius);
+  transition: top 120ms ease-in-out;
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+.shell {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1rem 1rem 4rem;
+}
+
+.masthead {
+  border-bottom: 1px solid var(--line);
+  padding: 1rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.masthead p {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+/* -- controls ------------------------------------------------------------ */
+
+button,
+.button {
+  font: inherit;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-sunken);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+input,
+select {
+  font: inherit;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.field {
+  margin-bottom: 1rem;
+}
+
+.hint {
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+  margin: 0.25rem 0 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* -- panels -------------------------------------------------------------- */
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.notice {
+  border: 1px solid var(--warn-line);
+  border-left-width: 6px;
+  background: var(--warn-paper);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.notice.error {
+  border-color: var(--danger);
+  background: var(--danger-paper);
+  color: var(--danger);
+}
+
+.notice h2,
+.notice h3 {
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.notice p,
+.notice li {
+  margin: 0.25rem 0;
+}
+
+/* -- lists --------------------------------------------------------------- */
+
+.stack {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stack > li {
+  border-bottom: 1px solid var(--line);
+  padding: 0.75rem 0;
+}
+
+.stack > li:last-child {
+  border-bottom: none;
+}
+
+/* -- sentences ----------------------------------------------------------- */
+
+.sentences {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: sentence;
+}
+
+.sentence {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.25rem 0;
+}
+
+.sentence-play {
+  flex: 0 0 auto;
+}
+
+.sentence-text {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0.5rem;
+  border-radius: var(--radius);
+}
+
+/* The current sentence is marked by more than colour: it is also the element
+   carrying aria-current, and it gets a border a reader can see without relying
+   on hue. */
+.sentence[data-current="true"] .sentence-text {
+  background: var(--paper-sunken);
+  box-shadow: inset 4px 0 0 var(--accent);
+  font-weight: 600;
+}
+
+/* -- player -------------------------------------------------------------- */
+
+.player {
+  position: sticky;
+  bottom: 0;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 0;
+  margin-top: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

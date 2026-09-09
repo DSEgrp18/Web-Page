@@ -1,0 +1,95 @@
+/**
+ * jsdom has no media pipeline and no object URLs, so both are supplied here.
+ *
+ * `play()` is a stub that resolves and fires `loadeddata`, which is exactly the
+ * part the player depends on: that playing starts, and that a seek can be
+ * applied once data exists. It is **not** a claim that audio decodes, that the
+ * sample rate is right, or that anything is audible. Those are answered by the
+ * API's own audio tests and, ultimately, by a person listening.
+ */
+
+import { cleanup } from "@testing-library/react";
+import { createElement, type AnchorHTMLAttributes, type ReactNode } from "react";
+import { afterEach, vi } from "vitest";
+
+// `next/link` needs an App Router mounted above it, which these tests do not
+// have and do not need. What matters about a link is where it points, and that
+// a screen reader can tell which book it opens — both survive this.
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode }) =>
+    createElement("a", { href, ...rest }, children),
+}));
+
+let objectUrls = 0;
+export const revokedUrls: string[] = [];
+
+URL.createObjectURL = vi.fn(() => `blob:test/${(objectUrls += 1)}`);
+URL.revokeObjectURL = vi.fn((url: string) => {
+  revokedUrls.push(url);
+});
+
+/** Every `play()` the interface attempted, so a test can assert on silence. */
+export const playCalls: string[] = [];
+
+/** The elements it was attempted on, so a test can end a clip the way a browser does. */
+export const playedElements: HTMLMediaElement[] = [];
+
+Object.defineProperty(HTMLMediaElement.prototype, "play", {
+  configurable: true,
+  writable: true,
+  value: function play(this: HTMLMediaElement) {
+    playCalls.push(this.src);
+    playedElements.push(this);
+    // Real browsers fire this once enough of the clip has arrived; the player
+    // applies a saved offset here, so tests need it to happen.
+    queueMicrotask(() => this.dispatchEvent(new Event("loadeddata")));
+    return Promise.resolve();
+  },
+});
+
+Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+  configurable: true,
+  writable: true,
+  value: function pause() {},
+});
+
+Object.defineProperty(HTMLMediaElement.prototype, "load", {
+  configurable: true,
+  writable: true,
+  value: function load() {},
+});
+
+// jsdom's currentTime setter throws; the player sets it on seek and on stop.
+// One value backs every element, which is enough: the player owns exactly one.
+let currentTime = 0;
+
+/** Pretend the reader is this many seconds into the current sentence. */
+export function setCurrentTime(seconds: number): void {
+  currentTime = seconds;
+}
+Object.defineProperty(HTMLMediaElement.prototype, "currentTime", {
+  configurable: true,
+  get: () => currentTime,
+  set: (value: number) => {
+    currentTime = value;
+  },
+});
+
+Object.defineProperty(HTMLMediaElement.prototype, "preservesPitch", {
+  configurable: true,
+  writable: true,
+  value: true,
+});
+
+afterEach(() => {
+  cleanup();
+  playCalls.length = 0;
+  playedElements.length = 0;
+  revokedUrls.length = 0;
+  currentTime = 0;
+  window.localStorage.clear();
+});
