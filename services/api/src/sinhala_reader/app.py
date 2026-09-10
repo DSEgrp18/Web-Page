@@ -16,9 +16,12 @@ Three rules run through every route:
   real model produced it, in a header and in the manifest, because a listener
   cannot tell a tone from speech they were not expecting.
 
-What is deliberately absent: accounts, a database, a job queue, and object
-storage. See ``security.py``, ``storage.py`` and ``preparation.py`` — each says
-what stands in for the real thing and what that costs.
+What is deliberately absent: accounts, a job queue, and object storage. A
+database is not — ``SINHALA_READER_DATABASE_URL`` selects PostgreSQL, and
+without it the in-memory store is used and says so on every readiness call.
+
+See ``security.py``, ``storage.py`` and ``preparation.py`` — each says what
+stands in for the real thing and what that costs.
 """
 
 from __future__ import annotations
@@ -50,7 +53,16 @@ from .security import (
     is_development_auth,
     require_owner,
 )
-from .storage import Document, InMemoryStore, Job, Progress, Store, new_id
+from .storage import (
+    DATABASE_URL_ENV,
+    Document,
+    Job,
+    Progress,
+    Store,
+    build_store,
+    is_durable,
+    new_id,
+)
 
 #: Names the audio a placeholder in the one place a client cannot miss it.
 REAL_MODEL_HEADER = "X-Reader-Real-Model"
@@ -72,7 +84,7 @@ class Deps:
         run_in_background: bool = True,
         warm_on_start: bool = True,
     ) -> None:
-        self.store = store or InMemoryStore()
+        self.store = store or build_store()
         # Chosen from configuration, defaulting to the labelled placeholder.
         self.adapter = adapter or build_adapter()
         #: Load the checkpoint at start-up rather than in the first request.
@@ -172,10 +184,10 @@ def create_app(deps: Deps | None = None) -> FastAPI:
                 "The voice failed to load, so nothing can be narrated. "
                 + (report.detail or "No reason was recorded.")
             )
-        if isinstance(deps.store, InMemoryStore):
+        if not is_durable(deps.store):
             limitations.append(
                 "Storage is in memory. Documents, audio and reading positions are lost "
-                "when this process stops."
+                f"when this process stops. Set {DATABASE_URL_ENV} to use PostgreSQL."
             )
         if is_development_auth():
             limitations.append(

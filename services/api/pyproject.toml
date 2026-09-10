@@ -7,14 +7,22 @@ requires-python = ">=3.12"
 # FastAPI for the app, python-multipart for file uploads. Everything else the
 # API needs comes from the two service packages beside it.
 #
-# Deliberately absent: PostgreSQL, Redis, Celery, and an object store. CLAUDE.md
-# names them as the intended production shape, and none of them exists yet. The
-# storage interface in storage.py is where they arrive; adding the servers
-# before there is anything to keep in them would be infrastructure for its own
-# sake, and would make this slice untestable on a laptop.
+# psycopg is an *extra*, not a hard dependency. The in-memory store is the
+# default, and a contributor building the reader interface should not need a
+# database driver to run the tests. `pip install -e .[postgres]` adds it.
+#
+# Still deliberately absent: Redis, Celery, and an object store. CLAUDE.md names
+# them as the intended production shape and none of them exists yet; the
+# interfaces are where they arrive.
 dependencies = [
   "fastapi>=0.115",
   "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+postgres = [
+  "psycopg[binary]>=3.2",
+  "psycopg-pool>=3.2",
 ]
 
 [dependency-groups]

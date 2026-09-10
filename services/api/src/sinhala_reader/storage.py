@@ -1,17 +1,23 @@
 """What the reader keeps, and the interface a real database will implement.
 
 CLAUDE.md names PostgreSQL, Redis and object storage as the production shape.
-None of it exists yet, and standing up three servers before there is anything to
-put in them would be infrastructure for its own sake — it would also make this
-slice untestable without them.
+The interface is the part that matters: every method takes an ``owner`` and
+enforces it, so authorisation is a property of the store rather than something
+each endpoint remembers to check.
 
-So there is one interface and one in-memory implementation. The interface is the
-part that matters: every method takes an ``owner`` and enforces it, so
-authorisation is a property of the store rather than something each endpoint
-remembers to check. A Postgres implementation drops in behind it.
+Two implementations sit behind it, chosen at the composition root:
 
-**Nothing here survives a restart.** That is stated in the health report and in
-the README rather than left to be discovered.
+* ``InMemoryStore`` — a dictionary with a lock. **Nothing survives a restart.**
+  It is the default because a test run and a ``--reload`` must not need a
+  server, and it is honest about what it is: the health report says so, so
+  nobody deploys it by accident.
+* ``PostgresStore`` in :mod:`.postgres` — selected by setting
+  ``SINHALA_READER_DATABASE_URL``.
+
+Both are held to one suite, ``tests/test_store_contract.py``. CLAUDE.md is
+explicit that mocks alone do not validate integration, so that suite runs
+against a real database when one is configured and says out loud when it does
+not.
 
 Ownership is enforced by returning *nothing* for another owner's document,
 never by raising a distinguishable error. A "403 Forbidden" on a document that
@@ -21,12 +27,16 @@ identifiable students, that difference matters.
 
 from __future__ import annotations
 
+import os
 import threading
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+
+#: Where the database is. Unset means the in-memory store.
+DATABASE_URL_ENV = "SINHALA_READER_DATABASE_URL"
 
 
 def _now() -> str:
@@ -306,3 +316,35 @@ class InMemoryStore(Store):
     def get_progress(self, document_id: str, owner: str) -> Progress | None:
         with self._lock:
             return self._progress.get(self._progress_key(document_id, owner))
+
+
+def build_store() -> Store:
+    """Choose the store from configuration, once, at the composition root.
+
+    Unset means in memory. That is the safe default rather than a timid one: a
+    test run, a CI job and a ``--reload`` must not require a database server,
+    and an in-memory store cannot quietly become production because
+    ``GET /readiness`` reports it as a limitation on every call.
+
+    A URL that is set but unreachable **stops the process**. The alternative is
+    starting up on the in-memory store, accepting a reader's book, and losing it
+    at the next restart while every health check said the deployment was
+    configured for Postgres.
+    """
+    url = os.environ.get(DATABASE_URL_ENV)
+    if not url:
+        return InMemoryStore()
+
+    from .postgres import PostgresStore, migrate
+
+    migrate(url)
+    return PostgresStore(url)
+
+
+def is_durable(store: Store) -> bool:
+    """Does this store survive a restart?
+
+    Asked by ``/readiness`` so the limitation is reported from what is actually
+    running, rather than from what the configuration was meant to select.
+    """
+    return not isinstance(store, InMemoryStore)
