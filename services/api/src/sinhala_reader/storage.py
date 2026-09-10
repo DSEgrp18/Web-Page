@@ -39,6 +39,14 @@ from enum import StrEnum
 DATABASE_URL_ENV = "SINHALA_READER_DATABASE_URL"
 
 
+class EmailTaken(Exception):
+    """That address already has an account.
+
+    Raised by the store rather than checked by a route: a check followed by an
+    insert leaves a gap that two simultaneous registrations both pass through.
+    """
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -123,6 +131,41 @@ class Progress:
 
 
 @dataclass(frozen=True)
+class User:
+    """A person with an account.
+
+    ``email_key`` is the lowercased email and is what uniqueness is enforced on.
+    ``email`` keeps what the reader typed, because a name is theirs to
+    capitalise and showing it back changed is a small unkindness.
+
+    The password hash is here; the password never is, anywhere, at any point
+    after the request that set it.
+    """
+
+    user_id: str
+    email: str
+    email_key: str
+    password_hash: str
+    display_name: str
+    created_at: str = field(default_factory=_now)
+
+
+@dataclass(frozen=True)
+class Session:
+    """Proof that someone logged in, and when it stops being proof.
+
+    ``token_hash`` is stored, never the token. A leaked database must not hand
+    over working sessions, and the server has no reason to be able to
+    reconstruct one.
+    """
+
+    token_hash: str
+    user_id: str
+    created_at: str
+    expires_at: str
+
+
+@dataclass(frozen=True)
 class AudioRecord:
     """One generated segment, and the proof of what generated it."""
 
@@ -196,6 +239,47 @@ class Store(ABC):
     @abstractmethod
     def get_progress(self, document_id: str, owner: str) -> Progress | None: ...
 
+    # -- accounts ----------------------------------------------------------
+
+    @abstractmethod
+    def put_user(self, user: User) -> User:
+        """Create a user. Raises :class:`EmailTaken` if the address is in use.
+
+        Uniqueness is the store's job for the same reason ownership is: checking
+        first and then inserting leaves a gap two simultaneous registrations can
+        both pass through.
+        """
+
+    @abstractmethod
+    def get_user(self, user_id: str) -> User | None: ...
+
+    @abstractmethod
+    def get_user_by_email(self, email_key: str) -> User | None: ...
+
+    @abstractmethod
+    def put_session(self, session: Session) -> Session: ...
+
+    @abstractmethod
+    def get_session(self, token_hash: str) -> Session | None:
+        """The session for a token hash, or nothing. Expiry is not checked here.
+
+        Deciding that a session has expired is the caller's job, in one place,
+        so that "expired" and "never existed" cannot drift apart between
+        implementations.
+        """
+
+    @abstractmethod
+    def delete_session(self, token_hash: str) -> bool: ...
+
+    @abstractmethod
+    def delete_sessions_for_user(self, user_id: str) -> int:
+        """Log a reader out everywhere. Returns how many sessions ended.
+
+        Needed for a password change: a password that has been changed because
+        it may be known to someone else has not been changed at all if their
+        session keeps working.
+        """
+
 
 class InMemoryStore(Store):
     """A dictionary with a lock. Everything is lost when the process stops.
@@ -211,6 +295,9 @@ class InMemoryStore(Store):
         self._jobs: dict[str, Job] = {}
         self._audio: dict[str, AudioRecord] = {}
         self._progress: dict[str, Progress] = {}
+        self._users: dict[str, User] = {}
+        self._users_by_email: dict[str, str] = {}
+        self._sessions: dict[str, Session] = {}
 
     # -- documents ---------------------------------------------------------
 
@@ -316,6 +403,46 @@ class InMemoryStore(Store):
     def get_progress(self, document_id: str, owner: str) -> Progress | None:
         with self._lock:
             return self._progress.get(self._progress_key(document_id, owner))
+
+    # -- accounts ----------------------------------------------------------
+
+    def put_user(self, user: User) -> User:
+        with self._lock:
+            existing = self._users_by_email.get(user.email_key)
+            if existing is not None and existing != user.user_id:
+                raise EmailTaken(user.email_key)
+            self._users[user.user_id] = user
+            self._users_by_email[user.email_key] = user.user_id
+        return user
+
+    def get_user(self, user_id: str) -> User | None:
+        with self._lock:
+            return self._users.get(user_id)
+
+    def get_user_by_email(self, email_key: str) -> User | None:
+        with self._lock:
+            user_id = self._users_by_email.get(email_key)
+            return self._users.get(user_id) if user_id else None
+
+    def put_session(self, session: Session) -> Session:
+        with self._lock:
+            self._sessions[session.token_hash] = session
+        return session
+
+    def get_session(self, token_hash: str) -> Session | None:
+        with self._lock:
+            return self._sessions.get(token_hash)
+
+    def delete_session(self, token_hash: str) -> bool:
+        with self._lock:
+            return self._sessions.pop(token_hash, None) is not None
+
+    def delete_sessions_for_user(self, user_id: str) -> int:
+        with self._lock:
+            doomed = [h for h, s in self._sessions.items() if s.user_id == user_id]
+            for token_hash in doomed:
+                del self._sessions[token_hash]
+            return len(doomed)
 
 
 def build_store() -> Store:

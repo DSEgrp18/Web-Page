@@ -36,6 +36,8 @@ audio rather than being available on request.
 | `GET /documents/{id}/segments/{sid}/audio` | WAV, generated on demand then cached. |
 | `GET /documents/{id}/segments/{sid}/audio/manifest` | What produced it, without downloading it. |
 | `PUT`/`GET /documents/{id}/progress` | Where the reader is, against the version they read. |
+| `POST /auth/register`, `/auth/login`, `/auth/logout`, `/auth/password` | Accounts. See below. |
+| `GET /auth/me` | Who am I. |
 | `GET /health`, `GET /readiness` | Liveness and model readiness, answered separately. |
 
 ## Run it
@@ -62,7 +64,12 @@ one is missed, the reader hears a tone with no way to know it was not speech.
 Then `http://127.0.0.1:8000/docs`. Every request needs an identity header:
 
 ```bash
+# development mode
 curl -H 'X-Reader-User: me' -F file=@book.pdf http://127.0.0.1:8000/documents
+
+# sessions mode
+TOKEN=$(curl -s -X POST http://127.0.0.1:8000/auth/login   -H 'Content-Type: application/json'   -d '{"email":"me@example.lk","password":"a-long-enough-password"}' | jq -r .token)
+curl -H "Authorization: Bearer $TOKEN" -F file=@book.pdf http://127.0.0.1:8000/documents
 ```
 
 Tests need no environment: `python -m pytest`.
@@ -130,7 +137,7 @@ mistake this for production.
 
 | Stopgap | Real thing | What it costs |
 | --- | --- | --- |
-| Trusted `X-Reader-User` header | Accounts and verified sessions | **Anyone can claim to be anyone.** The API refuses to start serving unless `SINHALA_READER_AUTH=development` is set explicitly, so a deployment that forgets fails closed. |
+| Trusted `X-Reader-User` header, in `development` mode | Accounts and verified sessions — **now implemented**, `SINHALA_READER_AUTH=sessions` | In `development` mode **anyone can claim to be anyone**. The API refuses to serve under no mode at all, so a deployment that forgets fails closed. |
 | `InMemoryStore` **by default** | PostgreSQL, object storage | Documents, audio and positions are lost on restart. `SINHALA_READER_DATABASE_URL` selects PostgreSQL instead; audio still lives in the database rather than object storage. |
 | A thread per job | Celery and Redis | In-flight work is lost on restart; no retries, no cross-process queue. |
 | `DevelopmentAdapter` **by default** | The XTTS checkpoint on a GPU | Audio is a 440 Hz tone. Marked `is_real_model=false` everywhere, including in the cache key, so a tone can never be served as narration. `SINHALA_READER_TTS=xtts` selects the real voice instead. |
@@ -139,6 +146,90 @@ mistake this for production.
 The **shape** is what matters and is not a stopgap: ownership runs through the
 store, job states are the ones CLAUDE.md names, and cache identity is the
 adapter's full key. Swapping any row above touches one file.
+
+## Signing in
+
+Two modes, and no third. `SINHALA_READER_AUTH` picks one:
+
+| | |
+| --- | --- |
+| `sessions` | Real accounts. `Authorization: Bearer <token>` from `POST /auth/login`. |
+| `development` | The `X-Reader-User` header, trusted completely. **Anyone can be anyone.** |
+
+Unset is neither and every request is refused, so a deployment that forgets
+authentication fails closed and loudly rather than serving private books to
+whoever asks.
+
+**The two never overlap.** In `sessions` mode the header identifies nobody — if
+both worked at once, every account would be bypassable by typing a user id into
+a header, and nothing about the server would look wrong. There is a test for
+exactly that.
+
+`development` stays because the whole reader interface and document pipeline can
+be built and reviewed without accounts, and because checking a focus order
+should not require a database and a registered user.
+
+| | |
+| --- | --- |
+| `POST /auth/register` | Create an account, and sign in with it. |
+| `POST /auth/login` | A token and when it expires. |
+| `POST /auth/logout` | End this session. Idempotent. |
+| `GET /auth/me` | Who am I — what a reloaded interface asks. |
+| `POST /auth/password` | Change it, and end **every** session. |
+
+### What these routes refuse to say
+
+A login that answers "no such account" for one address and "wrong password" for
+another has told an attacker which addresses have accounts. That is not abstract
+here: this is a service for blind and low-vision readers, so membership of it is
+information about a person's disability.
+
+So every failed sign-in is the same status and the same body — and a login for
+an unknown address still runs a full scrypt verification against a throwaway
+hash, because otherwise it answers sooner and the timing says what the body
+does not.
+
+Registration is the one route that deliberately says more: it has to tell a
+reader that an address is already registered. That makes addresses enumerable
+*there*, which is why it needs a rate limit before this is public.
+
+### Passwords and tokens are hashed differently, on purpose
+
+**Passwords: scrypt**, deliberately slow. A password is low-entropy and chosen
+by a person, so cost per guess is the only defence once a database leaks.
+Parameters are `N=2^14, r=8, p=5` — one of OWASP's equivalent-work
+configurations, chosen for its memory footprint:
+
+```
+N=2^17 r=8 p=1    895 ms   128 MB   <- the one usually quoted
+N=2^14 r=8 p=5    545 ms    16 MB   <- chosen
+```
+
+Every login attempt costs that, including the failed ones. At 128 MB, eight
+simultaneous attempts is a gigabyte, and refusing service to readers is a
+cheaper attack than cracking anything.
+
+**Session tokens: SHA-256**, deliberately fast. A token is 256 bits of
+`secrets.token_urlsafe`; there is no dictionary to try, so a slow hash would
+cost a tenth of a second on every authenticated request and buy nothing. Only
+the hash is stored, so a leaked database hands over no working sessions.
+
+Getting those two the wrong way round is the classic mistake, which is why both
+are written down.
+
+### Sessions last fourteen days
+
+Long, deliberately. Signing in is a much heavier task with a screen reader or at
+400% zoom than it is for someone who can see a form, so a short expiry taxes
+exactly the readers this exists for. Sessions are revocable server-side, which
+is what makes that defensible, and they renew in use so a daily reader is never
+signed out mid-chapter.
+
+### Not done
+
+No rate limiting, no email verification, no password reset. A reader who forgets
+their password cannot recover the account. `/readiness` lists all three on every
+call, so "we have logins" cannot stand in for "this is safe to expose".
 
 ## Storage
 
