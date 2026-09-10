@@ -260,12 +260,6 @@ def main() -> int:
                 wav = wav.detach().to(device="cpu", dtype=torch.float32).numpy()
             samples = np.asarray(wav, dtype=np.float32)
 
-            # expect_single_utterance is deliberately not set. The gap-based
-            # rule it drives flags ordinary multi-clause prose as appended
-            # audio — it called a good 194-character sentence "7.68s appended"
-            # because it split at the sentence's own commas. The duration
-            # expectation supersedes it as the gate; the trailing measurement
-            # is still reported below, for diagnosis rather than judgement.
             report = check_audio(
                 samples,
                 EXPECTED_SAMPLE_RATE,

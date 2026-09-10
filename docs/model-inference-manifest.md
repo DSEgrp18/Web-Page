@@ -16,17 +16,22 @@ performance claim.
 | Working inference implementation inspected | Yes |
 | Text front end behaviour measured | Yes — see `services/tts/tests/` |
 | **Real synthesis run from this repository** | **Yes, on CPU — 2026-09-09** |
-| Speech quality judged by listening | Partly — appended-audio fault confirmed |
+| Speech quality judged by listening | **Yes — ten sentences, 2026-09-10** |
 | GPU benchmark on serving hardware | No |
 
 The checkpoint loads and produces audio through the documented procedure. See
 "First measured run" below.
 
-One quality question has been answered by listening, and it is a bad answer:
-**the model sometimes keeps generating after a sentence ends**, appending
-invented sound. Everything else about quality — intelligibility, pronunciation,
-whether the written-out numbers sound right — remains unheard. No GPU figures
-exist. There are no latency claims here.
+**2026-09-10: the output has now been listened to.** All ten regression
+sentences were synthesised from the checkpoint and played by the project owner,
+who reported no appended audio on any of them and judged all ten good. That
+covers intelligibility, the conjuncts, mixed Sinhala-English, and — the cases
+that mattered most — the three where the normaliser rewrote the text before the
+model saw it: a page reference, a year, and a decimal percentage.
+
+That listening also overturned something this document had recorded as a fault.
+See "Appended audio: what it is and is not" below. **No GPU figures exist and
+there are no latency claims here.**
 
 ## Artifact identity
 
@@ -295,6 +300,72 @@ The normaliser reached the model intact in every case:
 
 Numbers, the percent marker moving in front of its number, decimals read digit
 by digit, and line breaks becoming spaces all survive to the model.
+
+## Appended audio: what it is and is not
+
+**Corrected 2026-09-10.** This document previously reported a ~12% clean rate
+and listed "a fix for the appended audio" as a blocker. That figure came from a
+measure that does not work, and the blocker was smaller than stated.
+
+### What happened
+
+Ten regression sentences were synthesised and listened to. The automated
+pause-based measure flagged **six**. The listener reported **none** — no
+appended audio anywhere, and all ten good.
+
+Measuring the waveforms settled which was right. `long-single-sentence` runs
+continuously from 0.02 s to 12.10 s with no silence longer than 0.52 s; the
+measure had reported "9.02 s of sound after the first utterance, across 5
+regions". It had split a single sentence at its commas and called clauses two
+onwards a fault.
+
+Three of the six false positives were commas. The other three — `year`,
+`page-reference`, `conjuncts` — have no punctuation at all: the pause follows an
+expanded number, and is prosody rather than text. So a text-aware gate does not
+fix it either, and one was tried and discarded.
+
+Measured internal pauses now run to **0.86 s**, which completely covers the
+0.26-0.70 s range that preceded genuine appended material. **No silence
+threshold separates them.**
+
+### What is still true
+
+The original finding stands and is not withdrawn. Six runs of
+`මම ගෙදර යනවා.` with identical settings gave 1.90, 2.27, 4.45, 4.31, 5.57 and
+2.55 s, and the long ones were confirmed by listening to contain the sentence
+followed by extra sound. Appended audio is real and stochastic.
+
+### What detects it
+
+Duration, not pauses. Against an expectation of 2.44 s for that sentence:
+
+| Clip | Ratio | Verdict |
+| ---: | ---: | --- |
+| 1.90 s | 0.78x | clean |
+| 2.27 s | 0.93x | clean |
+| 2.55 s | 1.05x | clean |
+| 4.45 s | **1.83x** | appended |
+| 4.31 s | **1.77x** | appended |
+| 5.57 s | **2.29x** | appended |
+
+Perfect separation at `MAX_DURATION_RATIO`, and it passed all ten of the
+2026-09-10 clips — including the three the pause measure flagged, which came in
+at 1.14x, 1.11x and 1.04x.
+
+So `check_audio` now decides on the duration ratio alone. The pause measure is
+still computed and reported as context for a human, and **never fails a check**:
+a check that fails on six of ten correct clips is one people learn to ignore,
+and it nearly justified trimming that would have cut sentences at their commas.
+
+### What this changes
+
+- **Retry is not needed.** It was costed at multiples of GPU time against a
+  ~12% clean rate that was not a clean rate.
+- **Trimming stays rejected**, and now for a concrete reason rather than a
+  cautious one: it would have truncated `long-single-sentence` at 3.40 s of 12.21.
+- The remaining question is narrower — how often duration-detected appended
+  audio actually occurs across many sentences. That needs a repeat run, and it
+  needs the GPU decision first.
 
 ### Output duration is not stable between runs
 
@@ -689,15 +760,12 @@ charset. They are stripped. Trust the tests, not the docstring.
 
 Required by CLAUDE.md before serving, and still missing:
 
-- **Listening.** Nobody has heard any generated audio. Every quality question —
-  intelligibility, pronunciation, whether the written-out numbers sound right —
-  is open until someone plays the smoke-test WAVs. The written number forms are
-  confirmed; how they sound from this model is not.
-- **A fix for the appended audio.** Detection exists; nothing prevents it.
-  Generation settings have now been tested and do not fix it — greedy decoding
-  is fully deterministic and still appends, so it is learned behaviour rather
-  than sampling noise. Trimming needs its false-cut rate measured; retry costs
-  multiples of GPU time at the measured ~12% clean rate.
+- **How often appended audio actually occurs.** Now that duration is the
+  detector rather than pauses, the rate needs measuring again across many
+  sentences rather than one repeated six times. Needs the GPU decision first.
+- **Listening beyond ten sentences.** Ten were heard on 2026-09-10 and all were
+  good. That is a real answer to "does this work at all" and not yet an answer
+  to "does it hold across a book".
 - GPU figures: first-audio latency, real-time factor, sustained throughput, and
   peak VRAM on serving hardware. The CPU run recorded above is not a substitute.
 - Whether the derived 25.8 s utterance ceiling matches observed behaviour.
