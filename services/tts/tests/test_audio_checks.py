@@ -137,9 +137,11 @@ def test_appended_audio_is_reported_for_a_single_sentence() -> None:
     audio = np.concatenate(
         [speech_like(1.40), np.zeros(int(RATE * 0.52), dtype=np.float32), speech_like(3.65)]
     )
-    report = check_audio(audio, RATE, expect_single_utterance=True)
+    report = check_audio(audio, RATE, model_text="mama gedhara yanavaa.")
+    # Caught by duration, not by the pause: 5.57s against an expectation of
+    # 2.44s. The pause measure is reported alongside it as context.
     assert not report.ok
-    assert any("after the sentence ended" in problem for problem in report.problems)
+    assert any("kept generating" in problem for problem in report.problems)
     assert report.trailing_audio_seconds > 3.0
     assert report.speech_regions == 2
 
@@ -147,7 +149,7 @@ def test_appended_audio_is_reported_for_a_single_sentence() -> None:
 def test_clean_output_reports_no_appended_audio() -> None:
     """Speech then silence: what a correctly terminated utterance looks like."""
     audio = np.concatenate([speech_like(1.26), np.zeros(int(RATE * 0.62), dtype=np.float32)])
-    report = check_audio(audio, RATE, expect_single_utterance=True)
+    report = check_audio(audio, RATE, model_text="mama gedhara yanavaa.")
     assert report.ok, report.problems
     assert report.trailing_audio_seconds == 0.0
     assert report.speech_regions == 1
@@ -156,8 +158,8 @@ def test_clean_output_reports_no_appended_audio() -> None:
 def test_multi_sentence_text_is_not_flagged_by_default() -> None:
     """A second stretch of speech is correct when the text held two sentences.
 
-    Flagging it would be a false positive, which is why the check is opt-in
-    rather than always on.
+    Flagging it would be a false positive, which is why the pause measure is
+    never a verdict — only the duration ratio is.
     """
     audio = np.concatenate(
         [speech_like(1.40), np.zeros(int(RATE * 0.52), dtype=np.float32), speech_like(2.0)]
@@ -207,3 +209,82 @@ def test_the_same_short_sentence_at_a_normal_length_passes() -> None:
     """21 characters taking 1.90s, the clean run of the same sentence."""
     report = check_audio(speech_like(1.90), RATE, model_text="x" * 21)
     assert report.ok, report.problems
+
+
+# ---------------------------------------------------------------------------
+# The false-positive class found by listening on 2026-09-10.
+#
+# The pause-based measure flagged six of ten regression sentences as "the model
+# kept generating". A listener confirmed every one was wrong. Three were commas;
+# three were the prosodic pause after an expanded number, in text with no
+# punctuation at all. These tests hold the line that duration decides, not pauses.
+# ---------------------------------------------------------------------------
+
+
+def _clip(sample_rate: int, *spans: tuple[float, float]) -> np.ndarray:
+    """Build audio with sound over the given (start, end) second spans."""
+    total = max(end for _, end in spans)
+    samples = np.zeros(int(total * sample_rate), dtype=np.float32)
+    rng = np.random.default_rng(0)
+    for start, end in spans:
+        a, b = int(start * sample_rate), int(end * sample_rate)
+        samples[a:b] = rng.uniform(-0.3, 0.3, b - a).astype(np.float32)
+    return samples
+
+
+class TestPausesAreNotFaults:
+    """Real clips a person judged correct, which the pause measure flagged."""
+
+    def test_a_sentence_with_commas_passes(self) -> None:
+        # comma-clauses: three clauses, 0.38s silences. Judged correct by ear.
+        samples = _clip(RATE, (0.0, 0.38), (0.70, 1.04), (1.42, 2.02))
+        report = check_audio(
+            samples, RATE, model_text="adha, mama paasal gos, pasuva gedhara aavemi."
+        )
+        assert report.ok, report.problems
+
+    def test_a_pause_after_an_expanded_number_passes(self) -> None:
+        """The case my first fix missed.
+
+        `year` has no punctuation — the pause comes from the prosody of a
+        spoken-out number. A text-based gate cannot see it; the duration ratio
+        does not need to.
+        """
+        samples = _clip(RATE, (0.0, 2.28), (2.82, 3.98))
+        report = check_audio(
+            samples, RATE, model_text="dhedhahas visi hathara varshayee dhii eya sidhu viya."
+        )
+        assert report.ok, report.problems
+        # The measurement is still reported — it is context, not a verdict.
+        assert report.trailing_audio_seconds > 0
+
+    def test_two_sentences_in_one_segment_pass(self) -> None:
+        samples = _clip(RATE, (0.0, 1.72), (2.34, 4.96))
+        report = check_audio(
+            samples,
+            RATE,
+            model_text="adha dhavasee kaalagunaya ithaa hondhayi. api udhaaesana paasal giyemu.",
+        )
+        assert report.ok, report.problems
+
+
+class TestDurationStillCatchesAppendedAudio:
+    """The original finding, which the fix must not disable.
+
+    Six runs of one sentence against an expectation of 2.44s: the three clean
+    clips came in at 0.78x, 0.93x and 1.05x, the three with appended audio at
+    1.83x, 1.77x and 2.29x. Perfect separation, which is why duration decides.
+    """
+
+    TEXT = "mama gedhara yanavaa."
+
+    @pytest.mark.parametrize("seconds", [4.45, 4.31, 5.57])
+    def test_the_appended_clips_are_caught(self, seconds: float) -> None:
+        report = check_audio(speech_like(seconds), RATE, model_text=self.TEXT)
+        assert not report.ok
+        assert any("kept generating" in p for p in report.problems)
+
+    @pytest.mark.parametrize("seconds", [1.90, 2.27, 2.55])
+    def test_the_clean_clips_pass(self, seconds: float) -> None:
+        report = check_audio(speech_like(seconds), RATE, model_text=self.TEXT)
+        assert report.ok, report.problems

@@ -36,10 +36,48 @@ makes it detectable.
 
    The known false positive is a sentence containing a long pause of its own —
    at a comma, a colon, or between two sentences sent as one segment. Measured
-   internal pauses in these samples were 0.16-0.26 s and the pauses before
+   internal pauses in those first samples were 0.16-0.26 s and the pauses before
    appended material were 0.26-0.70 s, so the two ranges **overlap**. A
    threshold cannot separate them reliably, which is precisely why this reports
    for review instead of acting.
+
+Measured again, 2026-09-10, and it is worse than that
+-----------------------------------------------------
+Ten regression sentences were synthesised and **listened to**. The listener
+reported no appended audio on any of them and judged all ten good. This module
+flagged six.
+
+Every one of the six was a false positive, and the waveform says why. These are
+the silences *inside* real speech, measured on those clips:
+
+===========================  =========================  =====================
+Clip                         Longest internal silence   What it actually is
+===========================  =========================  =====================
+``long-single-sentence``      0.52 s                     a comma
+``comma-clauses``             0.38 s                     a comma
+``plain-longer``              0.62 s                     a sentence boundary
+``year``                      0.86 s                     a clause boundary
+===========================  =========================  =====================
+
+``long-single-sentence`` runs continuously from 0.02 s to 12.10 s with no gap
+longer than 0.52 s. This module reported "9.02 s of sound after the first
+utterance, across 5 regions". There was no appended audio at all: it had split a
+single sentence at its commas and called clauses two onwards a fault.
+
+So the earlier 0.16-0.26 s figure was measured on one short sentence with no
+internal punctuation, and does not generalise. On real prose the internal pauses
+run to 0.86 s, which **completely covers** the 0.26-0.70 s range that preceded
+genuine appended material. There is no threshold that separates them.
+
+What that means, precisely:
+
+* The original finding stands. Appended audio is real and stochastic — six runs
+  of one short sentence gave 1.90-5.57 s, and the long ones were confirmed by
+  listening.
+* The detection is sound **only for text with no internal pause**. On anything
+  with a comma it reports the text's own structure as a fault.
+* A "clean rate" computed across mixed text is meaningless, and the ~12% figure
+  derived that way should not be used.
 """
 
 from __future__ import annotations

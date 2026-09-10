@@ -153,7 +153,6 @@ def main() -> int:
                 samples,
                 EXPECTED_SAMPLE_RATE,
                 model_text=model_text,
-                expect_single_utterance=True,
             )
             durations.append(report.duration_seconds)
             trailing.append(report.trailing_audio_seconds)

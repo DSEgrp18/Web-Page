@@ -103,10 +103,25 @@ MIN_DURATION_RATIO = 0.5
 MIN_DURATION_SECONDS = 0.15
 
 
-# Appended sound beyond this is worth a human ear. Below it, a short burst after
-# a pause is as likely to be breath or a natural sentence-final sound.
-# Provisional, like everything else here.
-MAX_TRAILING_SECONDS = 0.3
+# Appended audio is detected by DURATION, not by pauses.
+#
+# The pause-based measure below is reported, never failed on. On 2026-09-10 it
+# flagged six of ten regression sentences and a listener confirmed every one was
+# wrong: it had split real sentences at their commas, and at the prosodic pauses
+# that follow an expanded number even where the text has no punctuation at all.
+# Measured internal pauses ran to 0.86 s, which completely covers the 0.26-0.70 s
+# range that preceded genuine appended material. No threshold separates them.
+#
+# The duration ratio does separate them, cleanly, on the same evidence that
+# established the fault — six runs of ``mama gedhara yanavaa.`` against an
+# expectation of 2.44 s:
+#
+#     1.90s  0.78x  clean       4.45s  1.83x  appended
+#     2.27s  0.93x  clean       4.31s  1.77x  appended
+#     2.55s  1.05x  clean       5.57s  2.29x  appended
+#
+# and it passed all ten of the 2026-09-10 clips, including the three the pause
+# measure flagged (1.14x, 1.11x, 1.04x). So MAX_DURATION_RATIO is the detector.
 
 
 def expected_duration_seconds(model_text: str) -> float:
@@ -158,19 +173,12 @@ def check_audio(
     *,
     model_text: str | None = None,
     expected_sample_rate: int = EXPECTED_SAMPLE_RATE,
-    expect_single_utterance: bool = False,
 ) -> AudioReport:
     """Inspect decoded samples and report anything that looks wrong.
 
     ``samples`` is the float waveform as the model returns it, before any WAV
     encoding. ``model_text`` is the ASCII actually given to the model; when
     supplied, it enables the speech-rate check.
-
-    Set ``expect_single_utterance`` when the text was one sentence. This model
-    sometimes keeps generating after a sentence ends — confirmed by listening,
-    and measured in ``speech_regions`` — and this reports it. Leave it off for
-    text holding more than one sentence, where a second stretch of speech is
-    correct and flagging it would be a false positive.
 
     Never raises for bad audio — it returns a report. Deciding what to do with a
     problem (retry, route for review, refuse to cache) belongs to the caller.
@@ -246,11 +254,9 @@ def check_audio(
     trailing = trailing_audio_seconds(samples, sample_rate) if sample_rate else 0.0
     regions = len(find_speech_regions(samples, sample_rate)) if sample_rate else 0
 
-    if expect_single_utterance and trailing > MAX_TRAILING_SECONDS:
-        problems.append(
-            f"{trailing:.2f}s of sound after the sentence ended, across "
-            f"{regions} speech regions: the model probably kept generating"
-        )
+    # Deliberately not a problem. See the note above MAX_DURATION_RATIO: this
+    # measures the text's own pauses as often as it measures a fault, and a
+    # check that fails on six of ten correct clips is one people learn to ignore.
 
     return AudioReport(
         sample_rate=sample_rate,
