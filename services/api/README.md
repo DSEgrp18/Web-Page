@@ -67,6 +67,45 @@ curl -H 'X-Reader-User: me' -F file=@book.pdf http://127.0.0.1:8000/documents
 
 Tests need no environment: `python -m pytest`.
 
+### Choosing a voice
+
+| | |
+| --- | --- |
+| `SINHALA_READER_TTS` | `development` (default) or `xtts`. |
+| `SINHALA_READER_TTS_DEVICE` | `cpu` or `cuda`, for the real voice. Unset means choose. |
+| `SINHALA_TTS_MODEL_DIR` | Where the bundle is. The TTS package's own setting, not restated here. |
+
+```bash
+SINHALA_READER_AUTH=development \
+SINHALA_READER_TTS=xtts \
+SINHALA_READER_TTS_DEVICE=cpu \
+SINHALA_TTS_MODEL_DIR=/path/to/xtts_si_female \
+PYTHONPATH="src:../worker/src:../tts/src" \
+  python -m uvicorn sinhala_reader.app:app
+```
+
+The default is the placeholder, and that is a **safe** default rather than a
+timid one: a tone carries `is_real_model=false` through the header, the
+manifest, readiness and the cache key, so it can never be mistaken for
+narration. Defaulting the other way would make every test run, every CI job and
+every `--reload` try to load 5.6 GB from a path that usually is not there.
+
+An unrecognised value **stops the process**. CLAUDE.md forbids silently falling
+back to another voice, and a typo in a deployment variable must not quietly
+serve tones to a reader who was promised speech.
+
+The checkpoint loads in a background thread at start-up, not inside the first
+request — it takes over a minute, and a reader who presses play and waits that
+long has been failed whatever happens next. While it loads, `GET /readiness`
+reports a cold start; if it fails, readiness names the reason. Neither blocks:
+`model_version` is only read once the model is actually serving, because
+reading it earlier *causes* the load, and a health probe that blocks for ninety
+seconds gets killed and reported as an outage.
+
+A request that arrives mid-load still waits for it — the adapter serialises on
+its load lock. The interface has no cold-start state yet, so that wait looks
+like a stall. That is the next increment.
+
 ## Measured on a real book
 
 A 168-page Grade 11 Sinhala history textbook, through the API:
@@ -94,7 +133,7 @@ mistake this for production.
 | Trusted `X-Reader-User` header | Accounts and verified sessions | **Anyone can claim to be anyone.** The API refuses to start serving unless `SINHALA_READER_AUTH=development` is set explicitly, so a deployment that forgets fails closed. |
 | `InMemoryStore` | PostgreSQL, object storage | Documents, audio and positions are lost on restart. |
 | A thread per job | Celery and Redis | In-flight work is lost on restart; no retries, no cross-process queue. |
-| `DevelopmentAdapter` | The XTTS checkpoint on a GPU | Audio is a 440 Hz tone. Marked `is_real_model=false` everywhere, including in the cache key, so a tone can never be served as narration once a real model exists. |
+| `DevelopmentAdapter` **by default** | The XTTS checkpoint on a GPU | Audio is a 440 Hz tone. Marked `is_real_model=false` everywhere, including in the cache key, so a tone can never be served as narration. `SINHALA_READER_TTS=xtts` selects the real voice instead. |
 | An origin list in an environment variable | Origins tied to a deployment configuration | A wildcard plus header identity means any website can read any reader's documents. `/readiness` says so when one is set. |
 
 The **shape** is what matters and is not a stopgap: ownership runs through the

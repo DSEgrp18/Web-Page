@@ -26,9 +26,10 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sinhala_documents import DocumentRejected, check_pdf_bytes
-from sinhala_tts.adapter import DevelopmentAdapter, TextNotSpeakableError, TtsAdapter
+from sinhala_tts.adapter import ReadinessState, TextNotSpeakableError, TtsAdapter
 from sinhala_tts.adapter import health as adapter_health
 
+from .adapters import ADAPTER_ENV, adapter_mode, build_adapter, loaded_model_version, warm
 from .audio import SynthesisService
 from .preparation import PreparationService, forget_prepared, get_prepared
 from .schemas import (
@@ -69,9 +70,14 @@ class Deps:
         adapter: TtsAdapter | None = None,
         *,
         run_in_background: bool = True,
+        warm_on_start: bool = True,
     ) -> None:
         self.store = store or InMemoryStore()
-        self.adapter = adapter or DevelopmentAdapter()
+        # Chosen from configuration, defaulting to the labelled placeholder.
+        self.adapter = adapter or build_adapter()
+        #: Load the checkpoint at start-up rather than in the first request.
+        #: Tests turn it off to hold an adapter in a chosen state.
+        self.warm_on_start = warm_on_start
         self.preparation = PreparationService(self.store, run_in_background=run_in_background)
         self.synthesis = SynthesisService(self.adapter, self.store)
 
@@ -85,6 +91,11 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         summary="Upload a Sinhala PDF, read it, and listen to it.",
     )
     app.state.deps = deps
+
+    # Load the checkpoint while the process starts rather than inside the first
+    # request. It takes over a minute on this hardware; a reader who presses
+    # play and waits that long has been failed whatever happens next.
+    app.state.warm_up = warm(deps.adapter) if deps.warm_on_start else None
 
     # The reader UI is served from its own origin, so without this the browser
     # blocks every request before it leaves the machine and the interface can
@@ -143,7 +154,23 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         limitations = list(report.notes)
         if not deps.adapter.is_real_model:
             limitations.append(
-                "Audio is a placeholder tone, not speech. It must not be used as narration."
+                "Audio is a placeholder tone, not speech. It must not be used as narration. "
+                f"Set {ADAPTER_ENV}=xtts to serve the real voice."
+            )
+        elif report.readiness in (ReadinessState.NOT_LOADED, ReadinessState.LOADING):
+            # A cold start, not a fault. Said plainly so an operator waits
+            # rather than restarting the process and starting the load again.
+            limitations.append(
+                "The voice is still loading and cannot narrate yet. This takes over a "
+                "minute from cold; it is not a failure."
+            )
+        elif report.readiness is ReadinessState.FAILED:
+            # This one *is* a fault, and it has to be said. Without it a server
+            # whose voice is dead reports a state string and four unrelated
+            # notes, and reads as healthy to anyone skimming.
+            limitations.append(
+                "The voice failed to load, so nothing can be narrated. "
+                + (report.detail or "No reason was recorded.")
             )
         if isinstance(deps.store, InMemoryStore):
             limitations.append(
@@ -170,7 +197,13 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             "serving": report.serving,
             "readiness": report.readiness,
             "real_model": deps.adapter.is_real_model,
-            "model_version": deps.adapter.model_version if deps.adapter.is_real_model else None,
+            # Not `adapter.model_version`: that loads the bundle if it has not
+            # been loaded, and a readiness probe that blocks for a minute and a
+            # half gets killed and reported as an outage rather than a cold start.
+            "model_version": loaded_model_version(deps.adapter),
+            "voice": adapter_mode(),
+            "device": report.device,
+            "voice_detail": report.detail,
             "auth_mode": auth_mode() or "unconfigured",
             "limitations": limitations,
         }
