@@ -80,7 +80,7 @@ services/tts/        Sinhala XTTS text front end, segmentation, synthesis adapte
 services/worker/     PDF extraction, FM-Abhaya decoding, and the reading pipeline
 services/api/        Reader API: upload, segments, audio, progress
 data/legacy_fonts/   Vendored FM-Abhaya to Unicode mapping (MIT, hash-verified)
-docs/                Inference manifest and repository setup evidence
+docs/                Accessible UI guide, inference manifest, setup evidence
 scripts/             Repository verification scripts
 .github/             CI, code owners, issue and pull request templates
 CLAUDE.md            Governing project specification

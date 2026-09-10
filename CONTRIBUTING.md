@@ -129,6 +129,13 @@ Areas: frontend and accessibility; backend, API, and document processing;
 inference and operations. Per-area code owners are recorded in
 [.github/CODEOWNERS](.github/CODEOWNERS) as the team assigns them.
 
+**Before your first interface issue, read
+[docs/accessible-ui-guide.md](docs/accessible-ui-guide.md).** It is the whole of
+the UI/UX knowledge this project needs, and it assumes no design experience.
+The reader is built for people who cannot see the screen, so the rules there are
+not style preferences — a change that breaks one of them makes the application
+unusable rather than untidy.
+
 ## Continuous integration
 
 Every pull request runs [CI](.github/workflows/ci.yml). The aggregate `ci` job
