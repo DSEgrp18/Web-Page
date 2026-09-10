@@ -208,6 +208,19 @@ class Store(ABC):
     def get_source(self, document_id: str) -> bytes | None: ...
 
     @abstractmethod
+    def put_prepared(self, document_id: str, payload: str) -> None:
+        """Keep the extracted pages and segments, as JSON.
+
+        Derived data, but not cheap: about 30 seconds for a 168-page book. It
+        used to live only in a dictionary inside the API process, which meant a
+        restart left the document row saying "ready" and every page answering
+        "not ready" — and meant preparation could never move to another process.
+        """
+
+    @abstractmethod
+    def get_prepared(self, document_id: str) -> str | None: ...
+
+    @abstractmethod
     def put_job(self, job: Job) -> Job: ...
 
     @abstractmethod
@@ -292,6 +305,7 @@ class InMemoryStore(Store):
         self._lock = threading.RLock()
         self._documents: dict[str, Document] = {}
         self._sources: dict[str, bytes] = {}
+        self._prepared: dict[str, str] = {}
         self._jobs: dict[str, Job] = {}
         self._audio: dict[str, AudioRecord] = {}
         self._progress: dict[str, Progress] = {}
@@ -334,6 +348,7 @@ class InMemoryStore(Store):
                 return False
             del self._documents[document_id]
             self._sources.pop(document_id, None)
+            self._prepared.pop(document_id, None)
             self._progress.pop(self._progress_key(document_id, owner), None)
             for job_id, job in list(self._jobs.items()):
                 if job.document_id == document_id:
@@ -350,6 +365,14 @@ class InMemoryStore(Store):
     def get_source(self, document_id: str) -> bytes | None:
         with self._lock:
             return self._sources.get(document_id)
+
+    def put_prepared(self, document_id: str, payload: str) -> None:
+        with self._lock:
+            self._prepared[document_id] = payload
+
+    def get_prepared(self, document_id: str) -> str | None:
+        with self._lock:
+            return self._prepared.get(document_id)
 
     # -- jobs --------------------------------------------------------------
 

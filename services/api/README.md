@@ -139,7 +139,7 @@ mistake this for production.
 | --- | --- | --- |
 | Trusted `X-Reader-User` header, in `development` mode | Accounts and verified sessions — **now implemented**, `SINHALA_READER_AUTH=sessions` | In `development` mode **anyone can claim to be anyone**. The API refuses to serve under no mode at all, so a deployment that forgets fails closed. |
 | `InMemoryStore` **by default** | PostgreSQL, object storage | Documents, audio and positions are lost on restart. `SINHALA_READER_DATABASE_URL` selects PostgreSQL instead; audio still lives in the database rather than object storage. |
-| A thread per job | Celery and Redis | In-flight work is lost on restart; no retries, no cross-process queue. |
+| A thread per job | Celery and Redis | In-flight work is lost on restart; no retries, no cross-process queue. The **result** is durable — prepared pages are stored, not only cached — so a restart loses work in progress, not work already done. |
 | `DevelopmentAdapter` **by default** | The XTTS checkpoint on a GPU | Audio is a 440 Hz tone. Marked `is_real_model=false` everywhere, including in the cache key, so a tone can never be served as narration. `SINHALA_READER_TTS=xtts` selects the real voice instead. |
 | An origin list in an environment variable | Origins tied to a deployment configuration | A wildcard plus header identity means any website can read any reader's documents. `/readiness` says so when one is set. |
 
@@ -268,6 +268,34 @@ Three things are worth knowing about the schema:
   strings and a round trip through `timestamptz` normalises them. The cost is no
   date arithmetic in SQL — nothing needs it, and ordering still works because
   these are all UTC.
+
+### Prepared pages are stored, not only cached
+
+Extraction costs about 26 seconds for the 168-page textbook, and its result used
+to live only in a dictionary inside the API process. Once documents became
+durable that turned into a visible defect: a restarted server listed the book,
+reported the job as `succeeded`, and answered **"This document is not ready yet
+(succeeded)"** when a reader opened a page. Re-uploading was the only way out.
+
+So the prepared document is written to the store as JSON, with the in-process
+dictionary demoted to a bounded cache in front of it. Measured on the real book:
+
+```
+prepare          25.6 s   ->  168 pages, 2,829 segments
+stored payload   1.64 MB
+page 152 cold    137 ms   (deserialising the book)
+page 153 warm     11 ms   (cached)
+```
+
+JSON rather than pickle, deliberately: this is data the application trusts and
+reloads, and pickle turns a database row into code execution. The format carries
+a version, and a payload written by a build that used a different one is treated
+as **absent** rather than guessed at — the API says "not ready", which is true,
+instead of serving half-understood pages to someone who cannot see they are
+wrong.
+
+This is also what makes a job queue possible at all: a worker in another process
+can prepare a document the API then serves.
 
 ### Testing against a real database
 

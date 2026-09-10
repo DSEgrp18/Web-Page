@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from sinhala_reader import Deps, create_app
 from sinhala_reader.app import REAL_MODEL_HEADER
 from sinhala_reader.security import AUTH_MODE_ENV
+from sinhala_reader.storage import Document, InMemoryStore, Job, new_id
 
 # --------------------------------------------------------------------------
 # Getting in
@@ -211,19 +212,36 @@ def test_a_page_announces_what_could_not_be_read(client: TestClient) -> None:
     assert any("legacy" in note for note in page["notes"])
 
 
-def test_asking_for_a_page_before_preparation_finishes_says_so(book: bytes) -> None:
-    """409 with the job state, not a 500 and not an empty page."""
-    deps = Deps(run_in_background=False)
+def test_asking_for_a_page_before_preparation_finishes_says_so() -> None:
+    """409 with the job state, not a 500 and not an empty page.
+
+    The in-flight state is built directly: an accepted upload with a queued job
+    and nothing extracted yet. This used to be faked by clearing the in-process
+    cache, which stopped meaning "not prepared" once prepared documents were
+    written to the store — and a test that fakes a state the application can no
+    longer be in tests nothing.
+    """
+    deps = Deps(store=InMemoryStore(), run_in_background=False)
     client = TestClient(create_app(deps))
-    response = upload(client, book)
-    document_id = response.json()["document_id"]
+    document = deps.store.put_document(
+        Document(document_id=new_id("doc"), owner=READER, filename="book.pdf", size_bytes=2048)
+    )
+    deps.store.put_job(
+        Job(
+            job_id=new_id("job"),
+            document_id=document.document_id,
+            owner=READER,
+            kind="prepare",
+        )
+    )
 
-    from sinhala_reader import preparation
+    page = client.get(f"/documents/{document.document_id}/pages/0", headers=as_reader(client))
 
-    preparation._PREPARED.clear()  # simulate work still in flight
-    page = client.get(f"/documents/{document_id}/pages/0", headers=as_reader(client))
     assert page.status_code == 409
     assert "not ready" in page.json()["detail"]
+    # And it names the job state, so a reader is told "still working" rather
+    # than left to guess whether it broke.
+    assert "queued" in page.json()["detail"]
 
 
 def test_a_missing_page_is_a_404(client: TestClient, prepared_document) -> None:
@@ -425,7 +443,7 @@ def test_deleting_removes_the_document_and_everything_derived_from_it(
     assert deps.store.get_source(document_id) is None
     assert deps.store.get_progress(document_id, READER) is None
     assert deps.store.jobs_for(document_id, READER) == []
-    assert preparation.get_prepared(document_id) is None
+    assert preparation.get_prepared(deps.store, document_id) is None
     assert deps.store._audio == {}
 
 

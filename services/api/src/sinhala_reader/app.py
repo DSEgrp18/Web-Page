@@ -147,7 +147,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         return document
 
     def prepared_or_409(document: Document):
-        prepared = get_prepared(document.document_id)
+        prepared = get_prepared(deps.store, document.document_id)
         if prepared is None or document.version is None:
             jobs = deps.store.jobs_for(document.document_id, document.owner)
             latest = jobs[-1] if jobs else None
