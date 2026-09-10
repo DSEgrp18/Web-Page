@@ -17,6 +17,7 @@ performance claim.
 | Text front end behaviour measured | Yes — see `services/tts/tests/` |
 | **Real synthesis run from this repository** | **Yes, on CPU — 2026-09-09** |
 | Speech quality judged by listening | **Yes — ten sentences, 2026-09-10** |
+| **Real book served through the reader API** | **Yes, on CPU — 2026-09-10** |
 | GPU benchmark on serving hardware | No |
 
 The checkpoint loads and produces audio through the documented procedure. See
@@ -639,6 +640,134 @@ What it does **not** establish:
   CLAUDE.md cannot be assessed until this runs on a GPU.
 - Anything about VRAM, since none was used.
 
+## First run through the API, on a real book
+
+2026-09-10. Everything above measures the model in `services/tts`, driven by a
+script. This is the first time the checkpoint served a **real book through the
+real API**: `SINHALA_READER_TTS=xtts`, a uvicorn server, and the reader's own
+routes, on the Grade 11 Sinhala history textbook.
+
+It matters because the two halves had never met. Every API measurement before
+today was a 440 Hz tone; every model measurement was eight sentences chosen to
+exercise the normaliser. This is 26 consecutive segments of a page nobody
+selected.
+
+**Still CPU, still not a performance claim.** `torch 2.13.0+cpu`, so no GPU
+figure can come from this machine at all.
+
+| | |
+| --- | --- |
+| Upload and preparation | 31.8 s → 168 pages, 2,829 segments |
+| Page 152 | 26 segments |
+| First audio, cold | 165.9 s — includes the 5.6 GB checkpoint load |
+| Steady state | 3.58–4.07× real time, median 3.75× |
+| Cached re-fetch | 4–7 ms |
+| Sample rate | 24000 Hz on every segment |
+| `X-Reader-Real-Model` | `true` on every segment |
+| `model_version` | `ce18fe82442ccbd3`, recorded per segment |
+
+Readiness behaved correctly at both ends. While the checkpoint loaded it
+reported `"readiness": "loading"` with the cold-start limitation named; once
+serving it reported `"ready"` with the model version. Neither call blocked on
+the load, which is the property `loaded_model_version` exists to protect.
+
+### The 250-character limit holds, across all 2,829 segments
+
+This was the riskiest untested assumption in the whole pipeline. Segmentation
+caps segments at 250 characters of **model input**, and romanisation expands
+Sinhala substantially — on this page, 195 source characters became 246.
+
+Across the 26 segments the longest model input was **exactly 250**. A cap
+landing precisely on its limit is either a coincidence or a segmenter doing its
+job, so all 2,829 segments of the book were then measured — segmentation and
+romanisation only, no synthesis needed:
+
+| | |
+| --- | --- |
+| Segments | 2,829 |
+| Model-input characters | min 1, median 120, p95 247, p99 250, **max 250** |
+| Exactly at the limit | 33 |
+| Within 5 of the limit | 215 |
+| **Over the limit** | **0** |
+| Normalising to nothing speakable | 0 |
+
+So the cap is doing its job across the whole book, not coincidentally on one
+page. That matters because over the limit XTTS logs *"this might cause truncated
+audio"* and continues — a reader would lose the end of a sentence with no error
+raised anywhere.
+
+The longest segment implies about 15.9 s of audio at the measured 17 characters
+per second, comfortably under the derived 25.8 s utterance ceiling. The two
+limits are consistent, and the character cap is the binding one.
+
+### Appended audio: 26 of 26 pass
+
+The duration check — the one that replaced the pause measure — was run over all
+26 clips. Ratios ranged 0.85× to 1.26× against a band of 0.5–1.4×.
+
+This is the first evidence on text nobody chose for the model's benefit, and it
+partly answers the "does it hold across a book" question that ten sentences
+could not. It does not close it: 26 consecutive segments of one page is not a
+book, and a stochastic fault that appeared three times in six identical runs can
+be absent from 26 different ones by chance.
+
+### What this says about the 5-second target
+
+CLAUDE.md's provisional target is a first short synthesised segment within 5 s
+at p95 on declared hardware. On this page:
+
+| | |
+| --- | --- |
+| Page 152 | 4.3 min of audio, 14.3 min of compute at steady state |
+| Whole book | ~7.4 h of audio, ~28 h on this CPU |
+
+The ~28 h supersedes an earlier ~16 h estimate extrapolated from the regression
+sentences, which are shorter than real textbook segments.
+
+More usefully, the target looks **structural rather than purely a hardware
+question**. A 250-character segment is ~16 s of audio and ~60 s of compute here.
+Even a tenfold speedup leaves a full-length first segment at ~6 s. Meeting 5 s
+at p95 probably requires the *first* segment of a request to be short — a
+segmentation and product decision — not only faster hardware. Worth settling
+before hardware is chosen, because it changes what the hardware has to do.
+
+### One segment took 1,099 seconds, and it was not the text
+
+Segment 6 of page 152 took **1,099 s** to produce 16.3 s of audio — a real-time
+factor of 67×, against 3.6–4.1× for everything else on the page. Segment 4 is
+the same 195 source characters, the same 246 characters of model input, and
+ordinary prose from the same page; it took 74 s.
+
+Its output was normal: 16.3 s of audio, well inside the expected duration, so
+nothing ran away or looped. Only the compute was anomalous.
+
+Both segments were then re-synthesised three times each in one process:
+
+| | Run 1 | Run 2 | Run 3 | First run, through the API |
+| --- | ---: | ---: | ---: | ---: |
+| Segment 6 | 64.3 s | 63.0 s | 63.1 s | **1,099.4 s** |
+| Segment 4 | 69.5 s | 66.6 s | 73.4 s | 73.7 s |
+
+Real-time factors across all six: 3.81–3.91×. **Segment 6 is an ordinary
+segment.** The text is not the cause, so this is not a fault that would follow
+the model onto a GPU.
+
+What the cause *was* is not established — it did not reproduce, and a
+one-off that cannot be reproduced cannot be diagnosed from one sample. The
+plausible explanation is contention on the development machine during that
+window, and it is recorded here rather than explained away because a 15×
+latency excursion on a shared serving host would be a real operational
+problem even when the model is blameless. Queue-time and per-segment latency
+monitoring should make such an excursion visible; that belongs with the GPU
+deployment work, not here.
+
+The repeats also add a data point to "Output duration is not stable between
+runs" above, at a length that section did not cover: segment 4 produced 17.13 s,
+17.78 s, 18.53 s and 19.22 s from identical input across four runs. That is a
+spread of 1.12×, against the 2.93× measured on a five-word sentence. On this
+evidence the instability is proportionally *smaller* on long segments than short
+ones — worth knowing, since real book segments are long.
+
 ## The adapter
 
 `sinhala_tts.adapter` implements the boundary CLAUDE.md asks for,
@@ -760,12 +889,13 @@ charset. They are stripped. Trust the tests, not the docstring.
 
 Required by CLAUDE.md before serving, and still missing:
 
-- **How often appended audio actually occurs.** Now that duration is the
-  detector rather than pauses, the rate needs measuring again across many
-  sentences rather than one repeated six times. Needs the GPU decision first.
+- **How often appended audio actually occurs.** 26 consecutive segments of a
+  real page passed the duration check on 2026-09-10, which is better evidence
+  than one sentence repeated six times but still one page. A stochastic fault
+  can be absent from 26 clips by chance.
 - **Listening beyond ten sentences.** Ten were heard on 2026-09-10 and all were
-  good. That is a real answer to "does this work at all" and not yet an answer
-  to "does it hold across a book".
+  good. 26 more exist from the API run and have not been listened to. Neither is
+  yet an answer to "does it hold across a book".
 - GPU figures: first-audio latency, real-time factor, sustained throughput, and
   peak VRAM on serving hardware. The CPU run recorded above is not a substitute.
 - Whether the derived 25.8 s utterance ceiling matches observed behaviour.
