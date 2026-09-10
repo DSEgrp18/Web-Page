@@ -1,15 +1,36 @@
 # services/tts
 
-The Sinhala XTTS text front end, and eventually the inference adapter.
+The Sinhala XTTS text front end and the inference adapter.
 
-Right now this package contains **only the text path**. Model loading and
-synthesis are not implemented yet. That order is deliberate: the text front end
-is where this model is most easily broken, it is pure standard library, and it
-can be tested exhaustively without a GPU or the 5.6 GB checkpoint — so it is the
-part worth getting right and locking down first.
+The text path came first, and that order was deliberate: the text front end is
+where this model is most easily broken, it is pure standard library, and it can
+be tested exhaustively without a GPU or the 5.6 GB checkpoint — so it was worth
+getting right and locking down before anything could load a model.
+
+`XttsAdapter` now loads the checkpoint and synthesises speech, on CPU or CUDA.
+[`deploy/`](deploy/) puts the same adapter on Modal for GPU inference.
 
 See [`docs/model-inference-manifest.md`](../../docs/model-inference-manifest.md)
 for the verified inference procedure, settings, limits, and dependencies.
+
+## Which voice you can run, and where
+
+|  | Needs the bundle? | Speed | For |
+| --- | --- | --- | --- |
+| `DevelopmentAdapter` | No | Instant | Building the reader. Its output is a **440 Hz tone**, marked `is_real_model=False` everywhere including the cache key. |
+| `XttsAdapter` on CPU | Yes | 3.3–3.8× real time | Hearing real speech on a laptop. |
+| `XttsAdapter` on CUDA | Yes | Unmeasured | Production. See [`deploy/`](deploy/). |
+
+**The bundle is not on your machine unless it was delivered to you**, and it is
+never in Git. Without it, the development adapter is the whole local story — and
+that is enough to build, test and review every part of the reader except the
+sound itself.
+
+CPU is genuinely usable for local work: a full page of a real textbook, 26
+segments, was synthesised and listened to this way on 2026-09-10. It is not fast
+enough to serve readers, and nothing about threading changes that — torch
+already uses every physical core by default, and the measured 3.3–3.8× is that
+multi-threaded figure, not a single-threaded one.
 
 ## Why the text front end matters this much
 
