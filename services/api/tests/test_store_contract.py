@@ -30,11 +30,14 @@ import pytest
 from sinhala_reader.storage import (
     AudioRecord,
     Document,
+    EmailTaken,
     InMemoryStore,
     Job,
     JobState,
     Progress,
+    Session,
     Store,
+    User,
     new_id,
 )
 
@@ -451,3 +454,143 @@ class TestDeletion:
 
         assert store.get_document(keep.document_id, ALICE) is not None
         assert store.get_source(keep.document_id) == b"pdf"
+
+
+# --- accounts --------------------------------------------------------------
+
+
+def a_user(email: str = "nimali@example.lk", **kwargs: object) -> User:
+    fields: dict[str, object] = {
+        "user_id": new_id("usr"),
+        "email": email,
+        "email_key": email.lower(),
+        "password_hash": "scrypt$14$8$5$c2FsdA$a2V5",
+        "display_name": "Nimali",
+    }
+    fields.update(kwargs)
+    return User(**fields)  # type: ignore[arg-type]
+
+
+class TestUsers:
+    def test_round_trips_by_id_and_by_email(self, store: Store) -> None:
+        user = a_user()
+        store.put_user(user)
+
+        assert store.get_user(user.user_id) == user
+        assert store.get_user_by_email("nimali@example.lk") == user
+
+    def test_lookup_is_by_the_lowercased_key(self, store: Store) -> None:
+        """A reader who typed capitals when registering must still be able to sign in."""
+        store.put_user(a_user(email="Nimali@Example.LK", email_key="nimali@example.lk"))
+
+        assert store.get_user_by_email("nimali@example.lk") is not None
+        # And the address they typed is kept as they typed it.
+        found = store.get_user_by_email("nimali@example.lk")
+        assert found is not None and found.email == "Nimali@Example.LK"
+
+    def test_a_second_account_cannot_take_the_address(self, store: Store) -> None:
+        """Enforced by the store, not by a check in a route.
+
+        A check followed by an insert leaves a gap that two simultaneous
+        registrations both pass through.
+        """
+        store.put_user(a_user())
+
+        with pytest.raises(EmailTaken):
+            store.put_user(a_user())
+
+    def test_the_same_user_may_be_written_again(self, store: Store) -> None:
+        """A password change rewrites the row; that is not a clash."""
+        user = a_user()
+        store.put_user(user)
+
+        from dataclasses import replace
+
+        store.put_user(replace(user, password_hash="scrypt$14$8$5$bmV3$aGFzaA"))
+
+        got = store.get_user(user.user_id)
+        assert got is not None and got.password_hash == "scrypt$14$8$5$bmV3$aGFzaA"
+
+    def test_absent_is_none(self, store: Store) -> None:
+        assert store.get_user("usr_nothing") is None
+        assert store.get_user_by_email("nobody@example.lk") is None
+
+
+class TestSessions:
+    def test_round_trips(self, store: Store) -> None:
+        user = a_user()
+        store.put_user(user)
+        session = Session(
+            token_hash="abc123",
+            user_id=user.user_id,
+            created_at="2026-09-10T00:00:00+00:00",
+            expires_at="2026-09-24T00:00:00+00:00",
+        )
+
+        store.put_session(session)
+
+        assert store.get_session("abc123") == session
+
+    def test_expiry_is_not_judged_here(self, store: Store) -> None:
+        """The store returns what it holds; deciding it is dead belongs in one place.
+
+        If each store filtered by expiry, "expired" and "never existed" could
+        drift apart between implementations.
+        """
+        user = a_user()
+        store.put_user(user)
+        store.put_session(
+            Session(
+                token_hash="expired",
+                user_id=user.user_id,
+                created_at="2020-01-01T00:00:00+00:00",
+                expires_at="2020-01-02T00:00:00+00:00",
+            )
+        )
+
+        assert store.get_session("expired") is not None
+
+    def test_deleting_one_session(self, store: Store) -> None:
+        user = a_user()
+        store.put_user(user)
+        store.put_session(
+            Session(
+                token_hash="one",
+                user_id=user.user_id,
+                created_at="2026-09-10T00:00:00+00:00",
+                expires_at="2026-09-24T00:00:00+00:00",
+            )
+        )
+
+        assert store.delete_session("one") is True
+        assert store.get_session("one") is None
+        assert store.delete_session("one") is False
+
+    def test_ending_every_session_a_reader_has(self, store: Store) -> None:
+        """What a password change relies on.
+
+        A password changed because someone else may know it has not been
+        changed at all if their session keeps working.
+        """
+        nimali = a_user(email="nimali@example.lk")
+        sahan = a_user(email="sahan@example.lk")
+        store.put_user(nimali)
+        store.put_user(sahan)
+        for index, user in ((1, nimali), (2, nimali), (3, sahan)):
+            store.put_session(
+                Session(
+                    token_hash=f"token-{index}",
+                    user_id=user.user_id,
+                    created_at="2026-09-10T00:00:00+00:00",
+                    expires_at="2026-09-24T00:00:00+00:00",
+                )
+            )
+
+        assert store.delete_sessions_for_user(nimali.user_id) == 2
+        assert store.get_session("token-1") is None
+        assert store.get_session("token-2") is None
+        # The other reader is untouched.
+        assert store.get_session("token-3") is not None
+
+    def test_an_unknown_token_is_none(self, store: Store) -> None:
+        assert store.get_session("never-issued") is None

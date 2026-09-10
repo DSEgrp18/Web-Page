@@ -39,16 +39,20 @@ from dataclasses import replace
 from typing import Any
 
 from psycopg import Connection
+from psycopg.errors import UniqueViolation
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from .storage import (
     AudioRecord,
     Document,
+    EmailTaken,
     Job,
     JobState,
     Progress,
+    Session,
     Store,
+    User,
     _now,
 )
 
@@ -132,6 +136,34 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             updated_at       text NOT NULL,
             PRIMARY KEY (document_id, owner)
         );
+        """,
+    ),
+    (
+        "0002_accounts",
+        """
+        CREATE TABLE users (
+            user_id       text PRIMARY KEY,
+            email         text NOT NULL,
+            -- Uniqueness is on the lowercased address, enforced by the database
+            -- rather than by a check-then-insert in a route: two simultaneous
+            -- registrations would both pass the check.
+            email_key     text NOT NULL UNIQUE,
+            password_hash text NOT NULL,
+            display_name  text NOT NULL,
+            created_at    text NOT NULL
+        );
+
+        CREATE TABLE sessions (
+            -- The hash of the token, never the token. A leaked database must
+            -- not hand over working sessions.
+            token_hash text PRIMARY KEY,
+            user_id    text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+            created_at text NOT NULL,
+            expires_at text NOT NULL
+        );
+
+        -- Ending every session a reader has, for a password change.
+        CREATE INDEX sessions_by_user ON sessions (user_id);
         """,
     ),
 )
@@ -388,6 +420,82 @@ class PostgresStore(Store):
             ).fetchone()
         return _progress(row) if row else None
 
+    # -- accounts ----------------------------------------------------------
+
+    def put_user(self, user: User) -> User:
+        try:
+            with self._pool.connection() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO users (user_id, email, email_key, password_hash,
+                                       display_name, created_at)
+                    VALUES (%(user_id)s, %(email)s, %(email_key)s, %(password_hash)s,
+                            %(display_name)s, %(created_at)s)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        email         = EXCLUDED.email,
+                        email_key     = EXCLUDED.email_key,
+                        password_hash = EXCLUDED.password_hash,
+                        display_name  = EXCLUDED.display_name
+                    """,
+                    {
+                        "user_id": user.user_id,
+                        "email": user.email,
+                        "email_key": user.email_key,
+                        "password_hash": user.password_hash,
+                        "display_name": user.display_name,
+                        "created_at": user.created_at,
+                    },
+                )
+        except UniqueViolation as clash:
+            # The unique index on email_key, not the primary key: the ON
+            # CONFLICT above handles a repeat of the same user_id, so the only
+            # way here is a second account claiming an address.
+            raise EmailTaken(user.email_key) from clash
+        return user
+
+    def get_user(self, user_id: str) -> User | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM users WHERE user_id = %s", (user_id,)
+            ).fetchone()
+        return _user(row) if row else None
+
+    def get_user_by_email(self, email_key: str) -> User | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM users WHERE email_key = %s", (email_key,)
+            ).fetchone()
+        return _user(row) if row else None
+
+    def put_session(self, session: Session) -> Session:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (token_hash) DO UPDATE SET expires_at = EXCLUDED.expires_at
+                """,
+                (session.token_hash, session.user_id, session.created_at, session.expires_at),
+            )
+        return session
+
+    def get_session(self, token_hash: str) -> Session | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM sessions WHERE token_hash = %s", (token_hash,)
+            ).fetchone()
+        return _session(row) if row else None
+
+    def delete_session(self, token_hash: str) -> bool:
+        with self._pool.connection() as connection:
+            result = connection.execute("DELETE FROM sessions WHERE token_hash = %s", (token_hash,))
+            return result.rowcount > 0
+
+    def delete_sessions_for_user(self, user_id: str) -> int:
+        with self._pool.connection() as connection:
+            result = connection.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
+            return result.rowcount
+
     # -- tests -------------------------------------------------------------
 
     def reset_for_tests(self) -> None:
@@ -399,7 +507,7 @@ class PostgresStore(Store):
         behind and the deletion tests would fail.
         """
         with self._pool.connection() as connection:
-            connection.execute("TRUNCATE documents CASCADE")
+            connection.execute("TRUNCATE documents, users CASCADE")
 
 
 # --- rows to dataclasses ---------------------------------------------------
@@ -457,4 +565,24 @@ def _progress(row: dict[str, Any]) -> Progress:
         segment_id=row["segment_id"],
         offset_seconds=row["offset_seconds"],
         updated_at=row["updated_at"],
+    )
+
+
+def _user(row: dict[str, Any]) -> User:
+    return User(
+        user_id=row["user_id"],
+        email=row["email"],
+        email_key=row["email_key"],
+        password_hash=row["password_hash"],
+        display_name=row["display_name"],
+        created_at=row["created_at"],
+    )
+
+
+def _session(row: dict[str, Any]) -> Session:
+    return Session(
+        token_hash=row["token_hash"],
+        user_id=row["user_id"],
+        created_at=row["created_at"],
+        expires_at=row["expires_at"],
     )

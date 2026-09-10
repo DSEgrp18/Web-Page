@@ -16,9 +16,10 @@ Three rules run through every route:
   real model produced it, in a header and in the manifest, because a listener
   cannot tell a tone from speech they were not expecting.
 
-What is deliberately absent: accounts, a job queue, and object storage. A
-database is not — ``SINHALA_READER_DATABASE_URL`` selects PostgreSQL, and
-without it the in-memory store is used and says so on every readiness call.
+What is deliberately absent: a job queue and object storage. Accounts and a
+database are not — ``SINHALA_READER_AUTH=sessions`` gives real sign-in, and
+``SINHALA_READER_DATABASE_URL`` selects PostgreSQL. Without either, the
+placeholder is used and ``/readiness`` says so on every call.
 
 See ``security.py``, ``storage.py`` and ``preparation.py`` — each says what
 stands in for the real thing and what that costs.
@@ -32,6 +33,8 @@ from sinhala_documents import DocumentRejected, check_pdf_bytes
 from sinhala_tts.adapter import ReadinessState, TextNotSpeakableError, TtsAdapter
 from sinhala_tts.adapter import health as adapter_health
 
+from . import passwords
+from .accounts import router as accounts_router
 from .adapters import ADAPTER_ENV, adapter_mode, build_adapter, loaded_model_version, warm
 from .audio import SynthesisService
 from .preparation import PreparationService, forget_prepared, get_prepared
@@ -46,12 +49,14 @@ from .schemas import (
     SegmentDetail,
 )
 from .security import (
+    AUTH_MODE_ENV,
     ORIGINS_ENV,
     OWNER_HEADER,
     allowed_origins,
     auth_mode,
     is_development_auth,
     require_owner,
+    uses_sessions,
 )
 from .storage import (
     DATABASE_URL_ENV,
@@ -109,6 +114,11 @@ def create_app(deps: Deps | None = None) -> FastAPI:
     # play and waits that long has been failed whatever happens next.
     app.state.warm_up = warm(deps.adapter) if deps.warm_on_start else None
 
+    # Register, sign in, sign out, change a password. Mounted whatever the auth
+    # mode is: in development the routes answer 503 and say which setting turns
+    # them on, which is more use than a 404 that looks like a missing feature.
+    app.include_router(accounts_router)
+
     # The reader UI is served from its own origin, so without this the browser
     # blocks every request before it leaves the machine and the interface can
     # only say it is offline. Unset means no browser may call this API: the
@@ -120,7 +130,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             CORSMiddleware,
             allow_origins=origins,
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=[OWNER_HEADER, "Content-Type"],
+            allow_headers=[OWNER_HEADER, "Authorization", "Content-Type"],
             expose_headers=[REAL_MODEL_HEADER],
             # Identity travels in a header, not a cookie. Allowing credentials
             # would let a third-party page ride along on an ambient session the
@@ -192,7 +202,29 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         if is_development_auth():
             limitations.append(
                 "Authentication is a trusted header. Anyone can claim to be anyone; "
-                "do not expose this server."
+                f"do not expose this server. Set {AUTH_MODE_ENV}=sessions for accounts."
+            )
+        elif uses_sessions():
+            # Accounts exist, and these are the ways they are still not
+            # finished. Saying nothing here would let "we have logins" stand in
+            # for "this is safe to expose".
+            limitations.append(
+                "There is no rate limiting. Password guessing and email enumeration "
+                "through registration are both unthrottled."
+            )
+            limitations.append(
+                "There is no email verification and no password reset. A reader who "
+                "forgets their password cannot recover the account."
+            )
+            if passwords.is_weakened():
+                limitations.append(
+                    "Passwords are being hashed more cheaply than this build intends. "
+                    "This should only ever happen in tests."
+                )
+        if not is_development_auth() and not uses_sessions():
+            limitations.append(
+                f"No authentication is configured, so every request is refused. "
+                f"Set {AUTH_MODE_ENV} to one of: sessions, development."
             )
         if not origins:
             limitations.append(
