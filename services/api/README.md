@@ -131,7 +131,7 @@ mistake this for production.
 | Stopgap | Real thing | What it costs |
 | --- | --- | --- |
 | Trusted `X-Reader-User` header | Accounts and verified sessions | **Anyone can claim to be anyone.** The API refuses to start serving unless `SINHALA_READER_AUTH=development` is set explicitly, so a deployment that forgets fails closed. |
-| `InMemoryStore` | PostgreSQL, object storage | Documents, audio and positions are lost on restart. |
+| `InMemoryStore` **by default** | PostgreSQL, object storage | Documents, audio and positions are lost on restart. `SINHALA_READER_DATABASE_URL` selects PostgreSQL instead; audio still lives in the database rather than object storage. |
 | A thread per job | Celery and Redis | In-flight work is lost on restart; no retries, no cross-process queue. |
 | `DevelopmentAdapter` **by default** | The XTTS checkpoint on a GPU | Audio is a 440 Hz tone. Marked `is_real_model=false` everywhere, including in the cache key, so a tone can never be served as narration. `SINHALA_READER_TTS=xtts` selects the real voice instead. |
 | An origin list in an environment variable | Origins tied to a deployment configuration | A wildcard plus header identity means any website can read any reader's documents. `/readiness` says so when one is set. |
@@ -139,6 +139,59 @@ mistake this for production.
 The **shape** is what matters and is not a stopgap: ownership runs through the
 store, job states are the ones CLAUDE.md names, and cache identity is the
 adapter's full key. Swapping any row above touches one file.
+
+## Storage
+
+Unset `SINHALA_READER_DATABASE_URL` and everything lives in a dictionary that
+dies with the process. Set it and the same interface is served by PostgreSQL:
+
+```bash
+docker run -d --name reader-pg -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=reader   -p 55432:5432 postgres:17-alpine
+
+python -m pip install "psycopg[binary]>=3.2" "psycopg-pool>=3.2"
+
+SINHALA_READER_AUTH=development SINHALA_READER_ORIGINS=http://localhost:3000 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m uvicorn sinhala_reader.app:app --reload
+```
+
+Migrations run at start-up, each exactly once, recorded in `schema_migrations`.
+They are numbered SQL in `postgres.py` — reviewable in a pull request, and with
+no migration framework standing between a reader of that file and what will
+happen to the database. **Never edit a migration that has been applied
+anywhere; add another.**
+
+A URL that is set but unreachable **stops the process**. The alternative is
+starting on the in-memory store, accepting a reader's book, and losing it at the
+next restart while every health check said the deployment was configured for
+PostgreSQL.
+
+Three things are worth knowing about the schema:
+
+- **Ownership is a `WHERE` clause**, never an application check, so a forgotten
+  check is a syntax error rather than a silent leak.
+- **Deletion is `ON DELETE CASCADE`.** CLAUDE.md requires deletion to remove
+  everything derived, and an application deleting five tables in sequence can be
+  interrupted between two of them. Cascading makes it a property of the schema:
+  a new table that references a document is cleaned up because it references a
+  document, not because somebody remembered.
+- **Timestamps are text, not `timestamptz`.** The interface promises ISO-8601
+  strings and a round trip through `timestamptz` normalises them. The cost is no
+  date arithmetic in SQL — nothing needs it, and ordering still works because
+  these are all UTC.
+
+### Testing against a real database
+
+Both stores are held to one suite, `tests/test_store_contract.py`, and the
+routes are exercised against PostgreSQL in `tests/test_postgres_routes.py`.
+Both **skip loudly** without a URL, because a silently skipped integration test
+reports green for something nobody ran. CI sets the URL and then fails the job
+if anything skipped.
+
+```bash
+SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader   python -m pytest
+```
+
+The route tests in `test_api.py` stay pinned to the in-memory store, so setting
+that variable in a shell cannot quietly make them share one database.
 
 ## Caching
 

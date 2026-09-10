@@ -27,6 +27,7 @@ from pdf_fixtures import Page, Text, build_pdf, legacy_page, sinhala_page  # noq
 
 from sinhala_reader import Deps, create_app  # noqa: E402
 from sinhala_reader.security import AUTH_MODE_ENV, DEVELOPMENT_MODE  # noqa: E402
+from sinhala_reader.storage import InMemoryStore  # noqa: E402
 
 READER = "reader-one"
 OTHER_READER = "reader-two"
@@ -49,7 +50,18 @@ def clean_prepared_cache() -> None:
 
 @pytest.fixture
 def deps() -> Deps:
-    return Deps(run_in_background=False)
+    """Route tests get a fresh in-memory store, always.
+
+    Pinned explicitly rather than left to ``build_store()``. These tests are
+    about routes — ownership, status codes, cache behaviour — and each assumes
+    it starts from nothing. If the store came from the environment, setting
+    ``SINHALA_READER_DATABASE_URL`` in a shell would silently make every one of
+    them share one database and leak state into the next.
+
+    The store implementations are held to ``test_store_contract.py``, and the
+    routes are exercised against a real database in ``test_postgres_routes.py``.
+    """
+    return Deps(store=InMemoryStore(), run_in_background=False)
 
 
 @pytest.fixture
