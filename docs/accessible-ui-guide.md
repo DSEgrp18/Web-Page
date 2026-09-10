@@ -176,9 +176,16 @@ Move focus in exactly two situations:
    ```
 
 2. **When something the reader opened appears** — a dialog, an expanded panel.
-   Focus goes into it, and returns to the control that opened it when it closes.
+   Focus goes **into** it, is trapped while it is open, <kbd>Escape</kbd> closes
+   it, and focus **returns to the control that opened it**. All four, every time.
+   `<dialog>` with `showModal()` gives you most of this for free; a `div`
+   pretending to be a dialog gives you none of it.
 
 Never move focus on a timer, on a poll completing, or on first load.
+
+**The skip link goes to the reading text**, not just to `<main>`. On the reader
+screen, `<main>` still contains the chapter list and the page controls; a reader
+who wants the words should not have to pass them every time.
 
 ---
 
@@ -194,11 +201,12 @@ string in a component, and never inline an English one either.
 
 **Sinhala needs vertical room.** Vowel signs stack above and below the base
 letter, so a Latin-default `line-height: 1.4` clips them into each other. The
-body line-height is `1.8` and headings `1.5`. Do not reduce them.
+reading text is 23 px at a line height of 1.5-1.6 (see section 7), which the
+reader can raise in the settings screen. Never go below 1.5.
 
-**Use the font stack that is already there.** `"Noto Sans Sinhala"` first. A
-fallback face loses the distinctions between similar letters, which hurts Sahan
-most.
+**Use the faces the design specifies** — Abhaya Libre for display, Noto Sans
+Sinhala for the interface and the reading text. A fallback face loses the
+distinctions between similar letters, which hurts Sahan most.
 
 **Numbers are Western digits** (`42`, not `෪෨`), which is what Sinhala school
 books print. The *spoken* form is a separate field — `spoken_text` — produced by
@@ -206,23 +214,71 @@ the server. Never show `spoken_text`; never speak `display_text` directly.
 
 ---
 
-## 7. Colour, size and zoom
+## 7. The design system
 
-The palette is defined once, as tokens, at the top of `globals.css`. **Use the
-tokens; never write a hex value in a component.** Both light and dark themes are
-defined, and a colour written directly into a component will be wrong in one of
-them.
+The product is **හඬ පොත — Handa Potha**, "voice book". Its tagline is
+**අකුරු හඬට හැරෙන තැන** — "where letters turn into voice". The design calls it
+*a calm Sinhala reading space: warm paper, confident teal, generous type.*
 
-| Rule | Number | Why |
+These values come from the Penpot file (`Design ui` → *Design system ·
+foundations*). They are the source of truth. Where this guide and the design
+disagree, say so in an issue rather than picking one.
+
+### Colour
+
+| Token | Hex | Used for |
 | --- | --- | --- |
-| Body text contrast | at least **4.5:1** | WCAG 2.2 AA |
-| Large text and UI borders | at least **3:1** | WCAG 2.2 AA |
-| Touch target | at least **44 × 44 px** | WCAG 2.2 Target Size; Tharindu's thumb |
-| Page must work zoomed to | **400%** | WCAG 2.2 Reflow |
-| Horizontal scrolling | **never**, for the page body | Sahan cannot find content off-screen |
+| `paper` | `#F7F6F2` | The page. Warm, not white. |
+| `white` | `#FFFFFF` | Cards and raised surfaces |
+| `ink` | `#172E2C` | Body text |
+| `muted` | `#566A65` | Secondary text |
+| `teal` | `#17695C` | Primary actions, focus |
+| `dark` | `#103F37` | Pressed and headings |
+| `mint` | `#E4F1E9` | Selected and current-sentence fill |
+| `line` | `#D8E0D9` | Borders and dividers |
+| `gold` | `#E7B86C` | Warnings, "needs review" |
+| `error` | `#A5362C` | Errors only |
 
-Wide things — tables, code, diagrams — scroll **inside their own container**
-with `overflow-x: auto`. The page itself never scrolls sideways.
+**Use the tokens; never write a hex value in a component.** Both themes are
+defined in `globals.css`, and a colour written directly into a component will be
+wrong in one of them.
+
+### Type
+
+| Role | Face | Size |
+| --- | --- | --- |
+| Display | **Abhaya Libre** | 32–48 px |
+| Interface | **Noto Sans Sinhala** | 13–23 px |
+| Latin and numerals | **Manrope** | matches its context |
+| Reading text | Noto Sans Sinhala | **23 px desktop, 21 px mobile** |
+
+Reader line height is **1.5–1.6**, and the reader can change both size and
+spacing in the settings screen. Spacing scale: **8 / 16 / 24 / 32 / 48**.
+
+### Size, targets and motion
+
+| Rule | Number |
+| --- | --- |
+| Primary touch or click target | **48 × 48 px** |
+| Any target | never below 44 px |
+| Body text contrast | at least 4.5:1 |
+| Large text and UI borders | at least 3:1 |
+| Page must work zoomed to | 400% |
+| Breakpoints | **390 px** mobile, **1440 px** desktop |
+| Control feedback | 120–180 ms |
+| Panels and sheets | 180–240 ms |
+| Reduced motion | instant, or a fade — never a slide |
+
+Two rules from the design that are easy to miss and matter a great deal:
+
+> **Text reflows; audio never covers the passage.** The player is persistent, so
+> reserve its space rather than floating it over the words someone is reading.
+
+> **Read mode remains the original text. Study mode labels AI output and links
+> page sources.** They must never look alike.
+
+Horizontal scrolling is never allowed for the page body. Wide things — tables,
+diagrams — scroll inside their own `overflow-x: auto` container.
 
 Never disable zoom. `maximum-scale=5` is set deliberately in `layout.tsx`;
 setting it to `1` is a common copy-paste that breaks the app for Sahan
