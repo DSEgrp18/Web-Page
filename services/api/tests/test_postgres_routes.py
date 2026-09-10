@@ -219,3 +219,54 @@ def test_migrations_are_applied_once(pg_client: TestClient) -> None:
 
     assert DATABASE_URL is not None
     assert migrate(DATABASE_URL) == []
+
+
+def test_a_prepared_book_can_still_be_opened_after_a_restart(
+    pg_client: TestClient, pg_deps: Deps, book: bytes
+) -> None:
+    """The bug this file did not catch the first time.
+
+    Documents, positions and audio all survived a restart, and the tests said
+    so. The *pages* did not: extraction lived in a dictionary inside the API
+    process, so a restarted server listed the book, reported the job as
+    ``succeeded``, and answered "This document is not ready yet (succeeded)"
+    when a reader opened it. Nothing in the interface could have explained that
+    to them, and re-uploading was the only way out.
+
+    Clearing the in-process cache is what a new process starts with, so this is
+    the same state a restart produces.
+    """
+    from sinhala_reader import preparation
+
+    document_id = upload(pg_client, book).json()["document_id"]
+    before = pg_client.get(f"/documents/{document_id}/pages/0", headers=as_reader(pg_client))
+    assert before.status_code == 200
+
+    preparation._PREPARED.clear()
+    restarted = TestClient(create_app(Deps(store=pg_deps.store, run_in_background=False)))
+    after = restarted.get(f"/documents/{document_id}/pages/0", headers=as_reader(restarted))
+
+    assert after.status_code == 200
+    assert after.json() == before.json(), "the same page, not merely a page"
+
+
+def test_the_stored_pages_go_when_the_document_does(
+    pg_client: TestClient, pg_deps: Deps, book: bytes
+) -> None:
+    """Extracted text is document content. Deletion has to reach it.
+
+    It is the reader's book in a different shape, so leaving it behind would
+    keep private content that outlived their decision to delete it — and the
+    cascade is what makes that automatic rather than remembered.
+    """
+    document_id = upload(pg_client, book).json()["document_id"]
+
+    assert pg_deps.store.get_prepared(document_id) is not None
+    pg_client.delete(f"/documents/{document_id}", headers=as_reader(pg_client))
+
+    assert pg_deps.store.get_prepared(document_id) is None
+    with pg_deps.store._pool.connection() as connection:  # type: ignore[attr-defined]
+        left = connection.execute(
+            "SELECT count(*) AS n FROM prepared WHERE document_id = %s", (document_id,)
+        ).fetchone()
+        assert left is not None and left["n"] == 0

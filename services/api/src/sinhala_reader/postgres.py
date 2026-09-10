@@ -166,6 +166,20 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
         CREATE INDEX sessions_by_user ON sessions (user_id);
         """,
     ),
+    (
+        "0003_prepared_documents",
+        """
+        -- The extracted pages and segments, as JSON. Derived data, but about
+        -- 30 seconds of work for a 168-page book, and without it a restart
+        -- leaves the document row saying "ready" while every page says it is
+        -- not. Cascades with the document like everything else derived.
+        CREATE TABLE prepared (
+            document_id text PRIMARY KEY
+                REFERENCES documents (document_id) ON DELETE CASCADE,
+            payload     text NOT NULL
+        );
+        """,
+    ),
 )
 
 
@@ -293,6 +307,23 @@ class PostgresStore(Store):
                 "SELECT data FROM sources WHERE document_id = %s", (document_id,)
             ).fetchone()
         return bytes(row["data"]) if row else None
+
+    def put_prepared(self, document_id: str, payload: str) -> None:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO prepared (document_id, payload) VALUES (%s, %s)
+                ON CONFLICT (document_id) DO UPDATE SET payload = EXCLUDED.payload
+                """,
+                (document_id, payload),
+            )
+
+    def get_prepared(self, document_id: str) -> str | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT payload FROM prepared WHERE document_id = %s", (document_id,)
+            ).fetchone()
+        return row["payload"] if row else None
 
     # -- jobs --------------------------------------------------------------
 
