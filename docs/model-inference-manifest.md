@@ -16,7 +16,7 @@ performance claim.
 | Working inference implementation inspected | Yes |
 | Text front end behaviour measured | Yes — see `services/tts/tests/` |
 | **Real synthesis run from this repository** | **Yes, on CPU — 2026-09-09** |
-| Speech quality judged by listening | **Yes — ten sentences, 2026-09-10** |
+| Speech quality judged by listening | **Yes — ten sentences and a full page, 2026-09-10** |
 | **Real book served through the reader API** | **Yes, on CPU — 2026-09-10** |
 | GPU benchmark on serving hardware | No |
 
@@ -700,14 +700,24 @@ The longest segment implies about 15.9 s of audio at the measured 17 characters
 per second, comfortably under the derived 25.8 s utterance ceiling. The two
 limits are consistent, and the character cap is the binding one.
 
-### Appended audio: 26 of 26 pass
+### Appended audio: 26 of 26 pass, and the page was listened to
 
 The duration check — the one that replaced the pause measure — was run over all
 26 clips. Ratios ranged 0.85× to 1.26× against a band of 0.5–1.4×.
 
-This is the first evidence on text nobody chose for the model's benefit, and it
-partly answers the "does it hold across a book" question that ten sentences
-could not. It does not close it: 26 consecutive segments of one page is not a
+**The project owner then listened to all 26 and judged them good.** This is the
+first listening evidence on *continuous prose* rather than isolated sentences:
+the clips are consecutive segments of one page, so they were heard the way a
+reader would hear them, with the joins between segments audible.
+
+That matters more than the count suggests. Ten isolated sentences establish that
+the voice is intelligible. A page establishes that segmentation does not break
+it — that sentences do not run together, that the boundaries the segmenter chose
+fall where a listener expects a pause, and that nothing is lost at a join. Those
+are properties of the *pipeline*, not the checkpoint, and no single-sentence test
+can show them.
+
+It does not close the question: 26 consecutive segments of one page is not a
 book, and a stochastic fault that appeared three times in six identical runs can
 be absent from 26 different ones by chance.
 
@@ -893,9 +903,11 @@ Required by CLAUDE.md before serving, and still missing:
   real page passed the duration check on 2026-09-10, which is better evidence
   than one sentence repeated six times but still one page. A stochastic fault
   can be absent from 26 clips by chance.
-- **Listening beyond ten sentences.** Ten were heard on 2026-09-10 and all were
-  good. 26 more exist from the API run and have not been listened to. Neither is
-  yet an answer to "does it hold across a book".
+- **Listening beyond one page.** Ten isolated sentences and one continuous page
+  of 26 segments were heard on 2026-09-10 and all were judged good. That covers
+  intelligibility and segment joins; it is not yet an answer to whether quality
+  holds across 168 pages, or across books this one's vocabulary does not
+  represent.
 - GPU figures: first-audio latency, real-time factor, sustained throughput, and
   peak VRAM on serving hardware. The CPU run recorded above is not a substitute.
 - Whether the derived 25.8 s utterance ceiling matches observed behaviour.
