@@ -174,6 +174,11 @@ def test_deletion_reaches_the_derived_rows(
         headers=as_reader(pg_client),
         json={"segment_id": segment_id, "offset_seconds": 1.0},
     )
+    pg_client.post(
+        f"/documents/{document_id}/bookmarks",
+        headers=as_reader(pg_client),
+        json={"segment_id": segment_id, "note": "chapter one"},
+    )
 
     assert (
         pg_client.delete(f"/documents/{document_id}", headers=as_reader(pg_client)).status_code
@@ -189,7 +194,7 @@ def test_deletion_reaches_the_derived_rows(
     # Straight at the tables, because the point is that nothing is left behind
     # rather than that the accessors decline to return it.
     with store._pool.connection() as connection:  # type: ignore[attr-defined]
-        for table in ("sources", "jobs", "audio", "progress"):
+        for table in ("sources", "jobs", "audio", "progress", "bookmarks"):
             left = connection.execute(
                 f"SELECT count(*) AS n FROM {table} WHERE document_id = %s", (document_id,)
             ).fetchone()
@@ -270,3 +275,35 @@ def test_the_stored_pages_go_when_the_document_does(
             "SELECT count(*) AS n FROM prepared WHERE document_id = %s", (document_id,)
         ).fetchone()
         assert left is not None and left["n"] == 0
+
+
+def test_bookmarks_survive_a_restart_and_do_not_double_up(
+    pg_client: TestClient, pg_deps: Deps, book: bytes
+) -> None:
+    """One bookmark per segment is a unique index here, not an application check.
+
+    Which means the second press has to be tried against the real one: an
+    ``ON CONFLICT`` that did not match would raise rather than update, and the
+    reader would get a 500 for pressing a button twice.
+    """
+    document_id = upload(pg_client, book).json()["document_id"]
+    page = pg_client.get(f"/documents/{document_id}/pages/0", headers=as_reader(pg_client)).json()
+    segment_id = page["segments"][0]["segment_id"]
+    url = f"/documents/{document_id}/bookmarks"
+
+    first = pg_client.post(
+        url, headers=as_reader(pg_client), json={"segment_id": segment_id, "note": "here"}
+    )
+    again = pg_client.post(
+        url, headers=as_reader(pg_client), json={"segment_id": segment_id, "note": "here, really"}
+    )
+
+    assert first.status_code == 201
+    assert again.status_code == 200, again.text
+    assert again.json()["bookmark_id"] == first.json()["bookmark_id"]
+
+    restarted = TestClient(create_app(Deps(store=pg_deps.store, run_in_background=False)))
+    listed = restarted.get(url, headers=as_reader(restarted)).json()
+
+    assert [b["note"] for b in listed] == ["here, really"]
+    assert listed[0]["display_text"] == page["segments"][0]["display_text"]
