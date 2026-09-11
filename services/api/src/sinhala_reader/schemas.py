@@ -19,7 +19,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 from sinhala_documents.pipeline import ReadablePage, ReadableSegment
 
-from .storage import Document, Job, Progress
+from .storage import Bookmark, Document, Job, Progress
 
 
 class Box(BaseModel):
@@ -198,4 +198,79 @@ class ProgressDetail(BaseModel):
             document_version=progress.document_version,
             updated_at=progress.updated_at,
             stale=current_version is not None and current_version != progress.document_version,
+        )
+
+
+#: The longest note a reader may attach to a bookmark. Long enough for a
+#: sentence about why they marked it, short enough that a list of them can be
+#: listened to — and short enough that this is a label rather than somewhere a
+#: whole document gets pasted.
+MAX_NOTE = 280
+
+
+class BookmarkBody(BaseModel):
+    segment_id: str
+    note: str | None = Field(
+        default=None,
+        max_length=MAX_NOTE,
+        description="The reader's own words. Optional: marking the place is the point.",
+    )
+
+
+class BookmarkDetail(BaseModel):
+    """A bookmark, with enough of the page to announce it without opening it.
+
+    The sentence is read out of the document as it stands now rather than
+    copied when the bookmark was made. That way a list of bookmarks cannot
+    describe a passage the book no longer contains — and the book's text stays
+    in one place, so deleting the document really does delete it.
+    """
+
+    bookmark_id: str
+    document_id: str
+    segment_id: str
+    note: str | None = None
+    created_at: str
+    document_version: str
+    stale: bool = Field(
+        description=(
+            "True when the document has been reprocessed since this bookmark was made. "
+            "It may no longer point where the reader put it."
+        )
+    )
+    segment_found: bool = Field(
+        description=(
+            "False when this bookmark's segment is not in the document as it stands. "
+            "The page and text are then absent rather than guessed at."
+        )
+    )
+    page_index: int | None = None
+    page_label: str | None = Field(
+        default=None,
+        description="The page number as printed, when the book declares one.",
+    )
+    display_text: str | None = Field(
+        default=None, description="The sentence this bookmark marks, for announcing the list."
+    )
+
+    @classmethod
+    def of(
+        cls,
+        bookmark: Bookmark,
+        *,
+        segment: ReadableSegment | None,
+        current_version: str | None,
+    ) -> BookmarkDetail:
+        return cls(
+            bookmark_id=bookmark.bookmark_id,
+            document_id=bookmark.document_id,
+            segment_id=bookmark.segment_id,
+            note=bookmark.note,
+            created_at=bookmark.created_at,
+            document_version=bookmark.document_version,
+            stale=current_version is not None and current_version != bookmark.document_version,
+            segment_found=segment is not None,
+            page_index=segment.page_index if segment else None,
+            page_label=segment.page_label if segment else None,
+            display_text=segment.display_text if segment else None,
         )
