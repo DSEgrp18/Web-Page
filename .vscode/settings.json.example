@@ -1,0 +1,46 @@
+{
+  // Copy this to .vscode/settings.json, which is ignored by Git:
+  //
+  //     cp .vscode/settings.json.example .vscode/settings.json
+  //
+  // The copy is yours to change. This file is the version we agree on, and
+  // every setting in it corresponds to a CI job that can otherwise fail after
+  // you have already pushed.
+
+  "editor.formatOnSave": true,
+
+  // Prettier, to apps/web/.prettierrc.json. That file sets printWidth: 100;
+  // editors commonly default to 80, and code wrapped at 80 fails
+  // `npm run format:check` while being perfectly correct code.
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[javascript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[css]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+
+  // Markdown keeps its trailing spaces: two of them are a line break, so
+  // trimming them changes how a document renders.
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "files.trimTrailingWhitespace": false
+  },
+
+  // Ruff, to each service's [tool.ruff]. The same rules CI runs as
+  // `ruff check .` and `ruff format --check .`.
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": { "source.organizeImports.ruff": "explicit" }
+  },
+
+  // LF, because that is what is stored. See .gitattributes and .editorconfig.
+  // An editor writing CRLF turns a one-line change into a whole-file diff.
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true
+  }
+}

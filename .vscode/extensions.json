@@ -1,0 +1,19 @@
+{
+  // Offered when the repository is opened. None of these is required — CI is
+  // the authority — but each one moves a check that currently fails after a
+  // push to something that fixes itself on save.
+  "recommendations": [
+    // Formats TypeScript, JavaScript, JSON, CSS and Markdown to
+    // apps/web/.prettierrc.json, which sets printWidth: 100. Most editors
+    // default to 80, and code wrapped at 80 fails `npm run format:check` while
+    // being otherwise correct.
+    "esbenp.prettier-vscode",
+    // Lints and formats Python to each service's [tool.ruff] settings. The
+    // same rules CI runs as `ruff check .` and `ruff format --check .`.
+    "charliermarsh.ruff",
+    // Line endings and indentation from .editorconfig. This repository is
+    // developed on Windows and stores LF; without it, an editor writing CRLF
+    // turns a one-line change into a whole-file diff.
+    "editorconfig.editorconfig"
+  ]
+}
