@@ -142,12 +142,21 @@ def test_another_reader_cannot_reach_pages_segments_audio_or_progress(
         f"/documents/{document_id}/segments/{segment_id}/audio",
         f"/documents/{document_id}/segments/{segment_id}/audio/manifest",
         f"/documents/{document_id}/progress",
+        f"/documents/{document_id}/bookmarks",
     ):
         assert client.get(path, headers=intruder).status_code == 404, path
 
     assert (
         client.put(
             f"/documents/{document_id}/progress",
+            json={"segment_id": segment_id},
+            headers=intruder,
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            f"/documents/{document_id}/bookmarks",
             json={"segment_id": segment_id},
             headers=intruder,
         ).status_code
@@ -433,6 +442,11 @@ def test_deleting_removes_the_document_and_everything_derived_from_it(
         json={"segment_id": segment_id},
         headers=as_reader(client),
     )
+    client.post(
+        f"/documents/{document_id}/bookmarks",
+        json={"segment_id": segment_id},
+        headers=as_reader(client),
+    )
 
     deps: Deps = client.app.state.deps
     from sinhala_reader import preparation
@@ -444,6 +458,7 @@ def test_deleting_removes_the_document_and_everything_derived_from_it(
     assert deps.store.get_progress(document_id, READER) is None
     assert deps.store.jobs_for(document_id, READER) == []
     assert preparation.get_prepared(deps.store, document_id) is None
+    assert deps.store.list_bookmarks(document_id, READER) == []
     assert deps.store._audio == {}
 
 
