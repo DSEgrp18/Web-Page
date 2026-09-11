@@ -32,22 +32,102 @@ issue.
 
 ## Getting set up
 
-The repository currently contains project documentation, vendored legacy-font
-data, and repository tooling. Application scaffolding has not landed yet, so
-there is no install or run command to document. Setup instructions are added to
-this file by the pull requests that introduce the tooling they describe.
+Four things are installable and runnable: the reader interface, the reader API,
+and the two Python packages it sits on. Each has its own README with the
+commands to run it; this section is only about **the checks CI will run on your
+branch**, so that nothing fails after you push that could have failed before.
 
-What you can run today, from the repository root, using Git Bash on Windows or
-any POSIX shell:
+| | |
+| --- | --- |
+| [`apps/web`](apps/web) | The reader interface |
+| [`services/api`](services/api) | Upload, pages, audio, progress, bookmarks, accounts |
+| [`services/worker`](services/worker) | PDF extraction, FM-Abhaya decoding, segmentation |
+| [`services/tts`](services/tts) | The Sinhala text front end and the synthesis adapter |
+
+### Run what CI runs, before you push
+
+**Every one of these is a job that can turn your pull request red.** They are
+listed here in full because a check nobody documents is a check nobody runs.
+
+From `apps/web`:
+
+```bash
+npm ci
+npm run lint          # eslint, including jsx-a11y
+npm run format:check  # prettier --check .
+npm run typecheck     # tsc --noEmit
+npm test              # vitest, including the axe accessibility smoke test
+npm run build         # the production build
+```
+
+`npm run format` writes the fixes that `format:check` only reports. Formatting
+is settled by [`apps/web/.prettierrc.json`](apps/web/.prettierrc.json) — in
+particular `printWidth: 100`, which is wider than most editors default to. If
+your editor wraps at 80, `format:check` will fail on code that is otherwise
+correct. See [Editor settings](#editor-settings) below.
+
+From `services/api`, `services/worker` or `services/tts`:
+
+```bash
+python -m pip install "ruff==0.15.20"
+ruff check .
+ruff format --check .   # `ruff format .` writes the fixes
+python -m pytest
+```
+
+From the repository root:
 
 ```bash
 scripts/verify-vendored-assets.sh   # legacy font tables match their recorded hashes
 scripts/verify-repo-hygiene.sh      # no weights, audio, documents, or secrets tracked
+shellcheck --severity=style scripts/*.sh
 ```
+
+No `PYTHONPATH` is needed — each `pyproject.toml` puts the source directories on
+the path for pytest. What you do need is that service's runtime dependencies;
+its README lists them on one `pip install` line.
+
+### The tests that need a server
+
+`services/api` has database and queue tests that **skip silently** without one,
+and CI fails the job if they skip — so green locally does not mean green in CI
+unless you run them:
+
+```bash
+docker run -d --name sinhala-pg -e POSTGRES_PASSWORD=dev -p 55432:5432 postgres:17-alpine
+docker run -d --name sinhala-redis -p 56379:6379 redis:8-alpine
+
+SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/postgres \
+SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 \
+  python -m pytest
+```
+
+### Editor settings
+
+[`.vscode/settings.json.example`](.vscode/settings.json.example) has the
+formatter configuration this repository expects. Copy it once:
+
+```bash
+cp .vscode/settings.json.example .vscode/settings.json
+```
+
+`.vscode/settings.json` is ignored by Git deliberately — your editor is yours —
+so the example is committed and the copy is not.
+[`.vscode/extensions.json`](.vscode/extensions.json) names the extensions it
+depends on; VS Code offers to install them when you open the repository.
+
+If you use another editor, the settings that matter are: format with Prettier
+for TypeScript, JavaScript, JSON, CSS and Markdown; format with Ruff for Python;
+and honour [`.editorconfig`](.editorconfig) for line endings and indentation.
+
+### The model bundle
 
 The Sinhala XTTS model bundle is **not** in this repository and is not
 downloadable from it. It is delivered out of band by the project owner and
 located through configuration at runtime. If you need it, ask the owner.
+
+Without it everything still runs: the API serves a clearly labelled placeholder
+tone, and `GET /readiness` says so on every call.
 
 ## Branches
 
