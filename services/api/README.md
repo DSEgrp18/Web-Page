@@ -36,6 +36,8 @@ audio rather than being available on request.
 | `GET /documents/{id}/segments/{sid}/audio` | WAV, generated on demand then cached. |
 | `GET /documents/{id}/segments/{sid}/audio/manifest` | What produced it, without downloading it. |
 | `PUT`/`GET /documents/{id}/progress` | Where the reader is, against the version they read. |
+| `POST`/`GET /documents/{id}/bookmarks` | Places the reader chose. Listed in the order of the book. |
+| `DELETE /documents/{id}/bookmarks/{bookmark_id}` | Remove one. |
 | `POST /auth/register`, `/auth/login`, `/auth/logout`, `/auth/password` | Accounts. See below. |
 | `GET /auth/me` | Who am I. |
 | `GET /health`, `GET /readiness` | Liveness and model readiness, answered separately. |
@@ -146,6 +148,49 @@ mistake this for production.
 The **shape** is what matters and is not a stopgap: ownership runs through the
 store, job states are the ones CLAUDE.md names, and cache identity is the
 adapter's full key. Swapping any row above touches one file.
+
+## Bookmarks
+
+Progress is written *for* a reader — where they stopped. A bookmark is a
+decision, and three things follow from the fact that it is made and used without
+seeing the screen.
+
+**The same sentence twice is one bookmark, not two.** The control is a button
+that gives no visible feedback, so a second press updates the note rather than
+adding an entry. It keeps the first bookmark's id and creation time, so editing
+a note does not move it in a list. The route answers **201** when it created one
+and **200** when it replaced one, so the interface can say which happened.
+Uniqueness is a database constraint, not a check in the route: a check followed
+by an insert leaves a gap two taps can both pass through.
+
+**The list runs in the order of the book**, not the order the bookmarks were
+made. This is how a reader moves through a document, and a list that jumps
+backwards is one they have to hold in their head rather than step down.
+
+**Each entry carries the sentence it marks**, read out of the document as it
+stands rather than copied when the bookmark was made. A list of identifiers is
+not a list anybody can choose from. Reading it back also means the book's text
+stays in one place: nothing to drift out of step, and nothing left behind when
+the document is deleted.
+
+| State | What the reader is told |
+| --- | --- |
+| The text was corrected since | `stale: true` — it may not point where they put it |
+| The segment is no longer in the book | `segment_found: false`, no text, and it is listed last |
+
+A bookmark whose segment has gone is still listed. Dropping it would leave a
+reader wondering what they had marked; describing it with whatever sentence now
+holds that place would be worse.
+
+`MAX_BOOKMARKS` is 500 per document — a quota, so a bookmark list cannot become
+somewhere to store text. Being at the limit does not stop editing the bookmarks
+already there.
+
+```bash
+curl -X POST "http://127.0.0.1:8000/documents/$DOC/bookmarks" \
+  -H 'X-Reader-User: me' -H 'Content-Type: application/json' \
+  -d "{\"segment_id\":\"$SEG\",\"note\":\"where the chapter turns\"}"
+```
 
 ## Signing in
 
@@ -403,9 +448,12 @@ second GPU job for a result the first is already producing.
 
 ## Not implemented
 
-Bookmarks, chapter downloads, questions and answers, and the accessibility smoke
-test. Audio is generated per segment on demand; a job that renders a whole
-chapter ahead of time is the next thing the reader will want.
+Chapter downloads, questions and answers, and the accessibility smoke test.
+Audio is generated per segment on demand; a job that renders a whole chapter
+ahead of time is the next thing the reader will want.
+
+Bookmarks exist in the API but **not yet in the interface** — no control marks a
+place and no list navigates them, so nothing a reader can reach uses them.
 
 The interface now exists — [`apps/web`](../../apps/web) — but **no testing with
 assistive technology has been done against it**. CLAUDE.md treats inability to

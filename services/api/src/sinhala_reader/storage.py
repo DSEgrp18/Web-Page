@@ -131,6 +131,36 @@ class Progress:
 
 
 @dataclass(frozen=True)
+class Bookmark:
+    """A place a reader chose to be able to come back to.
+
+    Distinct from :class:`Progress`, which is written for them: progress is
+    where they stopped, a bookmark is somewhere they decided was worth
+    returning to. A reader has one position per book and as many bookmarks as
+    they like.
+
+    Only the segment id is kept, never a copy of the sentence. The text is read
+    back out of the prepared document when the list is asked for, so a bookmark
+    cannot drift out of step with the book it points into — and deleting a
+    document does not leave passages of it behind in a second table.
+
+    ``document_version`` is here for the same reason it is on ``Progress``:
+    text corrected since is a different document, and a bookmark made against
+    the old one may no longer point where the reader put it.
+    """
+
+    bookmark_id: str
+    document_id: str
+    owner: str
+    document_version: str
+    segment_id: str
+    note: str | None = None
+    """What the reader called it. Their words, not an excerpt of the book."""
+
+    created_at: str = field(default_factory=_now)
+
+
+@dataclass(frozen=True)
 class User:
     """A person with an account.
 
@@ -252,6 +282,31 @@ class Store(ABC):
     @abstractmethod
     def get_progress(self, document_id: str, owner: str) -> Progress | None: ...
 
+    # -- bookmarks ---------------------------------------------------------
+
+    @abstractmethod
+    def put_bookmark(self, bookmark: Bookmark) -> tuple[Bookmark, bool]:
+        """Save a bookmark. Returns what was stored and whether it is new.
+
+        One bookmark per segment per reader. A second one on the same sentence
+        updates the note rather than appearing twice: the control is a button a
+        screen-reader user presses without seeing what it did, and a double
+        press must not leave two identical entries to be deleted twice.
+
+        The bookmark id and creation time of an existing bookmark are kept, so
+        a note edit does not move it in a list ordered by when it was made.
+        """
+
+    @abstractmethod
+    def list_bookmarks(self, document_id: str, owner: str) -> list[Bookmark]:
+        """This reader's bookmarks in this document, oldest first."""
+
+    @abstractmethod
+    def get_bookmark(self, bookmark_id: str, owner: str) -> Bookmark | None: ...
+
+    @abstractmethod
+    def delete_bookmark(self, bookmark_id: str, owner: str) -> bool: ...
+
     # -- accounts ----------------------------------------------------------
 
     @abstractmethod
@@ -309,6 +364,10 @@ class InMemoryStore(Store):
         self._jobs: dict[str, Job] = {}
         self._audio: dict[str, AudioRecord] = {}
         self._progress: dict[str, Progress] = {}
+        self._bookmarks: dict[str, Bookmark] = {}
+        #: (owner, document, segment) -> bookmark id, so a second bookmark
+        #: on the same sentence finds the first instead of joining it.
+        self._bookmarks_by_segment: dict[tuple[str, str, str], str] = {}
         self._users: dict[str, User] = {}
         self._users_by_email: dict[str, str] = {}
         self._sessions: dict[str, Session] = {}
@@ -350,6 +409,10 @@ class InMemoryStore(Store):
             self._sources.pop(document_id, None)
             self._prepared.pop(document_id, None)
             self._progress.pop(self._progress_key(document_id, owner), None)
+            for bookmark_id, bookmark in list(self._bookmarks.items()):
+                if bookmark.document_id == document_id:
+                    del self._bookmarks[bookmark_id]
+                    self._bookmarks_by_segment.pop(self._segment_key(bookmark), None)
             for job_id, job in list(self._jobs.items()):
                 if job.document_id == document_id:
                     del self._jobs[job_id]
@@ -426,6 +489,54 @@ class InMemoryStore(Store):
     def get_progress(self, document_id: str, owner: str) -> Progress | None:
         with self._lock:
             return self._progress.get(self._progress_key(document_id, owner))
+
+    # -- bookmarks ---------------------------------------------------------
+
+    @staticmethod
+    def _segment_key(bookmark: Bookmark) -> tuple[str, str, str]:
+        return (bookmark.owner, bookmark.document_id, bookmark.segment_id)
+
+    def put_bookmark(self, bookmark: Bookmark) -> tuple[Bookmark, bool]:
+        key = self._segment_key(bookmark)
+        with self._lock:
+            existing_id = self._bookmarks_by_segment.get(key)
+            if existing_id is not None:
+                existing = self._bookmarks[existing_id]
+                # Same place, so the same bookmark: keep its identity and its
+                # age, and take only what the reader just changed.
+                bookmark = replace(
+                    bookmark,
+                    bookmark_id=existing.bookmark_id,
+                    created_at=existing.created_at,
+                )
+                self._bookmarks[existing.bookmark_id] = bookmark
+                return bookmark, False
+            self._bookmarks[bookmark.bookmark_id] = bookmark
+            self._bookmarks_by_segment[key] = bookmark.bookmark_id
+            return bookmark, True
+
+    def list_bookmarks(self, document_id: str, owner: str) -> list[Bookmark]:
+        with self._lock:
+            mine = [
+                b
+                for b in self._bookmarks.values()
+                if b.document_id == document_id and b.owner == owner
+            ]
+        return sorted(mine, key=lambda b: b.created_at)
+
+    def get_bookmark(self, bookmark_id: str, owner: str) -> Bookmark | None:
+        with self._lock:
+            bookmark = self._bookmarks.get(bookmark_id)
+        return bookmark if bookmark and bookmark.owner == owner else None
+
+    def delete_bookmark(self, bookmark_id: str, owner: str) -> bool:
+        with self._lock:
+            bookmark = self._bookmarks.get(bookmark_id)
+            if bookmark is None or bookmark.owner != owner:
+                return False
+            del self._bookmarks[bookmark_id]
+            self._bookmarks_by_segment.pop(self._segment_key(bookmark), None)
+            return True
 
     # -- accounts ----------------------------------------------------------
 

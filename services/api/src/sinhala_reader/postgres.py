@@ -45,6 +45,7 @@ from psycopg_pool import ConnectionPool
 
 from .storage import (
     AudioRecord,
+    Bookmark,
     Document,
     EmailTaken,
     Job,
@@ -178,6 +179,32 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
                 REFERENCES documents (document_id) ON DELETE CASCADE,
             payload     text NOT NULL
         );
+        """,
+    ),
+    (
+        "0004_bookmarks",
+        """
+        CREATE TABLE bookmarks (
+            bookmark_id      text PRIMARY KEY,
+            document_id      text NOT NULL
+                REFERENCES documents (document_id) ON DELETE CASCADE,
+            owner            text NOT NULL,
+            document_version text NOT NULL,
+            segment_id       text NOT NULL,
+            -- The reader's own words. No copy of the sentence they marked:
+            -- that is read back out of the prepared document, so a bookmark
+            -- cannot drift out of step with the book, and deleting a document
+            -- does not leave passages of it behind here.
+            note             text,
+            created_at       text NOT NULL,
+            -- One bookmark per segment per reader, enforced here rather than
+            -- by a check-then-insert: the control is a button pressed without
+            -- seeing what it did, and two presses must not make two entries.
+            UNIQUE (owner, document_id, segment_id)
+        );
+
+        -- The bookmark list for one reader in one book.
+        CREATE INDEX bookmarks_by_document ON bookmarks (document_id, owner, created_at);
         """,
     ),
 )
@@ -451,6 +478,72 @@ class PostgresStore(Store):
             ).fetchone()
         return _progress(row) if row else None
 
+    # -- bookmarks ---------------------------------------------------------
+
+    def put_bookmark(self, bookmark: Bookmark) -> tuple[Bookmark, bool]:
+        """Insert, or update the one already on this segment.
+
+        ``RETURNING`` gives back the row as it now stands, which is how a
+        second bookmark on the same sentence comes back with the *first* one's
+        id and creation time rather than the ones this call proposed. The
+        ``xmax`` test distinguishes an insert from an update: it is zero on a
+        freshly inserted row and carries the updating transaction on one that
+        ``ON CONFLICT`` updated. It goes through ``text`` because there is no
+        comparison operator between ``xid`` and an integer.
+        """
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                """
+                INSERT INTO bookmarks (bookmark_id, document_id, owner, document_version,
+                                       segment_id, note, created_at)
+                VALUES (%(bookmark_id)s, %(document_id)s, %(owner)s, %(document_version)s,
+                        %(segment_id)s, %(note)s, %(created_at)s)
+                ON CONFLICT (owner, document_id, segment_id) DO UPDATE SET
+                    document_version = EXCLUDED.document_version,
+                    note             = EXCLUDED.note
+                RETURNING *, (xmax::text::bigint <> 0) AS updated
+                """,
+                {
+                    "bookmark_id": bookmark.bookmark_id,
+                    "document_id": bookmark.document_id,
+                    "owner": bookmark.owner,
+                    "document_version": bookmark.document_version,
+                    "segment_id": bookmark.segment_id,
+                    "note": bookmark.note,
+                    "created_at": bookmark.created_at,
+                },
+            ).fetchone()
+        assert row is not None
+        return _bookmark(row), not row["updated"]
+
+    def list_bookmarks(self, document_id: str, owner: str) -> list[Bookmark]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM bookmarks
+                WHERE document_id = %s AND owner = %s
+                ORDER BY created_at
+                """,
+                (document_id, owner),
+            ).fetchall()
+        return [_bookmark(row) for row in rows]
+
+    def get_bookmark(self, bookmark_id: str, owner: str) -> Bookmark | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM bookmarks WHERE bookmark_id = %s AND owner = %s",
+                (bookmark_id, owner),
+            ).fetchone()
+        return _bookmark(row) if row else None
+
+    def delete_bookmark(self, bookmark_id: str, owner: str) -> bool:
+        with self._pool.connection() as connection:
+            result = connection.execute(
+                "DELETE FROM bookmarks WHERE bookmark_id = %s AND owner = %s",
+                (bookmark_id, owner),
+            )
+            return result.rowcount > 0
+
     # -- accounts ----------------------------------------------------------
 
     def put_user(self, user: User) -> User:
@@ -596,6 +689,18 @@ def _progress(row: dict[str, Any]) -> Progress:
         segment_id=row["segment_id"],
         offset_seconds=row["offset_seconds"],
         updated_at=row["updated_at"],
+    )
+
+
+def _bookmark(row: dict[str, Any]) -> Bookmark:
+    return Bookmark(
+        bookmark_id=row["bookmark_id"],
+        document_id=row["document_id"],
+        owner=row["owner"],
+        document_version=row["document_version"],
+        segment_id=row["segment_id"],
+        note=row["note"],
+        created_at=row["created_at"],
     )
 
 

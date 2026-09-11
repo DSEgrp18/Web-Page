@@ -48,6 +48,8 @@ from .preparation import (
 from .queue import QUEUE_ENV, REDIS_URL_ENV, build_app, queue_mode, send_prepare, uses_celery
 from .schemas import (
     AudioManifest,
+    BookmarkBody,
+    BookmarkDetail,
     DocumentDetail,
     DocumentSummary,
     JobStatus,
@@ -68,6 +70,7 @@ from .security import (
 )
 from .storage import (
     DATABASE_URL_ENV,
+    Bookmark,
     Document,
     Job,
     Progress,
@@ -79,6 +82,12 @@ from .storage import (
 
 #: Names the audio a placeholder in the one place a client cannot miss it.
 REAL_MODEL_HEADER = "X-Reader-Real-Model"
+
+#: How many bookmarks one reader may keep in one document. CLAUDE.md asks for
+#: quotas; this is the one that stops a bookmark list from becoming a place to
+#: store text. Well beyond a reader marking every section of a textbook, and far
+#: short of a list nobody could navigate by ear.
+MAX_BOOKMARKS = 500
 
 
 class Deps:
@@ -447,6 +456,114 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             model_version=record.model_version if record else None,
             duration_seconds=record.duration_seconds if record else None,
         )
+
+    # -- bookmarks ---------------------------------------------------------
+
+    @app.post("/documents/{document_id}/bookmarks", tags=["reading"])
+    def add_bookmark(
+        document_id: str,
+        body: BookmarkBody,
+        response: Response,
+        owner: str = Depends(require_owner),
+    ) -> BookmarkDetail:
+        """Mark a place worth coming back to.
+
+        Bookmarking the same sentence twice is not an error and does not make a
+        second entry — it updates the note. The control is a button pressed
+        without seeing what it did, and a reader navigating a list by ear should
+        not have to find and delete a duplicate they did not know they made.
+
+        Answers 201 when the bookmark is new and 200 when it replaced one, so an
+        interface can say which happened rather than guess.
+        """
+        document = owned(document_id, owner)
+        prepared = prepared_or_409(document)
+        segment = prepared.segment(body.segment_id)
+        if segment is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
+
+        existing = deps.store.list_bookmarks(document_id, owner)
+        if len(existing) >= MAX_BOOKMARKS and not any(
+            b.segment_id == body.segment_id for b in existing
+        ):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"This document already has {MAX_BOOKMARKS} bookmarks. "
+                "Remove one before adding another.",
+            )
+
+        assert document.version is not None
+        note = (body.note or "").strip() or None
+        bookmark, created = deps.store.put_bookmark(
+            Bookmark(
+                bookmark_id=new_id("bmk"),
+                document_id=document_id,
+                owner=owner,
+                document_version=document.version,
+                segment_id=body.segment_id,
+                note=note,
+            )
+        )
+        response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return BookmarkDetail.of(bookmark, segment=segment, current_version=document.version)
+
+    @app.get("/documents/{document_id}/bookmarks", tags=["reading"])
+    def list_bookmarks(
+        document_id: str, owner: str = Depends(require_owner)
+    ) -> list[BookmarkDetail]:
+        """This reader's bookmarks, in the order they appear in the book.
+
+        Reading order rather than the order they were made: this is a way to
+        move through a document, and a list that jumps back and forth is one a
+        reader has to hold in their head rather than step down.
+
+        The sentences come from the document as it stands. A bookmark whose
+        segment is no longer there is still listed — losing it silently would
+        leave a reader wondering what they had marked — but it is marked as not
+        found rather than described with text that is not its own.
+        """
+        document = owned(document_id, owner)
+        # Deliberately not prepared_or_409: a reader whose book is being
+        # re-extracted should still be able to see what they marked, even if the
+        # sentences cannot be filled in yet.
+        prepared = get_prepared(deps.store, document_id)
+        bookmarks = deps.store.list_bookmarks(document_id, owner)
+        details = [
+            BookmarkDetail.of(
+                bookmark,
+                segment=prepared.segment(bookmark.segment_id) if prepared else None,
+                current_version=document.version,
+            )
+            for bookmark in bookmarks
+        ]
+        positions = (
+            {s.segment_id: s.index for s in prepared.segments} if prepared is not None else {}
+        )
+        # Anything that cannot be placed in the book goes last, oldest first,
+        # rather than being dropped into the middle at an arbitrary point.
+        return sorted(
+            details,
+            key=lambda d: (
+                (0, positions[d.segment_id], "")
+                if d.segment_id in positions
+                else (1, 0, d.created_at)
+            ),
+        )
+
+    @app.delete(
+        "/documents/{document_id}/bookmarks/{bookmark_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["reading"],
+    )
+    def delete_bookmark(
+        document_id: str, bookmark_id: str, owner: str = Depends(require_owner)
+    ) -> Response:
+        owned(document_id, owner)
+        bookmark = deps.store.get_bookmark(bookmark_id, owner)
+        if bookmark is None or bookmark.document_id != document_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such bookmark.")
+        deps.store.delete_bookmark(bookmark_id, owner)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # -- reading position --------------------------------------------------
 
