@@ -75,3 +75,6 @@ Thumbs.db
 # ---------------------------------------------------------------------------
 *.log
 .claude/settings.local.json
+
+# Local design export scratch (never commit)
+.tmp-penpot-design/

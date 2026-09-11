@@ -105,6 +105,65 @@ describe("the library", () => {
     // battery and data cost paid by a reader on a phone.
     expect(server.callsTo("GET", /^\/documents$/).length).toBe(listedOnce);
   });
+
+  it("opens the delete dialog onto cancel, and Escape puts focus back", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({
+      books: [
+        {
+          document_id: "doc-1",
+          filename: "ඉතිහාසය.pdf",
+          version: "v1",
+          pages: [readablePage(0, ["වාක්‍යය."])],
+        },
+      ],
+    });
+    renderApp(<Library />, server);
+
+    const deleteButton = await screen.findByRole("button", { name: /මකන්න.*ඉතිහාසය/ });
+    await user.click(deleteButton);
+
+    expect(await screen.findByRole("heading", { name: strings.deleteConfirmTitle })).toBeTruthy();
+    expect(screen.getByText(strings.deleteConfirmBody("ඉතිහාසය.pdf"))).toBeTruthy();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: strings.deleteConfirmCancel }),
+      ),
+    );
+
+    // jsdom does not synthesise Escape→cancel the way a browser does; fire the
+    // same event the platform would, which ConfirmDialog listens for.
+    const dialog = document.querySelector("dialog");
+    expect(dialog?.open).toBe(true);
+    dialog?.dispatchEvent(new Event("cancel", { cancelable: true }));
+
+    await waitFor(() => expect(dialog?.open).toBe(false));
+    expect(document.activeElement).toBe(deleteButton);
+    expect(server.callsTo("DELETE", /\/documents\//)).toHaveLength(0);
+  });
+
+  it("deletes only after the confirm action, and announces it politely", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({
+      books: [
+        {
+          document_id: "doc-1",
+          filename: "ඉතිහාසය.pdf",
+          version: "v1",
+          pages: [readablePage(0, ["වාක්‍යය."])],
+        },
+      ],
+    });
+    renderApp(<Library />, server);
+
+    const deleteButton = await screen.findByRole("button", { name: /මකන්න.*ඉතිහාසය/ });
+    await user.click(deleteButton);
+    await user.click(screen.getByRole("button", { name: strings.deleteConfirmAction }));
+
+    await waitFor(() => expect(server.callsTo("DELETE", /\/documents\//)).toHaveLength(1));
+    await waitFor(() => expect(politeText()).toContain(strings.deleted));
+    expect(screen.queryByRole("heading", { name: strings.deleteConfirmTitle })).toBeNull();
+  });
 });
 
 describe("identity", () => {
