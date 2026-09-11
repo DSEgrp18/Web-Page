@@ -89,7 +89,13 @@ class TestWarmUp:
         adapter = build_adapter()
         thread = warm(adapter)
         assert thread is not None
-        thread.join(timeout=30)
+        # Generous, because on a machine that actually has torch installed the
+        # failing path still imports it first, and that alone measured about 25
+        # seconds here — close enough to a 30-second bound that the test failed
+        # whenever anything else was running. CI has no torch and fails in
+        # milliseconds. The bound is only here so a genuine hang is not reported
+        # as a pass.
+        thread.join(timeout=180)
         assert not thread.is_alive()
         assert adapter.readiness is ReadinessState.FAILED
 
