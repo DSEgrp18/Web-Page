@@ -10,14 +10,18 @@ hear answers that cite the pages they came from.
 
 ## Status
 
-**It runs locally, end to end, and it does not speak yet.**
+**It runs locally, end to end, and the voice has never left this machine.**
 
 You can start the API and the reader, add a Sinhala PDF, open a page, and press
-play. What comes out is a placeholder tone: the Sinhala XTTS checkpoint has not
-been connected, and every layer says so — in the audio response header, in the
-manifest, in `GET /readiness`, and out loud in the interface the first time a
-tone plays. Nothing here has been deployed, and nothing has been tested with a
-screen reader.
+play. By default what comes out is a placeholder tone, and every layer says so —
+in the audio response header, in the manifest, in `GET /readiness`, and out loud
+in the interface the first time a tone plays.
+
+The real voice exists and has been heard. The Sinhala XTTS checkpoint has been
+run through this API on a real 168-page textbook, on a CPU, at roughly 3.75×
+slower than real time; the clips were listened to. It has never run on a GPU and
+nothing here has been deployed, so the first-audio target in CLAUDE.md is still
+unmeasured. Nothing has been tested with a screen reader.
 
 This README is corrected as capabilities land rather than written ahead of them.
 
@@ -26,9 +30,9 @@ This README is corrected as capabilities land rather than written ahead of them.
 | Repository governance, CI, branch protection | In place |
 | Legacy FM-Abhaya font data (vendored, verified) | In place |
 | Sinhala TTS text front end | Vendored and tested; three defects documented |
-| Sinhala XTTS inference | **Not started.** Procedure, settings, and limits recorded in [the manifest](docs/model-inference-manifest.md); no audio generated yet |
+| Sinhala XTTS inference | Runs through the API on CPU, measured and listened to ([the manifest](docs/model-inference-manifest.md)). **Never run on a GPU and never deployed** — the Modal worker is written but unrun, so no GPU numbers exist |
 | PDF extraction and FM-Abhaya decoding | Working. 97.4% of a real 168-page Grade 11 textbook readable; what is not is flagged, not narrated |
-| Reader API: upload, pages, segments, audio, progress | Working, with four named stopgaps: header identity, in-memory storage, thread-per-job, placeholder audio |
+| Reader API: upload, pages, segments, audio, progress, bookmarks | Working. Accounts, PostgreSQL and a Celery queue are implemented and selected by configuration; the **defaults** are still a trusted header, in-memory storage and a thread per job. Audio lives in the database rather than object storage |
 | Reader interface: upload, listen, pause, resume | Working. **No testing with assistive technology has been done**, which CLAUDE.md treats as a release blocker |
 | Sinhala interface text | **Awaiting native-speaker review** ([one file](apps/web/src/lib/strings.ts)) |
 | Scanned PDFs and Sinhala OCR | Not started |
