@@ -131,7 +131,8 @@ a sentence twice does not ask a GPU to make it twice.
 
 ## Not implemented
 
-Bookmarks, chapter downloads, offline listening, questions and answers, and
+Bookmarks (the API has them; nothing here marks a place or lists them),
+chapter downloads, offline listening, questions and answers, and
 sentence highlighting against the page image. Playback speed is exposed but its
 intelligibility at 1.5× and 2× is untested against the real model, which does
 not exist here yet: **the audio is a placeholder tone**, and the interface says
