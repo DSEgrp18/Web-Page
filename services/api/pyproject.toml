@@ -24,6 +24,12 @@ postgres = [
   "psycopg[binary]>=3.2",
   "psycopg-pool>=3.2",
 ]
+# Also an extra. Nothing imports celery at module load, so the API runs and its
+# tests pass without a broker library installed.
+queue = [
+  "celery>=5.4",
+  "redis>=5",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "httpx>=0.27"]

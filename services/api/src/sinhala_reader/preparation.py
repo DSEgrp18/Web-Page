@@ -24,6 +24,7 @@ a failure message is a log line that also reaches a screen.
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import replace
 
 from sinhala_documents import DocumentRejected
@@ -101,35 +102,71 @@ def forget_prepared(document_id: str) -> None:
         _PREPARED.pop(document_id, None)
 
 
-class PreparationService:
-    """Runs document preparation and keeps its job up to date."""
+class TransientFailure(Exception):
+    """A failure worth trying again: a storage hiccup, not a broken document.
 
-    def __init__(self, store: Store, *, run_in_background: bool = True) -> None:
+    Carries the stage and a detail with no document text in it, because
+    whatever records this ends up on a screen as well as in a log.
+    """
+
+    def __init__(self, *, stage: str, detail: str) -> None:
+        super().__init__(detail)
+        self.stage = stage
+        self.detail = detail
+
+
+#: Hands a unit of work somewhere: a thread, this thread, or a broker.
+#:
+#: It takes the service rather than closing over one, so the service can be
+#: constructed with its dispatcher in a single step. A closure would need the
+#: service to exist first and the dispatcher to be attached afterwards, which
+#: leaves a service that is briefly unable to do the one thing it is for.
+Dispatch = Callable[["PreparationService", str, str], None]
+
+
+class PreparationService:
+    """Runs document preparation and keeps its job up to date.
+
+    It does not decide *where* the work runs. That is the dispatcher's job, and
+    keeping them apart is what let preparation move onto a queue without
+    changing what a job looks like to a reader waiting on one.
+    """
+
+    def __init__(self, store: Store, *, dispatch: Dispatch | None = None) -> None:
         self._store = store
-        self._run_in_background = run_in_background
+        self._dispatch = dispatch
 
     def start(self, document: Document, job: Job) -> Job:
         """Queue preparation and return the job immediately."""
         job = self._store.put_job(replace(job, state=JobState.QUEUED, stage="queued"))
-        document_id, job_id = document.document_id, job.job_id
-
-        def runner() -> None:
-            self._run(document_id, job_id)
-
-        if self._run_in_background:
-            threading.Thread(target=runner, daemon=True, name=f"prepare-{job.job_id}").start()
-        else:
-            # Tests run this inline so a request and its work are one step, and
-            # a failure surfaces as a failure rather than as a flaky poll.
-            runner()
+        if self._dispatch is not None:
+            self._dispatch(self, document.document_id, job.job_id)
         return self._store.get_job(job.job_id, job.owner) or job
 
-    def _fail(self, job: Job, stage: str, detail: str) -> None:
+    def fail(self, document_id: str, job_id: str, *, stage: str, detail: str) -> None:
+        """Record a final failure. Used when a queue has run out of retries."""
+        job = self._store.get_job_for_worker(job_id)
+        if job is None or job.state.is_final:
+            return
         self._store.put_job(replace(job, state=JobState.FAILED, stage=stage, detail=detail))
 
-    def _run(self, document_id: str, job_id: str) -> None:
+    def run_once(self, document_id: str, job_id: str) -> None:
+        """Extract one document. Safe to call more than once for the same job.
+
+        A queue with late acknowledgement redelivers tasks whose worker died, so
+        running twice is normal rather than exceptional. A job that has already
+        reached a final state does nothing here: re-extracting would spend
+        another 26 seconds to produce the same pages, and re-running a
+        *cancelled* job would resurrect a document the reader deleted.
+
+        Raises :class:`TransientFailure` for the failures worth retrying, so the
+        caller decides. A thread has nowhere to retry to and fails the job; a
+        queue retries a bounded number of times first. Deciding that here would
+        mean the thread path silently swallowing what the queue path recovers
+        from.
+        """
         job = self._store.get_job_for_worker(job_id)
-        if job is None:
+        if job is None or job.state.is_final:
             return
 
         job = self._store.put_job(replace(job, state=JobState.RUNNING, stage="extracting"))
@@ -146,12 +183,16 @@ class PreparationService:
             prepared = prepare_document(source)
         except DocumentRejected as error:
             # The one case where the message is about the reader's file rather
-            # than about the server, and is safe to show them.
+            # than about the server, and is safe to show them. Never retried:
+            # the same file will be rejected the same way every time, and a
+            # reader watching four attempts learns nothing from the extra three.
             self._fail(job, "extracting", str(error))
             return
         except Exception as error:  # noqa: BLE001 - recorded without document text
-            self._fail(job, "extracting", f"{type(error).__name__} while reading the document")
-            return
+            raise TransientFailure(
+                stage="extracting",
+                detail=f"{type(error).__name__} while reading the document",
+            ) from error
 
         # The reader may have deleted it while extraction ran.
         if self._store.get_document(document_id, job.owner) is None:
@@ -173,3 +214,38 @@ class PreparationService:
             )
         )
         self._store.put_job(replace(job, state=JobState.SUCCEEDED, stage="ready", detail=None))
+
+    def _fail(self, job: Job, stage: str, detail: str) -> None:
+        self._store.put_job(replace(job, state=JobState.FAILED, stage=stage, detail=detail))
+
+
+def in_thread(service: PreparationService, document_id: str, job_id: str) -> None:
+    """Run preparation on a thread in this process. No durability.
+
+    The default, because a test run, a ``--reload`` and a contributor building
+    the reader interface must not need a broker and a second process. A restart
+    loses work in flight, and ``/readiness`` says so rather than leaving it to
+    be discovered by a reader whose job never moves again.
+    """
+
+    def runner() -> None:
+        inline(service, document_id, job_id)
+
+    threading.Thread(target=runner, daemon=True, name=f"prepare-{job_id}").start()
+
+
+def inline(service: PreparationService, document_id: str, job_id: str) -> None:
+    """Run preparation on the calling thread.
+
+    Tests use this so a request and its work are one step, and a failure
+    surfaces as a failure rather than as a poll that occasionally has not
+    finished yet.
+
+    A transient failure has nowhere to retry to here, so the job is failed. The
+    reader is told rather than left watching a job that stopped moving; a queue
+    reaches the same place only after its retries are gone.
+    """
+    try:
+        service.run_once(document_id, job_id)
+    except TransientFailure as failure:
+        service.fail(document_id, job_id, stage=failure.stage, detail=failure.detail)

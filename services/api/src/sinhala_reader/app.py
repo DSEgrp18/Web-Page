@@ -16,10 +16,11 @@ Three rules run through every route:
   real model produced it, in a header and in the manifest, because a listener
   cannot tell a tone from speech they were not expecting.
 
-What is deliberately absent: a job queue and object storage. Accounts and a
-database are not — ``SINHALA_READER_AUTH=sessions`` gives real sign-in, and
-``SINHALA_READER_DATABASE_URL`` selects PostgreSQL. Without either, the
-placeholder is used and ``/readiness`` says so on every call.
+What is deliberately absent: object storage. Accounts, a database and a job
+queue are not — ``SINHALA_READER_AUTH=sessions`` gives real sign-in,
+``SINHALA_READER_DATABASE_URL`` selects PostgreSQL, and
+``SINHALA_READER_QUEUE=celery`` moves preparation onto a broker. Without each,
+the placeholder is used and ``/readiness`` says so on every call.
 
 See ``security.py``, ``storage.py`` and ``preparation.py`` — each says what
 stands in for the real thing and what that costs.
@@ -37,7 +38,14 @@ from . import passwords
 from .accounts import router as accounts_router
 from .adapters import ADAPTER_ENV, adapter_mode, build_adapter, loaded_model_version, warm
 from .audio import SynthesisService
-from .preparation import PreparationService, forget_prepared, get_prepared
+from .preparation import (
+    PreparationService,
+    forget_prepared,
+    get_prepared,
+    in_thread,
+    inline,
+)
+from .queue import QUEUE_ENV, REDIS_URL_ENV, build_app, queue_mode, send_prepare, uses_celery
 from .schemas import (
     AudioManifest,
     DocumentDetail,
@@ -95,8 +103,26 @@ class Deps:
         #: Load the checkpoint at start-up rather than in the first request.
         #: Tests turn it off to hold an adapter in a chosen state.
         self.warm_on_start = warm_on_start
-        self.preparation = PreparationService(self.store, run_in_background=run_in_background)
+        #: Where preparation runs. ``run_in_background=False`` wins over
+        #: configuration: a test asking for inline work must get inline work,
+        #: not whatever a stray environment variable selects.
+        self.celery = build_app() if run_in_background and uses_celery() else None
+        self.preparation = PreparationService(
+            self.store, dispatch=self._dispatcher(run_in_background)
+        )
         self.synthesis = SynthesisService(self.adapter, self.store)
+
+    def _dispatcher(self, run_in_background: bool):
+        if not run_in_background:
+            return inline
+        if self.celery is not None:
+            celery = self.celery
+
+            def to_the_queue(service, document_id: str, job_id: str) -> None:
+                send_prepare(celery, document_id, job_id)
+
+            return to_the_queue
+        return in_thread
 
 
 def create_app(deps: Deps | None = None) -> FastAPI:
@@ -194,6 +220,12 @@ def create_app(deps: Deps | None = None) -> FastAPI:
                 "The voice failed to load, so nothing can be narrated. "
                 + (report.detail or "No reason was recorded.")
             )
+        if not uses_celery():
+            limitations.append(
+                "Preparation runs in a thread. Work in flight is lost if this process "
+                f"stops, and its job stays 'running' for ever. Set {QUEUE_ENV}=celery "
+                f"and {REDIS_URL_ENV} for a durable queue."
+            )
         if not is_durable(deps.store):
             limitations.append(
                 "Storage is in memory. Documents, audio and reading positions are lost "
@@ -249,6 +281,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             "device": report.device,
             "voice_detail": report.detail,
             "auth_mode": auth_mode() or "unconfigured",
+            "queue": queue_mode(),
             "limitations": limitations,
         }
 

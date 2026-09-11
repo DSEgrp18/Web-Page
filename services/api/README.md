@@ -139,7 +139,7 @@ mistake this for production.
 | --- | --- | --- |
 | Trusted `X-Reader-User` header, in `development` mode | Accounts and verified sessions — **now implemented**, `SINHALA_READER_AUTH=sessions` | In `development` mode **anyone can claim to be anyone**. The API refuses to serve under no mode at all, so a deployment that forgets fails closed. |
 | `InMemoryStore` **by default** | PostgreSQL, object storage | Documents, audio and positions are lost on restart. `SINHALA_READER_DATABASE_URL` selects PostgreSQL instead; audio still lives in the database rather than object storage. |
-| A thread per job | Celery and Redis | In-flight work is lost on restart; no retries, no cross-process queue. The **result** is durable — prepared pages are stored, not only cached — so a restart loses work in progress, not work already done. |
+| A thread per job, **by default** | Celery and Redis — **now implemented**, `SINHALA_READER_QUEUE=celery` | On a thread, work in flight is lost if the process stops and its job stays `running` for ever. The queue redelivers it instead. |
 | `DevelopmentAdapter` **by default** | The XTTS checkpoint on a GPU | Audio is a 440 Hz tone. Marked `is_real_model=false` everywhere, including in the cache key, so a tone can never be served as narration. `SINHALA_READER_TTS=xtts` selects the real voice instead. |
 | An origin list in an environment variable | Origins tied to a deployment configuration | A wildcard plus header identity means any website can read any reader's documents. `/readiness` says so when one is set. |
 
@@ -311,6 +311,81 @@ SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader   p
 
 The route tests in `test_api.py` stay pinned to the in-memory store, so setting
 that variable in a shell cannot quietly make them share one database.
+
+## The job queue
+
+Preparation takes about 26 seconds for a 168-page book, and it happens exactly
+when a reader is waiting to start. Where that work runs is chosen by
+`SINHALA_READER_QUEUE`:
+
+| | |
+| --- | --- |
+| `thread` (default) | A thread in this process. **Work in flight dies with it**, and the job stays `running` for ever. |
+| `celery` | A broker. A worker that dies has its task redelivered. |
+
+`thread` stays the default because a test run, a `--reload` and a contributor
+building the reader interface must not need a broker and a second process.
+`/readiness` reports which one is running, and names the thread as a limitation.
+
+Selecting `celery` **without** `SINHALA_READER_REDIS_URL` stops the process. The
+alternative — quietly running everything in a thread — is the worst outcome
+available: the operator believes work is durable and it is not.
+
+```bash
+docker run -d --name reader-redis -p 56379:6379 redis:8-alpine
+
+python -m pip install "celery>=5.4" "redis>=5"
+
+# the API
+SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_AUTH=development SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m uvicorn sinhala_reader.app:app
+
+# and a worker, in another terminal
+SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m celery -A sinhala_reader.worker worker --loglevel=info
+```
+
+Measured with the API in one process and a worker in another, sharing only
+PostgreSQL and Redis, on the real 168-page textbook:
+
+```
+upload returned    202 in 636 ms   job queued
+job succeeded      28.1 s          the API process did none of the work
+page 152           200, 26 segments
+```
+
+**The worker needs the same database as the API.** It is a different process
+with no request and no caller, so it builds its own store from configuration —
+and a worker pointed at a different database will extract books nobody can read.
+
+### Late acknowledgement, and why the work is idempotent
+
+By default Celery marks a task done as soon as a worker accepts it, so a worker
+killed mid-extraction takes the task with it. `task_acks_late` moves the
+acknowledgement to *after* the work: a killed worker's task goes back on the
+queue.
+
+The cost is that a task can run **twice**. So `run_once` does nothing for a job
+that already reached a final state — re-extracting would spend another 26
+seconds producing the same pages, and re-running a *cancelled* job would
+resurrect a document the reader deleted.
+
+### Which failures are retried
+
+| | |
+| --- | --- |
+| A rejected document | **Never retried.** The same file is rejected the same way every time, and a reader watching four attempts learns nothing from the extra three. |
+| Anything unexpected | Retried up to 3 times, backing off 5s, 10s, 20s, then failed with the reason. |
+
+The service raises rather than deciding, so the thread path and the queue path
+can differ honestly: a thread has nowhere to retry to and fails the job; the
+queue retries first. Deciding inside the service would mean the thread path
+silently swallowing what the queue path recovers from.
+
+### Audio is deliberately not queued
+
+It is generated per segment on demand, and the reader is waiting for that
+specific clip — a queue would add latency to the thing the 5-second target is
+measured on. Rendering a whole chapter ahead of time *is* a queued job and is
+not built yet.
 
 ## Caching
 
