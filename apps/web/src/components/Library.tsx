@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
@@ -20,9 +21,11 @@ export function Library() {
   const [documents, setDocuments] = useState<DocumentSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<DocumentSummary | null>(null);
   const fileInputId = useId();
   const uploadHelpId = useId();
   const formRef = useRef<HTMLFormElement>(null);
+  const deleteTriggerRef = useRef<HTMLElement | null>(null);
 
   /** Which books were still being prepared last time we looked. */
   const pendingRef = useRef(new Set<string>());
@@ -115,21 +118,27 @@ export function Library() {
     [api, refresh, say, alert, fail],
   );
 
-  const remove = useCallback(
-    async (book: DocumentSummary) => {
-      // Deletion removes derived text, audio and caches on the server. Saying
-      // so before it happens is the only chance the reader gets to stop.
-      if (!window.confirm(strings.deleteConfirm)) return;
-      try {
-        await api.deleteDocument(book.document_id);
-        say(strings.deleted);
-        await refresh();
-      } catch (cause) {
-        fail(cause);
-      }
-    },
-    [api, refresh, say, fail],
-  );
+  const requestDelete = useCallback((book: DocumentSummary, trigger: HTMLElement) => {
+    deleteTriggerRef.current = trigger;
+    setPendingDelete(book);
+  }, []);
+
+  const cancelDelete = useCallback(() => {
+    setPendingDelete(null);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    const book = pendingDelete;
+    setPendingDelete(null);
+    if (!book) return;
+    try {
+      await api.deleteDocument(book.document_id);
+      say(strings.deleted);
+      await refresh();
+    } catch (cause) {
+      fail(cause);
+    }
+  }, [api, pendingDelete, refresh, say, fail]);
 
   return (
     <>
@@ -165,11 +174,22 @@ export function Library() {
         ) : (
           <ul className="stack">
             {documents.map((book) => (
-              <DocumentRow key={book.document_id} book={book} onDelete={remove} />
+              <DocumentRow key={book.document_id} book={book} onDelete={requestDelete} />
             ))}
           </ul>
         )}
       </section>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={strings.deleteConfirmTitle}
+        body={pendingDelete ? strings.deleteConfirmBody(pendingDelete.filename) : null}
+        cancelLabel={strings.deleteConfirmCancel}
+        confirmLabel={strings.deleteConfirmAction}
+        onCancel={cancelDelete}
+        onConfirm={() => void confirmDelete()}
+        returnFocusRef={deleteTriggerRef}
+      />
     </>
   );
 }
@@ -179,7 +199,7 @@ function DocumentRow({
   onDelete,
 }: {
   book: DocumentSummary;
-  onDelete: (book: DocumentSummary) => void;
+  onDelete: (book: DocumentSummary, trigger: HTMLElement) => void;
 }) {
   const ready = book.version !== null;
   const state = ready ? "succeeded" : "running";
@@ -199,7 +219,7 @@ function DocumentRow({
             <span className="visually-hidden"> — {book.filename}</span>
           </Link>
         ) : null}
-        <button type="button" onClick={() => onDelete(book)}>
+        <button type="button" onClick={(event) => onDelete(book, event.currentTarget)}>
           {strings.deleteBook}
           <span className="visually-hidden"> — {book.filename}</span>
         </button>

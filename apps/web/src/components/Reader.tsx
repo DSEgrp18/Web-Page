@@ -156,6 +156,21 @@ export function Reader({ documentId }: { documentId: string }) {
     say(strings.placeholderAudio);
   }, [player.realModel, say]);
 
+  // Follow-reading (#29): while playing, keep the current sentence in view for
+  // low-vision readers at high zoom. Never steal focus — that would yank a
+  // screen-reader cursor every sentence. Setting UI lands in #30; default on.
+  // TODO(#30): honour the reading-settings switch when that screen exists.
+  const followReading = true;
+  useEffect(() => {
+    if (!followReading || player.status !== "playing" || !player.currentId) return;
+    const el = document.querySelector<HTMLElement>(`.sentence[data-current="true"] .sentence-text`);
+    if (!el) return;
+    const reduced =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+  }, [followReading, player.status, player.currentId]);
+
   const goToPage = useCallback(
     (index: number) => {
       if (!book || index < 0 || index >= book.page_count || index === pageIndex) return;

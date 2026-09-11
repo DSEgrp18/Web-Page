@@ -1,53 +1,85 @@
 /*
- * Typography and colour for a Sinhala reader, some of whom see the page and
- * some of whom do not.
+ * Handa Potha (හඬ පොත) design tokens — Penpot "Design system · foundations".
  *
- * The choices that are not decoration:
+ * Choices that are not decoration:
  *
- * - A Sinhala-first font stack. Sinhala rendered in a fallback face loses the
- *   distinctions between similar letters, which matters most to exactly the
- *   low-vision readers this is for.
- * - `line-height` well above the Latin default. Sinhala stacks vowel signs
- *   above and below the base letter; 1.4 clips them into each other.
- * - Focus is always visible, and never removed. It is how a keyboard reader
- *   knows where they are.
- * - Controls are at least 44px in both directions (WCAG 2.2 Target Size).
- * - Contrast is checked against WCAG 2.2 AA: body text 15.9:1, muted text
- *   7.3:1, and the accent against white 8.6:1, all on the light palette.
+ * - Warm paper, not white: reduces glare for low-vision readers.
+ * - Three faces: Abhaya Libre (display), Noto Sans Sinhala (UI / reading),
+ *   Manrope (Latin / numerals). Loaded via next/font in layout.tsx.
+ * - Reading text is generous (23 px / 1.6) so stacked Sinhala vowel signs
+ *   stay separable; 21 px at the 390 px mobile breakpoint.
+ * - Focus is always visible, and never removed.
+ * - Primary targets are at least 48 × 48 px (design system; exceeds WCAG 2.2's 24).
+ *
+ * Measured contrast (WebAIM / WCAG relative-luminance), light theme:
+ *   ink on paper 13.3:1 · muted on paper 5.3:1 · teal on white 6.5:1 ·
+ *   white on teal 6.5:1 · error on paper 6.1:1 · ink on mint 12.3:1
+ *
+ * Measured contrast, dark theme (derived — see prefers-color-scheme block):
+ *   ink on paper 15.4:1 · muted on paper 8.6:1 · teal on paper 7.5:1 ·
+ *   dark ink on teal 7.5:1 · error on paper 10.5:1
  */
 
 :root {
   color-scheme: light dark;
 
-  --ink: #14181f;
-  --ink-muted: #4a5461;
-  --paper: #ffffff;
-  --paper-sunken: #f2f4f7;
-  --line: #c3cad4;
-  --accent: #0b4f9c;
+  /* Design system · foundations (kept under existing token names where possible) */
+  --ink: #172e2c;
+  --ink-muted: #566a65;
+  --paper: #f7f6f2;
+  --paper-sunken: #ffffff; /* raised surfaces / cards — design "white" */
+  --mint: #e4f1e9; /* selected rows, current sentence */
+  --line: #d8e0d9;
+  --accent: #17695c; /* teal */
   --accent-ink: #ffffff;
-  --danger: #8c1d18;
-  --danger-paper: #fdeceb;
-  --warn-paper: #fdf5e2;
-  --warn-line: #b4820a;
-  --focus: #0b4f9c;
+  --accent-pressed: #103f37; /* design "dark" */
+  --danger: #a5362c; /* error */
+  --danger-paper: #f8ebe9;
+  --warn-paper: #fbf3e6;
+  --warn-line: #e7b86c; /* gold */
+  --focus: #17695c;
+
   --radius: 8px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 48px;
+
+  --motion-control: 150ms;
+  --motion-panel: 200ms;
+
+  --font-display: "Abhaya Libre", "Iskoola Pota", serif;
+  --font-ui: "Noto Sans Sinhala", "Iskoola Pota", "Nirmala UI", system-ui, sans-serif;
+  --font-latin: "Manrope", system-ui, sans-serif;
+
+  --reader-size: 23px;
+  --reader-leading: 1.6;
 }
 
+/*
+ * Dark palette: the Penpot file does not specify one. Derived by keeping the
+ * same teal hue family, inverting lightness, and re-checking every pair for
+ * WCAG AA. Surfaces stay teal-tinted (not pure black) so the calm reading
+ * atmosphere survives; accent lightens so buttons remain ≥4.5:1 on dark paper.
+ * Raise on the issue if the designer prefers a different dark direction.
+ */
 @media (prefers-color-scheme: dark) {
   :root {
-    --ink: #f2f4f7;
-    --ink-muted: #c0c8d4;
-    --paper: #12151a;
-    --paper-sunken: #1c2129;
-    --line: #454f5d;
-    --accent: #8fbcf5;
-    --accent-ink: #10141a;
+    --ink: #e8f0ed;
+    --ink-muted: #a8b8b3;
+    --paper: #0e1a18;
+    --paper-sunken: #162824;
+    --mint: #1a332e;
+    --line: #4d6660;
+    --accent: #5cb8a8;
+    --accent-ink: #0e1a18;
+    --accent-pressed: #7dcfc0;
     --danger: #ffb4ab;
     --danger-paper: #3a1512;
     --warn-paper: #322709;
-    --warn-line: #e6c05a;
-    --focus: #8fbcf5;
+    --warn-line: #e7b86c;
+    --focus: #5cb8a8;
   }
 }
 
@@ -66,27 +98,28 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family:
-    "Noto Sans Sinhala", "Iskoola Pota", "Nirmala UI", "Abhaya Libre", system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 1.0625rem;
-  line-height: 1.8;
+  line-height: 1.6;
 }
 
 h1,
 h2,
 h3 {
+  font-family: var(--font-display);
   line-height: 1.5;
   margin: 0 0 0.5em;
+  color: var(--accent-pressed);
 }
 
 h1 {
-  font-size: 1.6rem;
+  font-size: clamp(2rem, 4vw, 3rem);
 }
 h2 {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
 }
 h3 {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
 }
 
 a {
@@ -126,7 +159,7 @@ a {
   background: var(--accent);
   color: var(--accent-ink);
   border-radius: var(--radius);
-  transition: top 120ms ease-in-out;
+  transition: top var(--motion-control) ease-in-out;
 }
 
 .skip-link:focus {
@@ -136,12 +169,12 @@ a {
 .shell {
   max-width: 52rem;
   margin: 0 auto;
-  padding: 1rem 1rem 4rem;
+  padding: var(--space-2) var(--space-2) var(--space-5);
 }
 
 .masthead {
   border-bottom: 1px solid var(--line);
-  padding: 1rem 0;
+  padding: var(--space-2) 0;
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -149,9 +182,14 @@ a {
   justify-content: space-between;
 }
 
+.masthead h1 {
+  margin-bottom: 0.15em;
+}
+
 .masthead p {
   margin: 0;
   color: var(--ink-muted);
+  font-family: var(--font-ui);
 }
 
 /* -- controls ------------------------------------------------------------ */
@@ -159,14 +197,19 @@ a {
 button,
 .button {
   font: inherit;
-  min-height: 44px;
-  min-width: 44px;
+  font-family: var(--font-ui);
+  min-height: 48px;
+  min-width: 48px;
   padding: 0.5rem 1rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper-sunken);
   color: var(--ink);
   cursor: pointer;
+  transition:
+    border-color var(--motion-control) ease,
+    background-color var(--motion-control) ease,
+    color var(--motion-control) ease;
 }
 
 button:hover:not(:disabled) {
@@ -185,14 +228,28 @@ button.primary {
   font-weight: 600;
 }
 
+button.primary:hover:not(:disabled) {
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
+}
+
+button.danger {
+  background: var(--danger);
+  color: var(--accent-ink);
+  border-color: var(--danger);
+  font-weight: 600;
+}
+
 input,
 select {
   font: inherit;
-  min-height: 44px;
+  font-family: var(--font-latin), var(--font-ui);
+  min-height: 48px;
+  min-width: 48px;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--paper);
+  background: var(--paper-sunken);
   color: var(--ink);
 }
 
@@ -224,8 +281,10 @@ label {
 .panel {
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 1rem;
-  margin: 1.5rem 0;
+  padding: var(--space-2);
+  margin: var(--space-3) 0;
+  background: var(--paper-sunken);
+  transition: border-color var(--motion-panel) ease;
 }
 
 .notice {
@@ -247,11 +306,43 @@ label {
 .notice h3 {
   font-size: 1rem;
   margin-bottom: 0.25rem;
+  color: inherit;
+  font-family: var(--font-ui);
 }
 
 .notice p,
 .notice li {
   margin: 0.25rem 0;
+}
+
+/* -- dialogs ------------------------------------------------------------- */
+
+.confirm-dialog {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  max-width: min(28rem, calc(100vw - 2rem));
+  background: var(--paper-sunken);
+  color: var(--ink);
+  box-shadow: 0 12px 40px rgb(23 46 44 / 18%);
+}
+
+.confirm-dialog::backdrop {
+  background: rgb(14 26 24 / 45%);
+}
+
+.confirm-dialog h2 {
+  font-size: 1.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.confirm-dialog p {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-muted);
+}
+
+.confirm-dialog .row {
+  justify-content: flex-end;
 }
 
 /* -- lists --------------------------------------------------------------- */
@@ -296,13 +387,18 @@ label {
   margin: 0;
   padding: 0.5rem;
   border-radius: var(--radius);
+  font-size: var(--reader-size);
+  line-height: var(--reader-leading);
+  text-align: start;
+  min-height: 48px;
+  width: 100%;
 }
 
 /* The current sentence is marked by more than colour: it is also the element
    carrying aria-current, and it gets a border a reader can see without relying
    on hue. */
 .sentence[data-current="true"] .sentence-text {
-  background: var(--paper-sunken);
+  background: var(--mint);
   box-shadow: inset 4px 0 0 var(--accent);
   font-weight: 600;
 }
@@ -318,9 +414,18 @@ label {
   margin-top: 1rem;
 }
 
+@media (max-width: 390px) {
+  :root {
+    --reader-size: 21px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
