@@ -8,6 +8,10 @@ identity is a header anyone can send.
 
 So both directions are tested: that the named origin works, and that nothing
 else does.
+
+The store is named rather than taken from the environment: with
+``SINHALA_READER_DATABASE_URL`` set, these would otherwise share a database with
+every other test.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from fastapi.testclient import TestClient
 from sinhala_reader import Deps, create_app
 from sinhala_reader.app import REAL_MODEL_HEADER
 from sinhala_reader.security import ORIGINS_ENV
+from sinhala_reader.storage import InMemoryStore
 
 READER_UI = "http://localhost:3000"
 
@@ -30,7 +35,7 @@ def app_with_origins(monkeypatch: pytest.MonkeyPatch, value: str | None) -> Test
         monkeypatch.setenv(ORIGINS_ENV, value)
     # The middleware is chosen when the app is built, so the environment has to
     # be set first — the same way a deployment does it.
-    return TestClient(create_app(Deps(run_in_background=False)))
+    return TestClient(create_app(Deps(store=InMemoryStore(), run_in_background=False)))
 
 
 def test_no_origin_configured_means_no_browser_may_call(monkeypatch: pytest.MonkeyPatch) -> None:

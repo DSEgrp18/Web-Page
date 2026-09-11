@@ -4,6 +4,11 @@ None of these tests load a checkpoint. `XttsAdapter` defers importing torch and
 reading the bundle until `load()`, which is what makes it possible to test the
 *choice* on a machine with neither — and is also what these tests must not
 accidentally undo. One of them exists specifically to catch that.
+
+Every ``Deps`` here names its store. Left to ``build_store()`` it would come
+from the environment, so running these with ``SINHALA_READER_DATABASE_URL`` set
+— as CI does — would share one database with every other test and make
+assertions about what a reader owns depend on what ran before them.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from sinhala_reader.adapters import (
     loaded_model_version,
     warm,
 )
+from sinhala_reader.storage import InMemoryStore
 
 
 @pytest.fixture(autouse=True)
@@ -102,7 +108,7 @@ class TestWarmUp:
 
 class TestReadinessTellsTheTruth:
     def test_it_names_the_voice_and_says_a_tone_is_a_tone(self) -> None:
-        client = TestClient(create_app(Deps(run_in_background=False)))
+        client = TestClient(create_app(Deps(store=InMemoryStore(), run_in_background=False)))
         body = client.get("/readiness").json()
         assert body["voice"] == "development"
         assert body["real_model"] is False
@@ -117,7 +123,14 @@ class TestReadinessTellsTheTruth:
         monkeypatch.setenv(ADAPTER_ENV, "xtts")
         adapter = XttsAdapter()  # never loaded: warming is off for this app
         client = TestClient(
-            create_app(Deps(adapter=adapter, run_in_background=False, warm_on_start=False))
+            create_app(
+                Deps(
+                    store=InMemoryStore(),
+                    adapter=adapter,
+                    run_in_background=False,
+                    warm_on_start=False,
+                )
+            )
         )
 
         body = client.get("/readiness").json()
@@ -149,7 +162,14 @@ class TestReadinessTellsTheTruth:
                 return "No module named 'TTS'"
 
         client = TestClient(
-            create_app(Deps(adapter=Broken(), run_in_background=False, warm_on_start=False))
+            create_app(
+                Deps(
+                    store=InMemoryStore(),
+                    adapter=Broken(),
+                    run_in_background=False,
+                    warm_on_start=False,
+                )
+            )
         )
         body = client.get("/readiness").json()
 
@@ -185,7 +205,14 @@ class TestReadinessTellsTheTruth:
         # Warming is what legitimately loads the model. Turning it off leaves
         # the probes as the only thing that could, which is the point.
         client = TestClient(
-            create_app(Deps(adapter=adapter, run_in_background=False, warm_on_start=False))
+            create_app(
+                Deps(
+                    store=InMemoryStore(),
+                    adapter=adapter,
+                    run_in_background=False,
+                    warm_on_start=False,
+                )
+            )
         )
 
         assert client.get("/readiness").status_code == 200
@@ -227,7 +254,14 @@ class TestReadinessTellsTheTruth:
     def test_no_document_is_served_while_the_voice_is_cold(self) -> None:
         """Ownership does not become laxer because the model is not ready."""
         client = TestClient(
-            create_app(Deps(adapter=XttsAdapter(), run_in_background=False, warm_on_start=False))
+            create_app(
+                Deps(
+                    store=InMemoryStore(),
+                    adapter=XttsAdapter(),
+                    run_in_background=False,
+                    warm_on_start=False,
+                )
+            )
         )
         response = client.get("/documents", headers=as_reader(client, READER))
         assert response.status_code == 200
