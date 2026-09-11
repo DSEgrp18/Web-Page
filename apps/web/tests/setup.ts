@@ -24,6 +24,16 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...rest }, children),
 }));
 
+// `next/font/google` needs the Next runtime; tests only need the CSS variables.
+vi.mock("next/font/google", () => {
+  const face = (variable: string) => () => ({ className: "", variable, style: {} });
+  return {
+    Abhaya_Libre: face("--font-display"),
+    Noto_Sans_Sinhala: face("--font-ui"),
+    Manrope: face("--font-latin"),
+  };
+});
+
 let objectUrls = 0;
 export const revokedUrls: string[] = [];
 
@@ -85,11 +95,63 @@ Object.defineProperty(HTMLMediaElement.prototype, "preservesPitch", {
   value: true,
 });
 
+/** Every `scrollIntoView` call, so follow-reading tests can assert without a layout engine. */
+export const scrollIntoViewCalls: Array<{
+  behavior?: ScrollBehavior;
+  block?: ScrollLogicalPosition;
+}> = [];
+
+HTMLElement.prototype.scrollIntoView = function scrollIntoView(
+  arg?: boolean | ScrollIntoViewOptions,
+) {
+  if (typeof arg === "object" && arg !== null) {
+    scrollIntoViewCalls.push({ behavior: arg.behavior, block: arg.block });
+  } else {
+    scrollIntoViewCalls.push({});
+  }
+};
+
+window.matchMedia = window.matchMedia ??
+  function matchMedia(query: string): MediaQueryList {
+    return {
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    };
+  };
+
+// jsdom implements `<dialog>` but not always a working `showModal` / `close`.
+if (typeof HTMLDialogElement !== "undefined") {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.removeAttribute("open");
+    this.dispatchEvent(new Event("close"));
+  };
+  Object.defineProperty(HTMLDialogElement.prototype, "open", {
+    configurable: true,
+    get(this: HTMLDialogElement) {
+      return this.hasAttribute("open");
+    },
+    set(this: HTMLDialogElement, value: boolean) {
+      if (value) this.setAttribute("open", "");
+      else this.removeAttribute("open");
+    },
+  });
+}
+
 afterEach(() => {
   cleanup();
   playCalls.length = 0;
   playedElements.length = 0;
   revokedUrls.length = 0;
+  scrollIntoViewCalls.length = 0;
   currentTime = 0;
   window.localStorage.clear();
 });

@@ -151,4 +151,17 @@ describe("no automatically detectable violations", () => {
     await waitFor(() => expect(noticeText()).toContain(strings.errorNotFound));
     expect(await violationsIn(container)).toEqual([]);
   });
+
+  it("when the delete dialog is open", async () => {
+    const user = userEvent.setup();
+    const { container } = renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      libraryServer(),
+    );
+    await user.click(await screen.findByRole("button", { name: /මකන්න.*ඉතිහාසය/ }));
+    await screen.findByRole("heading", { name: strings.deleteConfirmTitle });
+    expect(await violationsIn(container)).toEqual([]);
+  });
 });

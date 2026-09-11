@@ -17,8 +17,9 @@
  */
 
 export const strings = {
-  appName: "සිංහල ලේඛන කියවනය",
-  appTagline: "පොතක් එක් කර, තෝරාගත් පිටුව අසන්න.",
+  // Penpot product name — Handa Potha, "voice book".
+  appName: "හඬ පොත",
+  appTagline: "අකුරු හඬට හැරෙන තැන",
 
   // -- identity ----------------------------------------------------------
   identityHeading: "ඔබ කවුද?",
@@ -39,7 +40,12 @@ export const strings = {
   uploadNoFile: "පළමුව ගොනුවක් තෝරන්න.",
   open: "විවෘත කරන්න",
   deleteBook: "මකන්න",
-  deleteConfirm: "මෙම පොත සහ ඉන් සාදන ලද සියලු ශ්‍රව්‍ය මකා දමන්නද?",
+  // Penpot → Dialog · delete book
+  deleteConfirmTitle: "මෙම පොත මකන්න ද?",
+  deleteConfirmBody: (title: string) =>
+    `"${title}" සහ එයට අදාළ හඬ, සටහන් හා පිටු සලකුණු ඉවත් වේ. මෙම ක්‍රියාව ආපසු හැරවිය නොහැක.`,
+  deleteConfirmCancel: "අවලංගු කරන්න",
+  deleteConfirmAction: "පොත මකන්න",
   deleted: "පොත මකා දමන ලදී.",
 
   // -- preparation -------------------------------------------------------

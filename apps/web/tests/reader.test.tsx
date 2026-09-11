@@ -6,7 +6,7 @@ import { Reader } from "../src/components/Reader";
 import { strings } from "../src/lib/strings";
 import { FakeServer, readablePage, type FakeBook } from "./fakeApi";
 import { noticeText, politeText, renderApp } from "./render";
-import { playCalls, playedElements, setCurrentTime } from "./setup";
+import { playCalls, playedElements, scrollIntoViewCalls, setCurrentTime } from "./setup";
 
 const FIRST = "පළමු වාක්‍යය.";
 const SECOND = "දෙවන වාක්‍යය.";
@@ -145,6 +145,76 @@ describe("listening", () => {
     // The second press replays what was already fetched. On a real deployment
     // the alternative is a second GPU job for audio already in hand.
     expect(server.callsTo("GET", /segments\/0000-s0\/audio$/)).toHaveLength(1);
+  });
+
+  it("scrolls the current sentence into view while playing, without moving focus", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    openReader(server);
+
+    const first = await screen.findByRole("button", { name: FIRST });
+    first.focus();
+    expect(document.activeElement).toBe(first);
+
+    scrollIntoViewCalls.length = 0;
+    await user.click(first);
+    await waitFor(() => expect(playCalls).toHaveLength(1));
+    await waitFor(() => expect(scrollIntoViewCalls.length).toBeGreaterThan(0));
+    expect(scrollIntoViewCalls.at(-1)).toMatchObject({ block: "center", behavior: "smooth" });
+    expect(document.activeElement).toBe(first);
+
+    const beforeAdvance = scrollIntoViewCalls.length;
+    await act(async () => {
+      playedElements[0]?.dispatchEvent(new Event("ended"));
+    });
+    await waitFor(() => expect(playCalls).toHaveLength(2));
+    await waitFor(() => expect(scrollIntoViewCalls.length).toBeGreaterThan(beforeAdvance));
+    expect(document.activeElement).toBe(first);
+  });
+
+  it("jumps instantly when reduced motion is preferred", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: query.includes("prefers-reduced-motion"),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      })) as typeof window.matchMedia;
+
+    try {
+      openReader(server);
+      scrollIntoViewCalls.length = 0;
+      await user.click(await screen.findByRole("button", { name: FIRST }));
+      await waitFor(() =>
+        expect(scrollIntoViewCalls.some((call) => call.behavior === "auto")).toBe(true),
+      );
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it("does not scroll while paused", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    openReader(server);
+
+    await user.click(await screen.findByRole("button", { name: FIRST }));
+    await waitFor(() => expect(playCalls).toHaveLength(1));
+    await user.click(screen.getByRole("button", { name: strings.pause }));
+    const afterPause = scrollIntoViewCalls.length;
+
+    // Still on the same sentence, now paused: follow-reading must stay quiet.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(scrollIntoViewCalls.length).toBe(afterPause);
   });
 });
 
