@@ -183,9 +183,7 @@ export function Library() {
       <ConfirmDialog
         open={pendingDelete !== null}
         title={strings.deleteConfirmTitle}
-        body={
-          pendingDelete ? strings.deleteConfirmBody(pendingDelete.filename) : null
-        }
+        body={pendingDelete ? strings.deleteConfirmBody(pendingDelete.filename) : null}
         cancelLabel={strings.deleteConfirmCancel}
         confirmLabel={strings.deleteConfirmAction}
         onCancel={cancelDelete}
@@ -221,10 +219,7 @@ function DocumentRow({
             <span className="visually-hidden"> — {book.filename}</span>
           </Link>
         ) : null}
-        <button
-          type="button"
-          onClick={(event) => onDelete(book, event.currentTarget)}
-        >
+        <button type="button" onClick={(event) => onDelete(book, event.currentTarget)}>
           {strings.deleteBook}
           <span className="visually-hidden"> — {book.filename}</span>
         </button>
