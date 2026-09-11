@@ -29,6 +29,7 @@ import pytest
 
 from sinhala_reader.storage import (
     AudioRecord,
+    Bookmark,
     Document,
     EmailTaken,
     InMemoryStore,
@@ -397,6 +398,135 @@ class TestProgress:
         assert store.get_progress(document.document_id, BOB) is None
 
 
+# --- bookmarks -------------------------------------------------------------
+
+
+def a_bookmark(document: Document, segment_id: str = "seg_1", **kwargs: object) -> Bookmark:
+    fields: dict[str, object] = {
+        "bookmark_id": new_id("bmk"),
+        "document_id": document.document_id,
+        "owner": document.owner,
+        "document_version": "v1",
+        "segment_id": segment_id,
+    }
+    fields.update(kwargs)
+    return Bookmark(**fields)  # type: ignore[arg-type]
+
+
+class TestBookmarks:
+    def test_round_trips(self, store: Store) -> None:
+        document = a_document(version="v1")
+        store.put_document(document)
+        bookmark = a_bookmark(document, note="where the chapter turns")
+
+        stored, created = store.put_bookmark(bookmark)
+
+        assert created is True
+        assert stored == bookmark
+        assert store.get_bookmark(bookmark.bookmark_id, ALICE) == bookmark
+
+    def test_a_bookmark_with_no_note_is_still_a_bookmark(self, store: Store) -> None:
+        """Most will have none. Marking a place is the whole feature."""
+        document = a_document()
+        store.put_document(document)
+
+        stored, _ = store.put_bookmark(a_bookmark(document))
+
+        assert stored.note is None
+
+    def test_a_second_bookmark_on_one_segment_replaces_the_first(self, store: Store) -> None:
+        """The control is a button pressed without seeing what it did.
+
+        A double press must not leave two identical entries that then have to
+        be found and deleted twice by someone navigating a list by ear.
+        """
+        document = a_document()
+        store.put_document(document)
+        first, _ = store.put_bookmark(a_bookmark(document, segment_id="seg_4", note="here"))
+
+        again, created = store.put_bookmark(
+            a_bookmark(document, segment_id="seg_4", note="here, really")
+        )
+
+        assert created is False
+        # The reader's edit is kept; the bookmark's identity and age are not
+        # replaced, so editing a note does not move it in an ordered list.
+        assert again.note == "here, really"
+        assert again.bookmark_id == first.bookmark_id
+        assert again.created_at == first.created_at
+        assert len(store.list_bookmarks(document.document_id, ALICE)) == 1
+
+    def test_two_readers_can_bookmark_the_same_segment(self, store: Store) -> None:
+        """One bookmark per segment is per reader, not per sentence."""
+        mine = a_document(owner=ALICE)
+        theirs = a_document(owner=BOB)
+        store.put_document(mine)
+        store.put_document(theirs)
+
+        store.put_bookmark(a_bookmark(mine, segment_id="seg_4"))
+        _, created = store.put_bookmark(a_bookmark(theirs, segment_id="seg_4"))
+
+        assert created is True
+
+    def test_listing_is_scoped_and_oldest_first(self, store: Store) -> None:
+        document = a_document(owner=ALICE)
+        store.put_document(document)
+        later = a_bookmark(document, segment_id="seg_9", created_at="2026-06-01T00:00:00+00:00")
+        earlier = a_bookmark(document, segment_id="seg_2", created_at="2026-01-01T00:00:00+00:00")
+        store.put_bookmark(later)
+        store.put_bookmark(earlier)
+
+        listed = store.list_bookmarks(document.document_id, ALICE)
+
+        assert [b.segment_id for b in listed] == ["seg_2", "seg_9"]
+        assert store.list_bookmarks(document.document_id, BOB) == []
+
+    def test_listing_is_scoped_to_one_document(self, store: Store) -> None:
+        one = a_document(owner=ALICE)
+        two = a_document(owner=ALICE)
+        store.put_document(one)
+        store.put_document(two)
+        store.put_bookmark(a_bookmark(one))
+        store.put_bookmark(a_bookmark(two))
+
+        assert len(store.list_bookmarks(one.document_id, ALICE)) == 1
+
+    def test_another_reader_can_neither_see_nor_delete_one(self, store: Store) -> None:
+        document = a_document(owner=ALICE)
+        store.put_document(document)
+        bookmark, _ = store.put_bookmark(a_bookmark(document))
+
+        assert store.get_bookmark(bookmark.bookmark_id, BOB) is None
+        assert store.delete_bookmark(bookmark.bookmark_id, BOB) is False
+        assert store.get_bookmark(bookmark.bookmark_id, ALICE) is not None
+
+    def test_deleting_one_leaves_the_others(self, store: Store) -> None:
+        document = a_document()
+        store.put_document(document)
+        keep, _ = store.put_bookmark(a_bookmark(document, segment_id="seg_1"))
+        drop, _ = store.put_bookmark(a_bookmark(document, segment_id="seg_2"))
+
+        assert store.delete_bookmark(drop.bookmark_id, ALICE) is True
+
+        assert [b.bookmark_id for b in store.list_bookmarks(document.document_id, ALICE)] == [
+            keep.bookmark_id
+        ]
+
+    def test_deleting_what_is_not_there_is_false(self, store: Store) -> None:
+        assert store.delete_bookmark("bmk_nothing", ALICE) is False
+
+    def test_the_segment_is_free_again_after_a_delete(self, store: Store) -> None:
+        """Otherwise a reader who removes a bookmark cannot make a new one."""
+        document = a_document()
+        store.put_document(document)
+        bookmark, _ = store.put_bookmark(a_bookmark(document, segment_id="seg_4"))
+        store.delete_bookmark(bookmark.bookmark_id, ALICE)
+
+        _, created = store.put_bookmark(a_bookmark(document, segment_id="seg_4"))
+
+        assert created is True
+
+
 # --- deletion --------------------------------------------------------------
 
 
@@ -414,6 +544,7 @@ class TestDeletion:
         store.put_job(job)
         record = an_audio_record(document)
         store.put_audio(record)
+        bookmark, _ = store.put_bookmark(a_bookmark(document))
         store.put_progress(
             Progress(
                 document_id=document.document_id,
@@ -431,6 +562,8 @@ class TestDeletion:
         assert store.get_job_for_worker(job.job_id) is None
         assert store.get_audio(record.cache_key, ALICE) is None
         assert store.get_progress(document.document_id, ALICE) is None
+        assert store.get_bookmark(bookmark.bookmark_id, ALICE) is None
+        assert store.list_bookmarks(document.document_id, ALICE) == []
 
     def test_another_owner_cannot_delete(self, store: Store) -> None:
         document = a_document(owner=ALICE)
