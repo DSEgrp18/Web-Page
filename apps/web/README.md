@@ -92,6 +92,7 @@ secret — no secret ever enters a browser bundle.
 
 ```bash
 npm run lint         # eslint, including jsx-a11y
+npm run format:check # prettier --check . — `npm run format` writes the fixes
 npm run typecheck    # tsc --noEmit
 npm test             # vitest, including the axe smoke test
 npm run build        # the production build
