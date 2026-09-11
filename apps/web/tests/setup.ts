@@ -111,7 +111,8 @@ HTMLElement.prototype.scrollIntoView = function scrollIntoView(
   }
 };
 
-window.matchMedia = window.matchMedia ??
+window.matchMedia =
+  window.matchMedia ??
   function matchMedia(query: string): MediaQueryList {
     return {
       matches: false,

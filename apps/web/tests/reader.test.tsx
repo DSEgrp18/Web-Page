@@ -176,17 +176,16 @@ describe("listening", () => {
     const user = userEvent.setup();
     const server = new FakeServer({ books: [book()] });
     const originalMatchMedia = window.matchMedia;
-    window.matchMedia = ((query: string) =>
-      ({
-        matches: query.includes("prefers-reduced-motion"),
-        media: query,
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      })) as typeof window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
 
     try {
       openReader(server);

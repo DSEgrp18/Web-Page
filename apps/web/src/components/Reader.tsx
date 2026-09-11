@@ -163,9 +163,7 @@ export function Reader({ documentId }: { documentId: string }) {
   const followReading = true;
   useEffect(() => {
     if (!followReading || player.status !== "playing" || !player.currentId) return;
-    const el = document.querySelector<HTMLElement>(
-      `.sentence[data-current="true"] .sentence-text`,
-    );
+    const el = document.querySelector<HTMLElement>(`.sentence[data-current="true"] .sentence-text`);
     if (!el) return;
     const reduced =
       typeof window.matchMedia === "function" &&
