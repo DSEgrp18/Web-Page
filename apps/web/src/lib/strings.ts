@@ -17,9 +17,11 @@
  */
 
 export const strings = {
-  // Penpot product name — Handa Potha, "voice book".
-  appName: "හඬ පොත",
-  appTagline: "අකුරු හඬට හැරෙන තැන",
+  // Swara — "voice" / "tone". The brand mark is an open book with a gold
+  // ribbon; `apps/web/public/brand/` holds the artwork it is cut from.
+  appName: "ස්වර",
+  appNameLatin: "Swara",
+  appTagline: "සිංහල පොත් කියවන්න, අසන්න, තේරුම් ගන්න",
 
   // -- identity ----------------------------------------------------------
   identityHeading: "ඔබ කවුද?",
@@ -201,7 +203,38 @@ export const strings = {
   errorServer: "අනපේක්ෂිත දෝෂයක් සිදු විය.",
   retry: "නැවත උත්සාහ කරන්න",
   dismiss: "ඉවත් කරන්න",
+
+  // -- shell -------------------------------------------------------------
+  skipToContent: "අන්තර්ගතයට යන්න",
+  footerNote: "ස්වර — සිංහල පොත් සියලු දෙනාටම විවෘතයි.",
+
+  // -- settings ----------------------------------------------------------
+  settingsToggle: "කියවීමේ සැකසුම්",
+  settingsHeading: "කියවීමේ සැකසුම්",
+  settingsTheme: "වර්ණ රටාව",
+  themeSystem: "උපාංගය අනුව",
+  themeLight: "ආලෝකමත්",
+  themeDark: "අඳුරු",
+  settingsTextSize: "අකුරු ප්‍රමාණය",
+  settingsTextSizeHelp: "මෙය පොතේ අකුරු පමණක් වෙනස් කරයි.",
+  textSizePercent: (scale: number) => `සියයට ${Math.round(scale * 100)}`,
+  settingsReading: "කියවීම",
+  settingFollowSentence: "කියවන වාක්‍යය අනුව ගමන් කරන්න",
+  settingPageTurnSound: "පිටුව හැරවීමේ ශබ්දය",
+  settingPageTurnSoundHelp: "තිර කියවනයක් භාවිත කරන විට මෙය ඔබට බාධා විය හැක.",
 } as const;
+
+/** What each theme choice is called. A switch, so a new theme cannot be missed. */
+export function themeName(theme: "system" | "light" | "dark"): string {
+  switch (theme) {
+    case "light":
+      return strings.themeLight;
+    case "dark":
+      return strings.themeDark;
+    default:
+      return strings.themeSystem;
+  }
+}
 
 /** The one message a reader hears for each way a request can fail. */
 export function messageFor(kind: string): string {
