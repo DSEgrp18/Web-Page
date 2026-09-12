@@ -111,6 +111,40 @@ HTMLElement.prototype.scrollIntoView = function scrollIntoView(
   }
 };
 
+/**
+ * jsdom has no IntersectionObserver, and book covers wait on one.
+ *
+ * This one reports "visible" immediately, because the alternative — never
+ * firing — would make every cover silently do nothing and the tests would pass
+ * while asserting on a component that had not run. Tests that care about
+ * laziness assert on the *requests made*, not on the observer.
+ */
+class ImmediateIntersectionObserver implements IntersectionObserver {
+  readonly root = null;
+  readonly rootMargin = "";
+  readonly thresholds: ReadonlyArray<number> = [];
+  private readonly callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+  }
+
+  observe(target: Element): void {
+    this.callback(
+      [{ isIntersecting: true, target } as IntersectionObserverEntry],
+      this as IntersectionObserver,
+    );
+  }
+  unobserve(): void {}
+  disconnect(): void {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+}
+
+globalThis.IntersectionObserver ??=
+  ImmediateIntersectionObserver as unknown as typeof IntersectionObserver;
+
 window.matchMedia =
   window.matchMedia ??
   function matchMedia(query: string): MediaQueryList {

@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 
 import { AnnouncerProvider } from "../src/components/Announcer";
+import { PreferencesProvider } from "../src/components/PreferencesProvider";
 import { ReaderProvider } from "../src/components/ReaderProvider";
 import type { FakeServer } from "./fakeApi";
 import { OWNER } from "./fakeApi";
@@ -18,11 +19,13 @@ import { OWNER } from "./fakeApi";
 export function renderApp(ui: ReactElement, server: FakeServer, owner: string = OWNER) {
   const clientOptions = { baseUrl: "http://api.test", fetchImpl: server.fetch };
   return render(
-    <AnnouncerProvider>
-      <ReaderProvider ownerOverride={owner} clientOptions={clientOptions}>
-        {ui}
-      </ReaderProvider>
-    </AnnouncerProvider>,
+    <PreferencesProvider>
+      <AnnouncerProvider>
+        <ReaderProvider ownerOverride={owner} clientOptions={clientOptions}>
+          {ui}
+        </ReaderProvider>
+      </AnnouncerProvider>
+    </PreferencesProvider>,
   );
 }
 

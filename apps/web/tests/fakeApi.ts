@@ -24,10 +24,20 @@ export const OWNER = "reader-one";
 export interface FakeBook {
   document_id: string;
   filename: string;
+  /** The reader's own name for it. Null means they never gave one. */
+  title?: string | null;
   /** Null while it is still being prepared. */
   version: string | null;
   pages: Page[];
   notes?: string[];
+  /** How far in this reader got, as `GET /documents` reports it. */
+  reading?: {
+    segment_id: string;
+    segment_index: number;
+    updated_at: string;
+    stale: boolean;
+  } | null;
+  created_at?: string;
 }
 
 export interface FakeServerOptions {
@@ -174,11 +184,31 @@ export class FakeServer {
       if (method === "GET") return this.listBookmarks(bookmarks[1]!);
     }
 
+    const file = /^\/documents\/([^/]+)\/file$/.exec(path);
+    if (method === "GET" && file) {
+      const book = this.book(file[1]!);
+      if (!book) return this.notFound();
+      // Not a real PDF. Nothing in the test suite renders one — jsdom has no
+      // canvas — so this only has to be bytes with the right headers.
+      return new Response(new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])]), {
+        status: 200,
+        headers: { "Content-Type": "application/pdf", "Accept-Ranges": "bytes" },
+      });
+    }
+
     const detail = /^\/documents\/([^/]+)$/.exec(path);
     if (detail) {
       if (method === "GET") {
         const book = this.book(detail[1]!);
         return book ? this.json(this.summarise(book)) : this.notFound();
+      }
+      if (method === "PATCH") {
+        const book = this.book(detail[1]!);
+        if (!book) return this.notFound();
+        const body = JSON.parse(String(init.body)) as { title: string };
+        // Blank clears the name, as the API does, so the filename comes back.
+        book.title = body.title.trim() || null;
+        return this.json(this.summarise(book));
       }
       if (method === "DELETE") {
         this.books = this.books.filter((candidate) => candidate.document_id !== detail[1]);
@@ -187,6 +217,18 @@ export class FakeServer {
     }
 
     return this.notFound();
+  }
+
+  /** Where a segment sits in the whole book, as the API resolves it on save. */
+  private indexOf(book: FakeBook, segmentId: string): number {
+    let index = 0;
+    for (const page of book.pages) {
+      for (const segment of page.segments) {
+        if (segment.segment_id === segmentId) return index;
+        index += 1;
+      }
+    }
+    return 0;
   }
 
   private book(id: string): FakeBook | undefined {
@@ -198,11 +240,13 @@ export class FakeServer {
     return {
       document_id: book.document_id,
       filename: book.filename,
+      title: book.title ?? null,
       size_bytes: 1024,
-      created_at: "2026-09-09T00:00:00Z",
+      created_at: book.created_at ?? "2026-09-09T00:00:00Z",
       version: book.version,
       page_count: book.pages.length,
       segment_count: segments,
+      reading: book.reading ?? null,
       notes: book.notes ?? [],
       job: {
         job_id: `job-${book.document_id}`,
@@ -318,6 +362,7 @@ export class FakeServer {
       offset_seconds: body.offset_seconds,
       document_version: book.version ?? "v1",
       updated_at: "2026-09-09T00:00:00Z",
+      segment_index: this.indexOf(book, body.segment_id),
       stale: false,
     };
     return this.json(this.progress);

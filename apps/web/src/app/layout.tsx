@@ -33,7 +33,10 @@ const roboto = Roboto({
 export const metadata: Metadata = {
   // `%s — ස්වර` so a browser tab and a screen-reader title both say which book
   // is open before they say which product it is open in.
-  title: { default: `${strings.appName} — ${strings.appTagline}`, template: `%s — ${strings.appName}` },
+  title: {
+    default: `${strings.appName} — ${strings.appTagline}`,
+    template: `%s — ${strings.appName}`,
+  },
   description: strings.appTagline,
   applicationName: strings.appNameLatin,
   icons: {
