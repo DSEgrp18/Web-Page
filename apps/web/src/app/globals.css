@@ -1246,7 +1246,7 @@ label {
   }
 
   .masthead {
-    min-height: 5rem;
+    min-height: 4.5rem;
     padding-inline: var(--space-2);
     border-bottom: 1px solid var(--line);
   }
@@ -1277,7 +1277,7 @@ label {
 
   .page-content {
     width: min(100% - 2rem, 40rem);
-    padding-top: var(--space-3);
+    padding-top: 1rem;
   }
 
   .library-hero {
@@ -1291,8 +1291,8 @@ label {
   }
 
   .book-card {
-    grid-template-columns: 6.5rem minmax(0, 1fr);
-    padding: 0.75rem;
+    grid-template-columns: 5.25rem minmax(0, 1fr);
+    padding: 0.65rem;
   }
 
   .book-cover {
@@ -1313,7 +1313,7 @@ label {
   }
 
   .library-empty {
-    min-height: 22rem;
+    min-height: 24rem;
   }
 
   .bookmark-card,
@@ -1325,6 +1325,50 @@ label {
   .bookmark-actions button {
     flex: 1 1 12rem;
     text-align: center;
+  }
+
+  .library-header,
+  .library-books-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .library-add-button,
+  .library-search input {
+    width: 100%;
+  }
+
+  .current-book {
+    grid-template-columns: minmax(0, 1fr) 6.5rem;
+    min-height: 13.5rem;
+    padding: 1rem;
+  }
+
+  .current-book h2 {
+    font-size: 1.35rem;
+  }
+
+  .current-book-cover {
+    width: 5.25rem;
+    min-height: 8rem;
+  }
+
+  .book-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .book-card .book-cover {
+    min-height: 7.25rem;
+  }
+
+  .upload-state,
+  .preparing-state {
+    margin-top: 0;
+  }
+
+  .upload-sheet,
+  .preparing-state {
+    padding: 0.75rem;
   }
 }
 
