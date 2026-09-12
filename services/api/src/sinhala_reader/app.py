@@ -31,6 +31,8 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sinhala_documents import DocumentRejected, check_pdf_bytes
+from sinhala_documents.answerer import answer_question
+from sinhala_documents.passages import build_passages
 from sinhala_tts.adapter import ReadinessState, TextNotSpeakableError, TtsAdapter
 from sinhala_tts.adapter import health as adapter_health
 
@@ -56,7 +58,10 @@ from .schemas import (
     PageDetail,
     ProgressBody,
     ProgressDetail,
+    QuestionBody,
     SegmentDetail,
+    StudyAnswer,
+    StudyCitation,
 )
 from .security import (
     AUTH_MODE_ENV,
@@ -455,6 +460,39 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             voice_id=record.voice_id if record else None,
             model_version=record.model_version if record else None,
             duration_seconds=record.duration_seconds if record else None,
+        )
+
+    # -- study -------------------------------------------------------------
+
+    @app.post("/documents/{document_id}/questions", tags=["study"])
+    def ask_question(
+        document_id: str, body: QuestionBody, owner: str = Depends(require_owner)
+    ) -> StudyAnswer:
+        """Find evidence in this reader's document and answer only from it.
+
+        Authorization happens before passages are built or retrieved. The
+        extractive answerer returns the book's own words with playable segment
+        citations, or abstains; it never calls a model with text from a document
+        the caller does not own.
+        """
+        document = owned(document_id, owner)
+        prepared = prepared_or_409(document)
+        result = answer_question(body.question, build_passages(prepared))
+        return StudyAnswer(
+            document_id=document_id,
+            answer=result.answer,
+            citations=[
+                StudyCitation(
+                    passage_id=citation.passage_id,
+                    page_index=citation.page_index,
+                    page_label=citation.page_label,
+                    section=citation.section,
+                    segment_ids=list(citation.segment_ids),
+                    quote=citation.quote,
+                )
+                for citation in result.citations
+            ],
+            abstained=result.abstained,
         )
 
     # -- bookmarks ---------------------------------------------------------
