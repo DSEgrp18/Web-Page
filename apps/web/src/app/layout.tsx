@@ -31,8 +31,18 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: strings.appName,
+  // `%s — ස්වර` so a browser tab and a screen-reader title both say which book
+  // is open before they say which product it is open in.
+  title: { default: `${strings.appName} — ${strings.appTagline}`, template: `%s — ${strings.appName}` },
   description: strings.appTagline,
+  applicationName: strings.appNameLatin,
+  icons: {
+    icon: [
+      { url: "/brand/icon.png", sizes: "64x64", type: "image/png" },
+      { url: "/brand/swara-icon.webp", sizes: "512x512", type: "image/webp" },
+    ],
+    apple: "/brand/swara-icon.webp",
+  },
 };
 
 export const viewport: Viewport = {
