@@ -108,6 +108,11 @@ class Document:
     version: str | None = None
     """Set once preparation succeeds. Part of every audio cache key."""
 
+    title: str | None = None
+    """What the reader calls it. ``None`` means they never said, so use the
+    filename. Kept separate rather than overwriting ``filename`` because the
+    filename is what was actually uploaded, and a rename must not destroy it."""
+
     page_count: int = 0
     segment_count: int = 0
     notes: tuple[str, ...] = ()
@@ -128,6 +133,15 @@ class Progress:
     segment_id: str
     offset_seconds: float = 0.0
     updated_at: str = field(default_factory=_now)
+
+    segment_index: int = 0
+    """How far in, resolved when the position was saved.
+
+    Stored rather than looked up so the library can show a progress bar for
+    every book from one query. Deriving it on read means loading each prepared
+    document to find one segment's index, which is the whole book in memory to
+    answer "37%".
+    """
 
 
 @dataclass(frozen=True)
@@ -281,6 +295,14 @@ class Store(ABC):
 
     @abstractmethod
     def get_progress(self, document_id: str, owner: str) -> Progress | None: ...
+
+    @abstractmethod
+    def list_progress(self, owner: str) -> dict[str, Progress]:
+        """Every saved position this reader has, keyed by document.
+
+        One query, because the library shows a progress bar on every card and
+        asking per card is a request per book on a student's phone data.
+        """
 
     # -- bookmarks ---------------------------------------------------------
 
@@ -489,6 +511,10 @@ class InMemoryStore(Store):
     def get_progress(self, document_id: str, owner: str) -> Progress | None:
         with self._lock:
             return self._progress.get(self._progress_key(document_id, owner))
+
+    def list_progress(self, owner: str) -> dict[str, Progress]:
+        with self._lock:
+            return {p.document_id: p for p in self._progress.values() if p.owner == owner}
 
     # -- bookmarks ---------------------------------------------------------
 

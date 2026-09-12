@@ -143,8 +143,18 @@ def test_another_reader_cannot_reach_pages_segments_audio_or_progress(
         f"/documents/{document_id}/segments/{segment_id}/audio/manifest",
         f"/documents/{document_id}/progress",
         f"/documents/{document_id}/bookmarks",
+        f"/documents/{document_id}/file",
     ):
         assert client.get(path, headers=intruder).status_code == 404, path
+
+    assert (
+        client.patch(
+            f"/documents/{document_id}",
+            json={"title": "mine now"},
+            headers=intruder,
+        ).status_code
+        == 404
+    )
 
     assert (
         client.put(
@@ -491,3 +501,105 @@ def test_a_segment_says_what_kind_of_thing_it_is(client, prepared_document) -> N
     # a page classified as prose are different facts.
     assert {s["role"] for s in page["segments"]} == {"unknown"}
     assert all(s["level"] is None for s in page["segments"])
+
+
+# --------------------------------------------------------------------------
+# The original file, and the reader's own name for it
+# --------------------------------------------------------------------------
+
+
+def test_the_uploaded_pdf_comes_back_byte_for_byte(client: TestClient, book: bytes) -> None:
+    """The workspace shows the original page beside the extracted text.
+
+    Byte-for-byte matters more than it looks: the browser renders these bytes
+    with pdf.js, and a response that re-encoded or truncated the file would
+    show a broken page rather than fail.
+    """
+    document_id = upload(client, book).json()["document_id"]
+    response = client.get(f"/documents/{document_id}/file", headers=as_reader(client))
+
+    assert response.status_code == 200
+    assert response.content == book
+    assert response.headers["content-type"] == "application/pdf"
+    # A shared machine's disk cache is not a place for somebody's textbook.
+    assert "no-store" in response.headers["cache-control"]
+
+
+def test_a_book_can_be_renamed_without_losing_what_was_uploaded(
+    client: TestClient, book: bytes
+) -> None:
+    document_id = upload(client, book, name="scan_final_v2.pdf").json()["document_id"]
+
+    renamed = client.patch(
+        f"/documents/{document_id}",
+        json={"title": "ඉතිහාසය 11 ශ්‍රේණිය"},
+        headers=as_reader(client),
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "ඉතිහාසය 11 ශ්‍රේණිය"
+    # The filename is what was actually uploaded. A label must not destroy it.
+    assert renamed.json()["filename"] == "scan_final_v2.pdf"
+
+    listed = client.get("/documents", headers=as_reader(client)).json()
+    assert listed[0]["title"] == "ඉතිහාසය 11 ශ්‍රේණිය"
+
+
+def test_clearing_a_title_falls_back_to_the_filename(client: TestClient, book: bytes) -> None:
+    """Blank is "I have no name for this", not a title made of spaces.
+
+    Storing the spaces would give the library a card with no heading, which
+    looks like a bug and reads as nothing at all.
+    """
+    document_id = upload(client, book, name="book.pdf").json()["document_id"]
+    client.patch(f"/documents/{document_id}", json={"title": "named"}, headers=as_reader(client))
+
+    cleared = client.patch(
+        f"/documents/{document_id}", json={"title": "   "}, headers=as_reader(client)
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["title"] is None
+    assert cleared.json()["filename"] == "book.pdf"
+
+
+def test_the_library_reports_where_each_book_was_left(
+    client: TestClient, prepared_document
+) -> None:
+    """One request, every progress bar.
+
+    A request per card is a request per book on a student's phone data, so the
+    position rides along with the list.
+    """
+    document_id = prepared_document["document_id"]
+    before = client.get("/documents", headers=as_reader(client)).json()
+    assert before[0]["reading"] is None
+
+    segment = _first_segment(client, document_id)
+    client.put(
+        f"/documents/{document_id}/progress",
+        json={"segment_id": segment["segment_id"], "offset_seconds": 2.5},
+        headers=as_reader(client),
+    )
+
+    after = client.get("/documents", headers=as_reader(client)).json()
+    reading = after[0]["reading"]
+    assert reading is not None
+    assert reading["segment_id"] == segment["segment_id"]
+    # Resolved at save time, so the library never loads a prepared document.
+    assert reading["segment_index"] == segment["index"]
+    assert reading["stale"] is False
+
+
+def test_another_reader_never_appears_in_your_reading_positions(
+    client: TestClient, prepared_document
+) -> None:
+    document_id = prepared_document["document_id"]
+    segment_id = _first_segment(client, document_id)["segment_id"]
+    client.put(
+        f"/documents/{document_id}/progress",
+        json={"segment_id": segment_id},
+        headers=as_reader(client, READER),
+    )
+
+    # The intruder has no documents at all, so the merge must not leak a
+    # position keyed by a document id they cannot see.
+    assert client.get("/documents", headers=as_reader(client, OTHER_READER)).json() == []

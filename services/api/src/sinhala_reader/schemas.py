@@ -128,25 +128,59 @@ class JobStatus(BaseModel):
         )
 
 
+class ReadingPosition(BaseModel):
+    """Where a reader stopped, as the library needs it.
+
+    Enough to draw a progress bar and order books by "recently opened" without
+    a request per card.
+    """
+
+    segment_id: str
+    segment_index: int
+    updated_at: str
+    stale: bool
+
+
 class DocumentSummary(BaseModel):
     document_id: str
     filename: str
+    title: str | None = Field(
+        default=None,
+        description="What the reader named it. Null means they have not; show the filename.",
+    )
     size_bytes: int
     created_at: str
     version: str | None = None
     page_count: int = 0
     segment_count: int = 0
+    reading: ReadingPosition | None = Field(
+        default=None, description="Null when this reader has never opened the book."
+    )
 
     @classmethod
-    def of(cls, document: Document) -> DocumentSummary:
+    def of(cls, document: Document, *, progress: Progress | None = None) -> DocumentSummary:
         return cls(
             document_id=document.document_id,
             filename=document.filename,
+            title=document.title,
             size_bytes=document.size_bytes,
             created_at=document.created_at,
             version=document.version,
             page_count=document.page_count,
             segment_count=document.segment_count,
+            reading=(
+                ReadingPosition(
+                    segment_id=progress.segment_id,
+                    segment_index=progress.segment_index,
+                    updated_at=progress.updated_at,
+                    stale=(
+                        document.version is not None
+                        and document.version != progress.document_version
+                    ),
+                )
+                if progress is not None
+                else None
+            ),
         )
 
 
@@ -157,9 +191,11 @@ class DocumentDetail(DocumentSummary):
     job: JobStatus | None = None
 
     @classmethod
-    def of(cls, document: Document, job: Job | None = None) -> DocumentDetail:
+    def of(
+        cls, document: Document, job: Job | None = None, *, progress: Progress | None = None
+    ) -> DocumentDetail:
         return cls(
-            **DocumentSummary.of(document).model_dump(),
+            **DocumentSummary.of(document, progress=progress).model_dump(),
             notes=list(document.notes),
             job=JobStatus.of(job) if job else None,
         )
@@ -198,6 +234,9 @@ class ProgressDetail(BaseModel):
     offset_seconds: float
     document_version: str
     updated_at: str
+    segment_index: int = Field(
+        default=0, description="How far into the book, resolved when the position was saved."
+    )
     stale: bool = Field(
         description=(
             "True when the document has been reprocessed since this position was saved. "
@@ -213,6 +252,7 @@ class ProgressDetail(BaseModel):
             offset_seconds=progress.offset_seconds,
             document_version=progress.document_version,
             updated_at=progress.updated_at,
+            segment_index=progress.segment_index,
             stale=current_version is not None and current_version != progress.document_version,
         )
 
@@ -296,6 +336,17 @@ class BookmarkDetail(BaseModel):
 # another book. The bound keeps a single request cheap enough to answer and the
 # browser's live-region response comprehensible.
 MAX_QUESTION = 500
+
+
+class RenameBody(BaseModel):
+    """A reader's own name for a book.
+
+    Bounded because it is displayed and announced, not because storage cares.
+    Whitespace-only is rejected by the endpoint, which treats it as "clear the
+    name" rather than as a title made of spaces.
+    """
+
+    title: str = Field(max_length=200)
 
 
 class QuestionBody(BaseModel):

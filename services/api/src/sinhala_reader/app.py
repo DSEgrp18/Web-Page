@@ -28,6 +28,8 @@ stands in for the real thing and what that costs.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sinhala_documents import DocumentRejected, check_pdf_bytes
@@ -59,6 +61,7 @@ from .schemas import (
     ProgressBody,
     ProgressDetail,
     QuestionBody,
+    RenameBody,
     SegmentDetail,
     StudyAnswer,
     StudyCitation,
@@ -344,12 +347,67 @@ def create_app(deps: Deps | None = None) -> FastAPI:
 
     @app.get("/documents", tags=["documents"])
     def list_documents(owner: str = Depends(require_owner)) -> list[DocumentSummary]:
-        return [DocumentSummary.of(d) for d in deps.store.list_documents(owner)]
+        """This reader's books, with where they stopped in each.
+
+        The positions come from one query rather than one per book: the library
+        draws a progress bar on every card, and a request per card is a request
+        per book on a student's phone data.
+        """
+        positions = deps.store.list_progress(owner)
+        return [
+            DocumentSummary.of(d, progress=positions.get(d.document_id))
+            for d in deps.store.list_documents(owner)
+        ]
 
     @app.get("/documents/{document_id}", tags=["documents"])
     def get_document(document_id: str, owner: str = Depends(require_owner)) -> DocumentDetail:
         owned(document_id, owner)
         return _document_detail(deps.store, document_id, owner)
+
+    @app.patch("/documents/{document_id}", tags=["documents"])
+    def rename_document(
+        document_id: str, body: RenameBody, owner: str = Depends(require_owner)
+    ) -> DocumentDetail:
+        """Give a book the reader's own name.
+
+        The upload filename is kept as it was. A rename is a label the reader
+        chose, not a correction of what they uploaded, and losing the original
+        would make a re-upload look like a different book.
+
+        An empty or whitespace-only title clears the name rather than storing
+        blanks, so the filename comes back rather than a card with no heading.
+        """
+        document = owned(document_id, owner)
+        title = body.title.strip()
+        deps.store.put_document(replace(document, title=title or None))
+        return _document_detail(deps.store, document_id, owner)
+
+    @app.get("/documents/{document_id}/file", tags=["documents"])
+    def get_document_file(document_id: str, owner: str = Depends(require_owner)) -> Response:
+        """The PDF exactly as it was uploaded.
+
+        The reading workspace shows the original page beside the extracted
+        text, so the bytes have to reach the browser. Ownership is enforced
+        here like everywhere else: another reader's document is *absent*, not
+        forbidden, because a 403 on a real id confirms the id is real.
+
+        ``inline`` rather than ``attachment``: this is rendered in a canvas by
+        the page, not downloaded. And ``private, no-store`` because a shared
+        machine's disk cache is not a place for somebody's private textbook.
+        """
+        owned(document_id, owner)
+        data = deps.store.get_source(document_id)
+        if data is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document.")
+        return Response(
+            content=data,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "inline",
+                "Cache-Control": "private, no-store",
+                "Content-Length": str(len(data)),
+            },
+        )
 
     @app.delete(
         "/documents/{document_id}",
@@ -620,7 +678,8 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         """
         document = owned(document_id, owner)
         prepared = prepared_or_409(document)
-        if prepared.segment(body.segment_id) is None:
+        segment = prepared.segment(body.segment_id)
+        if segment is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
         assert document.version is not None
         progress = deps.store.put_progress(
@@ -630,6 +689,10 @@ def create_app(deps: Deps | None = None) -> FastAPI:
                 document_version=document.version,
                 segment_id=body.segment_id,
                 offset_seconds=body.offset_seconds,
+                # Resolved here, while the prepared document is already loaded
+                # to check the segment exists. The library reads it back to draw
+                # a progress bar without loading anything.
+                segment_index=segment.index,
             )
         )
         return ProgressDetail.of(progress, current_version=document.version)
@@ -652,7 +715,7 @@ def _document_detail(
     assert document is not None
     jobs = store.jobs_for(document_id, owner)
     latest = job or (jobs[-1] if jobs else None)
-    return DocumentDetail.of(document, latest)
+    return DocumentDetail.of(document, latest, progress=store.get_progress(document_id, owner))
 
 
 #: The app a server runs. Tests build their own with explicit dependencies.
