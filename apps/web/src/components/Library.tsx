@@ -21,6 +21,8 @@ export function Library() {
   const [documents, setDocuments] = useState<DocumentSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [query, setQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState<DocumentSummary | null>(null);
   const fileInputId = useId();
   const uploadHelpId = useId();
@@ -109,6 +111,7 @@ export function Library() {
         say(strings.preparing);
         formRef.current?.reset();
         await refresh();
+        setShowUpload(false);
       } catch (cause) {
         fail(cause);
       } finally {
@@ -140,60 +143,78 @@ export function Library() {
     }
   }, [api, pendingDelete, refresh, say, fail]);
 
+  const primaryBook = documents?.find((book) => book.version !== null) ?? documents?.[0] ?? null;
+  const shownBooks = (documents ?? []).filter((book) =>
+    book.filename.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  );
+
   return (
     <div className="library-page">
-      {error ? <ErrorNotice message={error} onDismiss={() => setError(null)} /> : null}
-
-      <header className="library-hero">
+      <header className="library-header">
         <div>
-          <p className="eyebrow">{strings.appName}</p>
-          <h2 className="page-title">{strings.libraryHeading}</h2>
-          <p className="hint">{strings.appTagline}</p>
+          <p className="breadcrumb">
+            {strings.appName} / {strings.libraryHeading}
+          </p>
+          <h1>{strings.libraryHeading}</h1>
+          <p className="library-subtitle">{strings.appTagline}</p>
         </div>
-        <a className="button primary library-add-link" href="#upload-heading">
-          + {strings.uploadHeading}
-        </a>
+        {!showUpload && documents && documents.length > 0 ? (
+          <button
+            className="primary library-add-button"
+            type="button"
+            onClick={() => setShowUpload(true)}
+          >
+            + {strings.addBook}
+          </button>
+        ) : null}
       </header>
 
-      <section aria-labelledby="upload-heading" className="panel upload-panel">
-        <h2 id="upload-heading">{strings.uploadHeading}</h2>
-        <form ref={formRef} onSubmit={upload}>
-          <div className="field">
-            <label htmlFor={fileInputId}>{strings.uploadLabel}</label>
-            <input
-              id={fileInputId}
-              name="file"
-              type="file"
-              accept="application/pdf,.pdf"
-              aria-describedby={uploadHelpId}
-              disabled={busy}
-            />
-            <p className="hint" id={uploadHelpId}>
-              {strings.uploadHelp}
-            </p>
-          </div>
-          <button className="primary" type="submit" disabled={busy}>
-            {busy ? strings.uploadInProgress : strings.uploadSubmit}
-          </button>
-        </form>
-      </section>
+      {error ? <ErrorNotice message={error} onDismiss={() => setError(null)} /> : null}
 
-      <section aria-labelledby="library-heading" className="library-books">
-        <h2 id="library-heading">{strings.libraryHeading}</h2>
-        {documents === null ? (
-          <p className="hint" aria-busy="true">
-            {strings.pageLoading}
-          </p>
-        ) : documents.length === 0 ? (
-          <EmptyLibrary />
-        ) : (
-          <ul className="book-grid">
-            {documents.map((book) => (
-              <DocumentRow key={book.document_id} book={book} onDelete={requestDelete} />
-            ))}
-          </ul>
-        )}
-      </section>
+      {documents === null ? (
+        <p className="hint" aria-busy="true">
+          {strings.pageLoading}
+        </p>
+      ) : showUpload ? (
+        <UploadBook
+          busy={busy}
+          fileInputId={fileInputId}
+          helpId={uploadHelpId}
+          formRef={formRef}
+          onCancel={() => setShowUpload(false)}
+          onSubmit={upload}
+        />
+      ) : documents.length === 0 ? (
+        <EmptyLibrary onStart={() => setShowUpload(true)} />
+      ) : (
+        <>
+          {primaryBook ? <CurrentBook book={primaryBook} /> : null}
+          <section aria-labelledby="library-heading" className="library-books">
+            <div className="library-books-heading">
+              <h2 id="library-heading">{strings.browseBooks}</h2>
+              <label className="library-search" htmlFor="library-search">
+                <span className="visually-hidden">{strings.searchLibrary}</span>
+                <input
+                  id="library-search"
+                  type="search"
+                  value={query}
+                  placeholder={strings.searchLibraryPlaceholder}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+            </div>
+            {shownBooks.length === 0 ? (
+              <p className="hint">{strings.libraryEmpty}</p>
+            ) : (
+              <ul className="book-grid">
+                {shownBooks.map((book) => (
+                  <DocumentRow key={book.document_id} book={book} onDelete={requestDelete} />
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
 
       <ConfirmDialog
         open={pendingDelete !== null}
@@ -209,17 +230,97 @@ export function Library() {
   );
 }
 
-function EmptyLibrary() {
+function EmptyLibrary({ onStart }: { onStart: () => void }) {
   return (
-    <div className="library-empty">
+    <section className="library-empty" aria-labelledby="empty-library-heading">
       <div className="book-cover book-cover-empty" aria-hidden="true">
         <span />
       </div>
-      <p>{strings.libraryEmpty}</p>
-      <a className="button primary" href="#upload-heading">
-        + {strings.uploadHeading}
-      </a>
-    </div>
+      <h2 id="empty-library-heading">{strings.libraryEmpty}</h2>
+      <p>{strings.uploadIntro}</p>
+      <button className="primary" type="button" onClick={onStart}>
+        + {strings.addBook}
+      </button>
+    </section>
+  );
+}
+
+function UploadBook({
+  busy,
+  fileInputId,
+  helpId,
+  formRef,
+  onCancel,
+  onSubmit,
+}: {
+  busy: boolean;
+  fileInputId: string;
+  helpId: string;
+  formRef: React.RefObject<HTMLFormElement | null>;
+  onCancel: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  const [filename, setFilename] = useState("");
+
+  return (
+    <section className="upload-state" aria-labelledby="upload-heading">
+      <h2 id="upload-heading">{strings.uploadHeading}</h2>
+      <p>{strings.uploadIntro}</p>
+      <form ref={formRef} className="upload-sheet" onSubmit={onSubmit}>
+        <div className="upload-dropzone">
+          <span className="upload-arrow" aria-hidden="true">
+            ↑
+          </span>
+          <label htmlFor={fileInputId}>{strings.uploadLabel}</label>
+          <p id={helpId}>{strings.uploadDropHelp}</p>
+          <input
+            id={fileInputId}
+            name="file"
+            type="file"
+            accept="application/pdf,.pdf"
+            aria-describedby={helpId}
+            disabled={busy}
+            onChange={(event) => setFilename(event.target.files?.[0]?.name ?? "")}
+          />
+        </div>
+        {filename ? (
+          <p className="selected-file">
+            <strong>{strings.uploadSelected}:</strong> {filename}
+          </p>
+        ) : null}
+        <div className="row upload-actions">
+          <button className="primary" type="submit" disabled={busy}>
+            {busy ? strings.uploadInProgress : strings.uploadSubmit}
+          </button>
+          <button type="button" onClick={onCancel} disabled={busy}>
+            {strings.deleteConfirmCancel}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function CurrentBook({ book }: { book: DocumentSummary }) {
+  const ready = book.version !== null;
+  return (
+    <section className="current-book" aria-labelledby="current-book-heading">
+      <div className="current-book-copy">
+        <p>{strings.currentReading}</p>
+        <h2 id="current-book-heading">{book.filename}</h2>
+        <p className="current-book-meta">
+          {ready ? strings.pageCount(book.page_count) : strings.preparingBook}
+        </p>
+        {ready ? (
+          <Link className="button current-book-action" href={`/documents/${book.document_id}`}>
+            ▶ {strings.beginReading}
+          </Link>
+        ) : null}
+      </div>
+      <div className="book-cover current-book-cover" aria-hidden="true">
+        <span />
+      </div>
+    </section>
   );
 }
 
@@ -239,11 +340,11 @@ function DocumentRow({
       </div>
       <div className="book-card-body">
         <h3>{book.filename}</h3>
-        <p className="hint">
+        <p className="book-status">
           {jobStateMessage(state)}
           {ready ? ` · ${strings.pageCount(book.page_count)}` : null}
         </p>
-        <p className="row book-actions">
+        <div className="row book-actions">
           {ready ? (
             <Link className="button primary" href={`/documents/${book.document_id}`}>
               {strings.open}
@@ -256,7 +357,7 @@ function DocumentRow({
             {strings.deleteBook}
             <span className="visually-hidden"> — {book.filename}</span>
           </button>
-        </p>
+        </div>
       </div>
     </li>
   );

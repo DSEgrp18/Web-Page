@@ -41,6 +41,7 @@ describe("the library", () => {
     const server = new FakeServer();
     renderApp(<Library />, server);
 
+    await user.click(await screen.findByRole("button", { name: new RegExp(strings.addBook) }));
     await user.upload(screen.getByLabelText(strings.uploadLabel), pdf());
     await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
 
@@ -57,6 +58,7 @@ describe("the library", () => {
     const server = new FakeServer();
     renderApp(<Library />, server);
 
+    await user.click(await screen.findByRole("button", { name: new RegExp(strings.addBook) }));
     await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
 
     await waitFor(() => expect(noticeText()).toContain(strings.uploadNoFile));
@@ -76,6 +78,7 @@ describe("the library", () => {
     });
 
     renderApp(<Library />, failing);
+    await user.click(await screen.findByRole("button", { name: new RegExp(strings.addBook) }));
     await user.upload(screen.getByLabelText(strings.uploadLabel), pdf());
     await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
 
