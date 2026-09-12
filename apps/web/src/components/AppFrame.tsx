@@ -24,7 +24,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       <div className="app-shell">
         <aside className="app-sidebar" aria-label={strings.appName}>
           <Link className="brand" href="/">
-            <span className="brand-name">{strings.appName}</span>
+            <h1 className="brand-name">{strings.appName}</h1>
             <span className="brand-tagline">{strings.appTagline}</span>
           </Link>
           <nav aria-label={strings.appName}>

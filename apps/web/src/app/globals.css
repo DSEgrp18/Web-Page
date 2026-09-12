@@ -202,6 +202,10 @@ a {
   font-weight: 700;
 }
 
+.brand-name {
+  margin: 0;
+}
+
 .brand-tagline {
   color: var(--ink-muted);
   font-size: 0.9rem;
@@ -460,7 +464,9 @@ label {
   gap: var(--space-3);
 }
 
-.library-hero h1 {
+.library-hero h1,
+.library-hero .page-title {
+  font-size: clamp(2rem, 4vw, 3rem);
   margin-bottom: 0;
 }
 

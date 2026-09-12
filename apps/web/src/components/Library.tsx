@@ -147,7 +147,7 @@ export function Library() {
       <header className="library-hero">
         <div>
           <p className="eyebrow">{strings.appName}</p>
-          <h1>{strings.libraryHeading}</h1>
+          <h2 className="page-title">{strings.libraryHeading}</h2>
           <p className="hint">{strings.appTagline}</p>
         </div>
         <a className="button primary library-add-link" href="#upload-heading">
