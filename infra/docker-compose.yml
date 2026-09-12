@@ -1,0 +1,124 @@
+# The whole reader, in one command:
+#
+#     docker compose -f infra/docker-compose.yml up --build
+#
+# Five services: PostgreSQL, Redis, the API, a Celery worker, and the interface.
+#
+# What this is *for* is not convenience. Run by hand, the API defaults to
+# in-memory storage and a thread per job, and those defaults are what every
+# local test has exercised. This runs the configuration a deployment would
+# actually use — a real database, a real queue, a separate worker process — so
+# the parts that only break when preparation happens in another process have
+# somewhere to break before a reader finds them.
+
+name: sinhala-reader
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: reader
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: reader
+    ports:
+      # Exposed so psql and the test suite can reach it. The password is "dev"
+      # and this is a development file; do not reuse it anywhere real.
+      - "55432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # The API runs its migrations at startup and will fail against a database
+      # that is listening but not yet accepting connections, which Postgres does
+      # briefly while it initialises.
+      test: ["CMD-SHELL", "pg_isready -U reader -d reader"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      SINHALA_READER_AUTH: development
+      # The origins a browser may call from. Both spellings, because which one
+      # a person types decides whether the browser sends the request at all.
+      SINHALA_READER_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      SINHALA_READER_DATABASE_URL: postgresql://reader:dev@postgres:5432/reader
+      SINHALA_READER_QUEUE: celery
+      SINHALA_READER_REDIS_URL: redis://redis:6379/0
+      # A placeholder tone unless the real bundle is mounted. See README.
+      SINHALA_READER_TTS: ${SINHALA_READER_TTS:-development}
+      SINHALA_TTS_MODEL_DIR: /models/xtts_si_female
+      SINHALA_READER_TTS_DEVICE: ${SINHALA_READER_TTS_DEVICE:-cpu}
+      # Off unless chosen. Sending a reader's page to an external provider is
+      # never a default.
+      SINHALA_READER_STRUCTURE: ${SINHALA_READER_STRUCTURE:-deterministic}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      # /health, not /readiness: liveness and model readiness are different
+      # questions, and a cold model is not a reason to restart a container.
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+    # celery_worker, not queue:build_app. Celery's find_app returns whatever a
+    # name resolves to and does not call it, so a factory reference hands Celery
+    # a function and fails at start-up. The module exists to be imported by a
+    # worker and nothing else, which is what keeps Celery an extra of the API.
+    #
+    # Concurrency 2, default prefork pool: extraction is CPU-bound and
+    # worker_prefetch_multiplier is 1, so more workers than cores only means
+    # more books half-prepared at once.
+    command:
+      ["python", "-m", "celery", "-A", "sinhala_reader.celery_worker", "worker", "--loglevel=info", "--concurrency=2"]
+    environment:
+      SINHALA_READER_AUTH: development
+      SINHALA_READER_DATABASE_URL: postgresql://reader:dev@postgres:5432/reader
+      SINHALA_READER_QUEUE: celery
+      SINHALA_READER_REDIS_URL: redis://redis:6379/0
+      SINHALA_READER_TTS: ${SINHALA_READER_TTS:-development}
+      SINHALA_TTS_MODEL_DIR: /models/xtts_si_female
+      SINHALA_READER_TTS_DEVICE: ${SINHALA_READER_TTS_DEVICE:-cpu}
+      SINHALA_READER_STRUCTURE: ${SINHALA_READER_STRUCTURE:-deterministic}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+      args:
+        # The address the browser uses, which is the host's. A compose service
+        # name would resolve inside this network and nowhere in a browser.
+        NEXT_PUBLIC_READER_API: http://127.0.0.1:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  postgres-data:

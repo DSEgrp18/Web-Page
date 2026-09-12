@@ -15,8 +15,10 @@ which are the failures most likely to reach a deployment.
 
 from __future__ import annotations
 
+import importlib
 import os
 import threading
+from pathlib import Path
 
 import pytest
 from conftest import READER, as_reader, upload
@@ -377,3 +379,35 @@ def test_a_transient_failure_is_retried_and_then_reported(
     assert str(MAX_RETRIES) in (got.detail or "")
     assert "OSError" in (got.detail or "")
     assert "storage is having a moment" not in (got.detail or "")
+
+
+def test_the_celery_entry_point_resolves_to_an_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    """What a worker container actually runs, pinned because it was wrong once.
+
+    "-A sinhala_reader.queue:build_app" looks reasonable and does not work:
+    Celery's find_app returns whatever the name resolves to and never calls it,
+    so a factory reference hands Celery a function. The container started, the
+    worker did not, and nothing in the test suite would have noticed.
+    """
+    pytest.importorskip("celery")
+    from celery.app.utils import find_app
+
+    monkeypatch.setenv(REDIS_URL_ENV, "redis://127.0.0.1:6379/0")
+    import sinhala_reader.celery_worker as entry_point
+
+    importlib.reload(entry_point)
+
+    app = find_app("sinhala_reader.celery_worker")
+    assert app.main == "sinhala_reader"
+    assert "sinhala_reader.prepare_document" in app.tasks
+
+
+def test_importing_the_queue_module_does_not_import_celery() -> None:
+    """Celery is an extra. The interface contributor must not need a broker library."""
+    source = (
+        Path(__file__).resolve().parents[1] / "src" / "sinhala_reader" / "queue.py"
+    ).read_text(encoding="utf-8")
+    module_level = [
+        line for line in source.splitlines() if line.startswith(("import celery", "from celery"))
+    ]
+    assert module_level == []
