@@ -117,6 +117,19 @@ describe("progress", () => {
   });
 });
 
+describe("study", () => {
+  it("sends a question and receives a citation-shaped answer", async () => {
+    const server = serverWithBook();
+    const answer = await apiFor(server).askQuestion("doc-1", "මෙය කුමක්ද?");
+
+    expect(answer).toMatchObject({ document_id: "doc-1", abstained: false });
+    expect(answer.citations[0]?.segment_ids).toEqual(["0000-s0"]);
+    expect(server.callsTo("POST", /\/documents\/doc-1\/questions$/)[0]?.body).toBe(
+      JSON.stringify({ question: "මෙය කුමක්ද?" }),
+    );
+  });
+});
+
 describe("bookmarks", () => {
   it("adds, lists, and removes a saved sentence", async () => {
     const server = serverWithBook();

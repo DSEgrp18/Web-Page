@@ -266,6 +266,8 @@ export function Reader({
     <div className="reader-page">
       <p className="reader-topline">
         <Link href="/">{strings.backToLibrary}</Link>
+        <span aria-hidden="true"> · </span>
+        <Link href={`/documents/${encodeURIComponent(documentId)}/study`}>{strings.studyBook}</Link>
       </p>
 
       <header className="reader-heading">
