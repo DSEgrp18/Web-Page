@@ -41,6 +41,7 @@ const MAPPING = {
   DocumentDetail: "DocumentDetail",
   AudioManifest: "AudioManifest",
   ProgressDetail: "Progress",
+  BookmarkDetail: "Bookmark",
 };
 
 /**
@@ -62,6 +63,9 @@ const REQUIRED_PATHS = [
   ["get", "/documents/{document_id}/segments/{segment_id}"],
   ["get", "/documents/{document_id}/segments/{segment_id}/audio"],
   ["get", "/documents/{document_id}/segments/{segment_id}/audio/manifest"],
+  ["post", "/documents/{document_id}/bookmarks"],
+  ["get", "/documents/{document_id}/bookmarks"],
+  ["delete", "/documents/{document_id}/bookmarks/{bookmark_id}"],
   ["put", "/documents/{document_id}/progress"],
   ["get", "/documents/{document_id}/progress"],
   ["get", "/readiness"],

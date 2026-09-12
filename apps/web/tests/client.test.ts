@@ -116,3 +116,21 @@ describe("progress", () => {
     await expect(apiFor(server).getProgress("doc-1")).rejects.toMatchObject({ kind: "not_found" });
   });
 });
+
+describe("bookmarks", () => {
+  it("adds, lists, and removes a saved sentence", async () => {
+    const server = serverWithBook();
+    const api = apiFor(server);
+    const bookmark = await api.addBookmark("doc-1", "0000-s0");
+
+    expect(bookmark).toMatchObject({
+      document_id: "doc-1",
+      segment_id: "0000-s0",
+      segment_found: true,
+      page_index: 0,
+    });
+    expect(await api.listBookmarks("doc-1")).toHaveLength(1);
+    await api.deleteBookmark("doc-1", bookmark.bookmark_id);
+    expect(await api.listBookmarks("doc-1")).toEqual([]);
+  });
+});

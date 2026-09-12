@@ -91,6 +91,23 @@ export interface Progress {
   stale: boolean;
 }
 
+/** A saved sentence, including enough context to find it again after a reprocess. */
+export interface Bookmark {
+  bookmark_id: string;
+  document_id: string;
+  segment_id: string;
+  note: string | null;
+  created_at: string;
+  document_version: string;
+  /** True when this record belongs to an earlier extraction of the document. */
+  stale: boolean;
+  /** False when its sentence no longer exists in the current extraction. */
+  segment_found: boolean;
+  page_index: number | null;
+  page_label: string | null;
+  display_text: string | null;
+}
+
 export interface Readiness {
   alive: boolean;
   serving: boolean;

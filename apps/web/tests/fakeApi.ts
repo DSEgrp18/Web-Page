@@ -10,7 +10,7 @@
  * these tests cannot, and do not claim to.
  */
 
-import type { DocumentDetail, Page, Progress, Segment } from "../src/lib/types";
+import type { Bookmark, DocumentDetail, Page, Progress, Segment } from "../src/lib/types";
 
 export const OWNER = "reader-one";
 
@@ -28,6 +28,7 @@ export interface FakeServerOptions {
   /** False makes every audio response a placeholder tone, as the API does today. */
   realModel?: boolean;
   progress?: Progress | null;
+  bookmarks?: Bookmark[];
   /** Number of `GET /documents` calls an upload stays unprepared for. */
   preparationPolls?: number;
 }
@@ -93,6 +94,7 @@ export class FakeServer {
   readonly calls: RecordedCall[] = [];
   books: FakeBook[];
   progress: Progress | null;
+  bookmarks: Bookmark[];
   realModel: boolean;
   private pollsLeft: number;
   private counter = 0;
@@ -100,6 +102,7 @@ export class FakeServer {
   constructor(options: FakeServerOptions = {}) {
     this.books = options.books ?? [];
     this.progress = options.progress ?? null;
+    this.bookmarks = options.bookmarks ?? [];
     this.realModel = options.realModel ?? false;
     this.pollsLeft = options.preparationPolls ?? 0;
   }
@@ -140,6 +143,15 @@ export class FakeServer {
       if (method === "PUT") return this.saveProgress(progress[1]!, init);
       if (method === "GET")
         return this.progress ? this.json(this.progress) : this.json({ detail: "none" }, 404);
+    }
+
+    const bookmark = /^\/documents\/([^/]+)\/bookmarks\/([^/]+)$/.exec(path);
+    if (method === "DELETE" && bookmark) return this.deleteBookmark(bookmark[1]!, bookmark[2]!);
+
+    const bookmarks = /^\/documents\/([^/]+)\/bookmarks$/.exec(path);
+    if (bookmarks) {
+      if (method === "POST") return this.addBookmark(bookmarks[1]!, init);
+      if (method === "GET") return this.listBookmarks(bookmarks[1]!);
     }
 
     const detail = /^\/documents\/([^/]+)$/.exec(path);
@@ -258,6 +270,53 @@ export class FakeServer {
       stale: false,
     };
     return this.json(this.progress);
+  }
+
+  private listBookmarks(id: string): Response {
+    if (!this.book(id)) return this.notFound();
+    return this.json(this.bookmarks.filter((bookmark) => bookmark.document_id === id));
+  }
+
+  private async addBookmark(id: string, init: RequestInit): Promise<Response> {
+    const book = this.book(id);
+    if (!book || !book.version) return this.notFound();
+    const body = JSON.parse(String(init.body)) as { segment_id: string; note?: string };
+    const segment = book.pages
+      .flatMap((page) => page.segments)
+      .find((item) => item.segment_id === body.segment_id);
+    if (!segment) return this.notFound();
+
+    const existing = this.bookmarks.find(
+      (bookmark) => bookmark.document_id === id && bookmark.segment_id === body.segment_id,
+    );
+    const bookmark: Bookmark = {
+      bookmark_id: existing?.bookmark_id ?? `bmk-${this.counter + this.bookmarks.length + 1}`,
+      document_id: id,
+      segment_id: segment.segment_id,
+      note: body.note?.trim() || null,
+      created_at: existing?.created_at ?? "2026-09-09T00:00:00Z",
+      document_version: book.version,
+      stale: false,
+      segment_found: true,
+      page_index: segment.page_index,
+      page_label: segment.page_label,
+      display_text: segment.display_text,
+    };
+    this.bookmarks = existing
+      ? this.bookmarks.map((candidate) =>
+          candidate.bookmark_id === bookmark.bookmark_id ? bookmark : candidate,
+        )
+      : [...this.bookmarks, bookmark];
+    return this.json(bookmark, existing ? 200 : 201);
+  }
+
+  private deleteBookmark(id: string, bookmarkId: string): Response {
+    const exists = this.bookmarks.some(
+      (bookmark) => bookmark.document_id === id && bookmark.bookmark_id === bookmarkId,
+    );
+    if (!exists) return this.notFound();
+    this.bookmarks = this.bookmarks.filter((bookmark) => bookmark.bookmark_id !== bookmarkId);
+    return new Response(null, { status: 204 });
   }
 
   private notFound(): Response {
