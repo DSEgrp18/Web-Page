@@ -281,6 +281,7 @@ def prepare_document(
     page_indexes: Iterable[int] | None = None,
     limit: int = MODEL_INPUT_CHAR_LIMIT,
     password: str = "",
+    structure: StructureAdapter | None = None,
 ) -> ReadableDocument:
     """Extract, decode, and segment a PDF into playable units.
 
@@ -292,7 +293,7 @@ def prepare_document(
     """
     extraction = extract_document(source, page_indexes=page_indexes, password=password)
     version = _document_version(_digest(source))
-    pages = prepare_pages(extraction, limit=limit)
+    pages = prepare_pages(extraction, limit=limit, structure=structure)
 
     notes = list(extraction.notes)
     unreadable = [page.page_index for page in pages if not page.has_audio]

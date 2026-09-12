@@ -11,7 +11,7 @@ from pdf_fixtures import Page, Text, build_pdf
 from sinhala_documents.blocks import Block
 from sinhala_documents.model import QualityState
 from sinhala_documents.pdf_extract import extract_document
-from sinhala_documents.pipeline import prepare_pages
+from sinhala_documents.pipeline import prepare_document, prepare_pages
 from sinhala_documents.structure import BlockRole
 from sinhala_documents.structuring import StructureAdapter
 
@@ -119,3 +119,16 @@ def test_a_page_whose_structure_failed_is_marked_for_review() -> None:
     assert page.quality is QualityState.NEEDS_REVIEW
     assert page.notes
     assert page.segments, "the page must still be readable"
+
+
+def test_prepare_document_takes_a_structure_adapter_too() -> None:
+    """The public entry point, which is what the API calls.
+
+    prepare_pages taking one and prepare_document not would mean the whole
+    feature was unreachable from the only function anything outside this package
+    uses.
+    """
+    pdf = build_pdf([Page((Text(HEADING, y=700), Text(BODY, y=680), Text(CAPTION, y=660)))])
+    document = prepare_document(pdf, structure=Structured())
+    assert any(s.role is BlockRole.CAPTION for s in document.segments)
+    assert any(s.role is BlockRole.HEADING for s in document.segments)
