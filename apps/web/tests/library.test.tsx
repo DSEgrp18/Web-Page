@@ -109,6 +109,26 @@ describe("the library", () => {
     expect(server.callsTo("GET", /^\/documents$/).length).toBe(listedOnce);
   });
 
+  it("shows explicit preparation stages while a new book is being processed", async () => {
+    const server = new FakeServer({
+      books: [
+        {
+          document_id: "doc-1",
+          filename: "අලුත් පොත.pdf",
+          version: null,
+          pages: [readablePage(0, ["වාක්‍යය."])],
+        },
+      ],
+    });
+    renderApp(<Library />, server);
+
+    expect(
+      await screen.findByRole("heading", { name: strings.preparingStepsHeading }),
+    ).toBeTruthy();
+    for (const step of strings.preparingSteps) expect(screen.getByText(step)).toBeTruthy();
+    expect(screen.getByText(strings.preparingBook)).toBeTruthy();
+  });
+
   it("opens the delete dialog onto cancel, and Escape puts focus back", async () => {
     const user = userEvent.setup();
     const server = new FakeServer({
