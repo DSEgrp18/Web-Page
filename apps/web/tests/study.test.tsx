@@ -22,6 +22,7 @@ const answer: StudyAnswer = {
     },
   ],
   abstained: false,
+  generated: false,
 };
 
 function server(result: StudyAnswer = answer) {
@@ -62,7 +63,13 @@ describe("study mode", () => {
 
   it("does not invent an answer when the API abstains", async () => {
     const user = userEvent.setup();
-    const fake = server({ document_id: "doc-1", answer: null, citations: [], abstained: true });
+    const fake = server({
+      document_id: "doc-1",
+      answer: null,
+      citations: [],
+      abstained: true,
+      generated: false,
+    });
     renderApp(<Study documentId="doc-1" />, fake);
 
     await user.type(await screen.findByLabelText(strings.questionLabel), "පිටත කරුණක්?");

@@ -313,7 +313,13 @@ export const strings = {
   assistantHeading: "පොත ගැන අසන්න",
   assistantFor: (book: string) => `${book} ගැන පමණි`,
   assistantIntro: "ප්‍රශ්නයක් අසන්න. පිළිතුර මෙම පොතේම ඇති කොටසකින් පෙන්වයි.",
+  /** Said when the answerer returns the book's own sentences. */
   assistantExtractive: "මෙම පිළිතුරු පොතේ වචන ම වේ. ඒවා සාරාංශ හෝ පැහැදිලි කිරීම් නොවේ.",
+  /** Said when a model wrote the answer. A reader cannot see which they got. */
+  assistantGenerated:
+    "පිළිතුරු ලියන්නේ AI විසිනි, පොතේ කොටස් මත පදනම්ව. ඒවා වැරදි විය හැක; පහත පොතේ කොටස් පරීක්ෂා කරන්න.",
+  answerFromBook: "පොතෙන්",
+  answerFromAi: "AI විසින් ලියන ලදි",
   assistantMinimise: "කුඩා කරන්න",
   assistantClear: "සංවාදය හිස් කරන්න",
   assistantCleared: "සංවාදය හිස් කරන ලදි.",

@@ -321,8 +321,18 @@ textarea {
   color: inherit;
 }
 
-.btn,
-button.btn {
+/*
+ * One selector, one class. `button.btn` used to be here too, and it was a bug:
+ * an element selector plus a class is specificity (0,1,1), which beats every
+ * single-class modifier below it (0,1,0). So `.btn-icon`'s `padding: 0` lost to
+ * this rule's `padding: 0 var(--s5)`, and a 48px-wide icon button with 48px of
+ * horizontal padding has a zero-width content box — the icon was squeezed out
+ * of existence. `.btn-primary`'s green lost the same way.
+ *
+ * `.btn` alone is enough to beat the browser's own button styles: author rules
+ * outrank the UA stylesheet whatever their specificity.
+ */
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -398,6 +408,12 @@ button.btn {
   width: var(--tap);
   padding: 0;
   border-radius: var(--r-pill);
+}
+
+/* A belt to the braces above: an icon is a fixed-size thing and must never be
+   compressed by a flex parent, whatever a future padding rule does. */
+.btn svg {
+  flex: none;
 }
 
 label {

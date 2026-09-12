@@ -179,6 +179,37 @@ describe("the assistant", () => {
     expect(screen.queryByRole("button", { name: /සාරාංශ/ })).toBeNull();
   });
 
+  it("says the answer is the book's own words when it is", async () => {
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()] }));
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+
+    await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+
+    expect(await screen.findByText(strings.answerFromBook)).toBeTruthy();
+    expect(screen.getByText(strings.assistantExtractive)).toBeTruthy();
+    expect(screen.queryByText(strings.answerFromAi)).toBeNull();
+  });
+
+  it("says the answer was written by a model when it was", async () => {
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()], generatedAnswers: true }));
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+
+    await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+
+    // The whole point of the flag. A reader who cannot see the page has no
+    // other way to tell whose words these are, and being told the book said
+    // something a model wrote is the failure this prevents.
+    expect(await screen.findByText(strings.answerFromAi)).toBeTruthy();
+    expect(screen.getByText(strings.assistantGenerated)).toBeTruthy();
+    expect(screen.queryByText(strings.assistantExtractive)).toBeNull();
+  });
+
   it("keeps the conversation when it is minimised", async () => {
     const user = userEvent.setup();
     open(new FakeServer({ books: [book()] }));

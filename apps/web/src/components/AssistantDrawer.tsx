@@ -80,6 +80,14 @@ export function AssistantDrawer({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [asking, setAsking] = useState(false);
 
+  /*
+   * Whether this deployment writes answers or extracts them. There is no
+   * endpoint that says so before the first question, and guessing would put
+   * the wrong claim above every answer — so it is learned from the first reply
+   * and kept. An abstention still tells us: the flag travels with it.
+   */
+  const generated = turns.some((turn) => turn.answer?.generated);
+
   const drawerId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -217,11 +225,17 @@ export function AssistantDrawer({
         </header>
 
         {/*
-         * Said plainly, at the top, not in a footnote: these answers are the
-         * book's own sentences. A reader who believes they are getting an
-         * explanation will read them as one.
+         * Said plainly, at the top, not in a footnote.
+         *
+         * Which sentence appears depends on what the server is configured to
+         * do, and that is only knowable once an answer comes back — so it
+         * starts as the conservative claim and corrects itself. Getting this
+         * the wrong way round would be the worse failure: a reader told they
+         * are reading the book, who is actually reading a model.
          */}
-        <p className="notice assistant-honesty">{strings.assistantExtractive}</p>
+        <p className="notice assistant-honesty" data-generated={generated}>
+          {generated ? strings.assistantGenerated : strings.assistantExtractive}
+        </p>
 
         <div
           className="assistant-log"
@@ -251,8 +265,10 @@ export function AssistantDrawer({
                   <p>{strings.studyAbstainedBody}</p>
                 </div>
               ) : (
-                <div className="turn-answer">
-                  <span className="turn-who">{strings.assistantAnswer}</span>
+                <div className="turn-answer" data-generated={turn.answer.generated}>
+                  <span className="turn-who">
+                    {turn.answer.generated ? strings.answerFromAi : strings.answerFromBook}
+                  </span>
                   <blockquote>{turn.answer.answer}</blockquote>
 
                   {turn.answer.citations.length > 0 ? (

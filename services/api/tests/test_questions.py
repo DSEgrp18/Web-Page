@@ -57,6 +57,9 @@ def test_an_unsupported_question_abstains_instead_of_guessing(
         "answer": None,
         "citations": [],
         "abstained": True,
+        # The default answerer extracts; it never writes. A reader must be able
+        # to tell which kind of answer they were handed.
+        "generated": False,
     }
 
 

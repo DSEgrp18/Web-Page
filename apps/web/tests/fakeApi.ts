@@ -42,6 +42,8 @@ export interface FakeBook {
 
 export interface FakeServerOptions {
   books?: FakeBook[];
+  /** True to answer the way a server with a generative answerer configured does. */
+  generatedAnswers?: boolean;
   /** False makes every audio response a placeholder tone, as the API does today. */
   realModel?: boolean;
   progress?: Progress | null;
@@ -121,6 +123,7 @@ export class FakeServer {
   progress: Progress | null;
   bookmarks: Bookmark[];
   realModel: boolean;
+  generatedAnswers: boolean;
   studyAnswer?: StudyAnswer;
   private pollsLeft: number;
   private counter = 0;
@@ -130,6 +133,7 @@ export class FakeServer {
     this.progress = options.progress ?? null;
     this.bookmarks = options.bookmarks ?? [];
     this.realModel = options.realModel ?? false;
+    this.generatedAnswers = options.generatedAnswers ?? false;
     this.studyAnswer = options.studyAnswer;
     this.pollsLeft = options.preparationPolls ?? 0;
   }
@@ -315,7 +319,13 @@ export class FakeServer {
 
     const first = book.pages.flatMap((page) => page.segments)[0];
     if (!first) {
-      return this.json({ document_id: id, answer: null, citations: [], abstained: true });
+      return this.json({
+        document_id: id,
+        answer: null,
+        citations: [],
+        abstained: true,
+        generated: this.generatedAnswers,
+      });
     }
     return this.json({
       document_id: id,
@@ -331,6 +341,7 @@ export class FakeServer {
         },
       ],
       abstained: false,
+      generated: this.generatedAnswers,
     });
   }
 

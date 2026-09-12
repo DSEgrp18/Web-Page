@@ -156,14 +156,26 @@ export interface StudyCitation {
 }
 
 /**
- * A grounded study result. `answer` is an extract from the document, never a
- * made-up explanation; a null answer means the service deliberately abstained.
+ * A grounded study result. A null answer means the service deliberately
+ * abstained rather than reach for something unsupported.
  */
 export interface StudyAnswer {
   document_id: string;
+  /**
+   * An exact passage from the document when `generated` is false, or Sinhala
+   * prose written from the cited passages when it is true.
+   */
   answer: string | null;
   citations: StudyCitation[];
   abstained: boolean;
+  /**
+   * True when a model wrote the answer rather than the book supplying it.
+   *
+   * The interface must label the two differently. A reader who cannot see the
+   * page has no other way to tell whose words these are, and "the book says
+   * this" and "a model wrote this from the book" are different claims.
+   */
+  generated: boolean;
 }
 
 export interface Readiness {
