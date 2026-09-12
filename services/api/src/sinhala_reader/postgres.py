@@ -207,34 +207,76 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
         CREATE INDEX bookmarks_by_document ON bookmarks (document_id, owner, created_at);
         """,
     ),
+    (
+        "0005_titles_and_reading_position",
+        """
+        -- What the reader calls the book, when they have said. NULL means they
+        -- have not, and the filename stands in. Adding a column rather than
+        -- rewriting `filename` keeps what was actually uploaded: a rename is
+        -- the reader's label, not a correction of the file.
+        ALTER TABLE documents ADD COLUMN title text;
+
+        -- How far into the book the saved position is. Resolved when the
+        -- position is written, because the alternative is loading the whole
+        -- prepared document on every library render to answer "37%".
+        --
+        -- Backward-compatible by default: rows written before this migration
+        -- report 0, which reads as "at the beginning" rather than as an error.
+        ALTER TABLE progress ADD COLUMN segment_index integer NOT NULL DEFAULT 0;
+        """,
+    ),
 )
+
+
+#: An arbitrary constant, held by whichever process is migrating.
+#:
+#: Any number would do; it only has to be the same in every process and unlike
+#: anything else that takes an advisory lock on this database.
+_MIGRATION_LOCK = 0x51_4D_49_47  # "SMIG"
 
 
 def migrate(url: str) -> list[str]:
     """Bring a database up to date. Returns the migrations it applied.
 
-    Safe to run on every start-up: each migration runs once, inside its own
-    transaction with the bookkeeping row, so an interrupted migration is not
-    recorded as applied.
+    Safe to run on every start-up, and safe to run in **several processes at
+    once**, which is the case that actually happens: `docker compose up` starts
+    the API and the worker together and both migrate before serving.
+
+    Without the lock below, both read the same "already applied" set before
+    either writes to it, and both run the same `ALTER TABLE`. One wins; the
+    other gets `DuplicateColumn` and exits, so the stack comes up with a service
+    missing and a stack trace that looks like a schema problem rather than a
+    race. The bookkeeping row is not enough on its own: it is written *after*
+    the DDL, and by then the other process has already read past it.
+
+    `pg_advisory_lock` is a plain blocking lock held on the session, so the
+    second process waits, then finds the work done and applies nothing. It is
+    released when the connection closes, including when the process dies
+    part-way, so a crashed migration does not wedge every future start-up.
     """
     applied: list[str] = []
     with Connection.connect(url, autocommit=True) as connection:
-        connection.execute(
-            "CREATE TABLE IF NOT EXISTS schema_migrations ("
-            "  name       text PRIMARY KEY,"
-            "  applied_at timestamptz NOT NULL DEFAULT now()"
-            ")"
-        )
-        done = {
-            row[0] for row in connection.execute("SELECT name FROM schema_migrations").fetchall()
-        }
-        for name, sql in MIGRATIONS:
-            if name in done:
-                continue
-            with connection.transaction():
-                connection.execute(sql)
-                connection.execute("INSERT INTO schema_migrations (name) VALUES (%s)", (name,))
-            applied.append(name)
+        connection.execute("SELECT pg_advisory_lock(%s)", (_MIGRATION_LOCK,))
+        try:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS schema_migrations ("
+                "  name       text PRIMARY KEY,"
+                "  applied_at timestamptz NOT NULL DEFAULT now()"
+                ")"
+            )
+            done = {
+                row[0]
+                for row in connection.execute("SELECT name FROM schema_migrations").fetchall()
+            }
+            for name, sql in MIGRATIONS:
+                if name in done:
+                    continue
+                with connection.transaction():
+                    connection.execute(sql)
+                    connection.execute("INSERT INTO schema_migrations (name) VALUES (%s)", (name,))
+                applied.append(name)
+        finally:
+            connection.execute("SELECT pg_advisory_unlock(%s)", (_MIGRATION_LOCK,))
     return applied
 
 
@@ -268,13 +310,14 @@ class PostgresStore(Store):
             connection.execute(
                 """
                 INSERT INTO documents (document_id, owner, filename, size_bytes, created_at,
-                                       version, page_count, segment_count, notes)
+                                       version, title, page_count, segment_count, notes)
                 VALUES (%(document_id)s, %(owner)s, %(filename)s, %(size_bytes)s, %(created_at)s,
-                        %(version)s, %(page_count)s, %(segment_count)s, %(notes)s)
+                        %(version)s, %(title)s, %(page_count)s, %(segment_count)s, %(notes)s)
                 ON CONFLICT (document_id) DO UPDATE SET
                     filename      = EXCLUDED.filename,
                     size_bytes    = EXCLUDED.size_bytes,
                     version       = EXCLUDED.version,
+                    title         = EXCLUDED.title,
                     page_count    = EXCLUDED.page_count,
                     segment_count = EXCLUDED.segment_count,
                     notes         = EXCLUDED.notes
@@ -286,6 +329,7 @@ class PostgresStore(Store):
                     "size_bytes": document.size_bytes,
                     "created_at": document.created_at,
                     "version": document.version,
+                    "title": document.title,
                     "page_count": document.page_count,
                     "segment_count": document.segment_count,
                     "notes": list(document.notes),
@@ -450,14 +494,15 @@ class PostgresStore(Store):
             connection.execute(
                 """
                 INSERT INTO progress (document_id, owner, document_version, segment_id,
-                                      offset_seconds, updated_at)
+                                      offset_seconds, updated_at, segment_index)
                 VALUES (%(document_id)s, %(owner)s, %(document_version)s, %(segment_id)s,
-                        %(offset_seconds)s, %(updated_at)s)
+                        %(offset_seconds)s, %(updated_at)s, %(segment_index)s)
                 ON CONFLICT (document_id, owner) DO UPDATE SET
                     document_version = EXCLUDED.document_version,
                     segment_id       = EXCLUDED.segment_id,
                     offset_seconds   = EXCLUDED.offset_seconds,
-                    updated_at       = EXCLUDED.updated_at
+                    updated_at       = EXCLUDED.updated_at,
+                    segment_index    = EXCLUDED.segment_index
                 """,
                 {
                     "document_id": progress.document_id,
@@ -466,6 +511,7 @@ class PostgresStore(Store):
                     "segment_id": progress.segment_id,
                     "offset_seconds": progress.offset_seconds,
                     "updated_at": progress.updated_at,
+                    "segment_index": progress.segment_index,
                 },
             )
         return progress
@@ -477,6 +523,13 @@ class PostgresStore(Store):
                 (document_id, owner),
             ).fetchone()
         return _progress(row) if row else None
+
+    def list_progress(self, owner: str) -> dict[str, Progress]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM progress WHERE owner = %s", (owner,)
+            ).fetchall()
+        return {row["document_id"]: _progress(row) for row in rows}
 
     # -- bookmarks ---------------------------------------------------------
 
@@ -645,6 +698,7 @@ def _document(row: dict[str, Any]) -> Document:
         size_bytes=row["size_bytes"],
         created_at=row["created_at"],
         version=row["version"],
+        title=row["title"],
         page_count=row["page_count"],
         segment_count=row["segment_count"],
         # A tuple, because the dataclass promises one and a list would compare
@@ -689,6 +743,7 @@ def _progress(row: dict[str, Any]) -> Progress:
         segment_id=row["segment_id"],
         offset_seconds=row["offset_seconds"],
         updated_at=row["updated_at"],
+        segment_index=row["segment_index"],
     )
 
 
