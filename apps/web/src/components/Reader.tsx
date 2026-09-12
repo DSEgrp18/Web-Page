@@ -189,16 +189,18 @@ export function Reader({ documentId }: { documentId: string }) {
     saved && segments.some((segment) => segment.segment_id === saved.segment_id) ? saved : null;
 
   return (
-    <>
-      <p>
+    <div className="reader-page">
+      <p className="reader-topline">
         <Link href="/">{strings.backToLibrary}</Link>
       </p>
 
-      <h2 ref={headingRef} tabIndex={-1}>
-        {book.filename} — {strings.pageWord} {pageIndex + 1}
-        {page?.page_label ? ` (${strings.printedPage} ${page.page_label})` : null}
-      </h2>
-      <p className="hint">{strings.ofPages(pageIndex + 1, book.page_count)}</p>
+      <header className="reader-heading">
+        <h2 ref={headingRef} tabIndex={-1}>
+          {book.filename} — {strings.pageWord} {pageIndex + 1}
+          {page?.page_label ? ` (${strings.printedPage} ${page.page_label})` : null}
+        </h2>
+        <p className="hint">{strings.ofPages(pageIndex + 1, book.page_count)}</p>
+      </header>
 
       {error ? <ErrorNotice message={error} onDismiss={() => setError(null)} /> : null}
 
@@ -235,7 +237,7 @@ export function Reader({ documentId }: { documentId: string }) {
         </p>
       ) : null}
 
-      <section aria-labelledby="sentences-heading">
+      <section aria-labelledby="sentences-heading" className="reader-sentences">
         <h3 id="sentences-heading">
           {strings.sentencesHeading}
           <span className="hint"> · {strings.sentenceCount(segments.length)}</span>
@@ -273,7 +275,7 @@ export function Reader({ documentId }: { documentId: string }) {
       ) : null}
 
       <PlayerBar player={player} disabled={segments.length === 0} />
-    </>
+    </div>
   );
 }
 
@@ -295,9 +297,9 @@ function PageNavigation({
   const [value, setValue] = useState(String(pageIndex + 1));
 
   return (
-    <nav aria-label={strings.goToPage}>
+    <nav className="page-navigation" aria-label={strings.goToPage}>
       <form
-        className="row"
+        className="row page-navigation-controls"
         onSubmit={(event) => {
           event.preventDefault();
           const requested = Number.parseInt(value, 10);
