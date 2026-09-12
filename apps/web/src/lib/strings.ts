@@ -48,6 +48,27 @@ export const strings = {
   deleteConfirmAction: "පොත මකන්න",
   deleted: "පොත මකා දමන ලදී.",
 
+  // -- bookmarks ---------------------------------------------------------
+  bookmarksNav: "පිටු සලකුණු",
+  bookmarksHeading: "පිටු සලකුණු",
+  bookmarksIntro: "ඔබ නැවත එන්නට සලකුණු කළ තැන්.",
+  bookmarksLoading: "පිටු සලකුණු ලබා ගනිමින්…",
+  bookmarkCurrentSentence: "කියවන වාක්‍යය සලකුණු කරන්න",
+  bookmarkSentence: (page: number, sentence: number) =>
+    `පිටුව ${page} හි ${sentence} වැනි වාක්‍යය සලකුණු කරන්න`,
+  bookmarkSaved: "පිටු සලකුණ සුරැකිණි.",
+  bookmarkUpdated: "පිටු සලකුණ යාවත්කාලීන කරන ලදි.",
+  bookmarkRemoved: "පිටු සලකුණ ඉවත් කරන ලදි.",
+  undo: "ආපසු හරවන්න",
+  undoBookmark: "පිටු සලකුණ සුරැකීම ආපසු හරවන්න",
+  bookmarksEmptyTitle: "තවමත් සලකුණු නැත",
+  bookmarksEmptyBody: "කියවන අතරතුර වැදගත් පිටුවක් සලකුණු කරන්න.",
+  bookmarkOpen: "සලකුණු කළ තැන විවෘත කරන්න",
+  bookmarkRemove: "පිටු සලකුණ ඉවත් කරන්න",
+  bookmarkStale: "පොත නැවත සකසා ඇති නිසා මෙම සලකුණ වෙනස් විය හැක.",
+  bookmarkMissing: "මෙම සලකුණේ වාක්‍යය තවදුරටත් නොමැත.",
+  bookmarkNoPage: "පිටු අංකය නොදනී",
+
   // -- preparation -------------------------------------------------------
   stateQueued: "පෝලිමේ",
   stateRunning: "පොත සූදානම් වෙමින්…",

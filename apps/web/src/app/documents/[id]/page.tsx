@@ -5,7 +5,16 @@ import { Reader } from "@/components/Reader";
  * server beyond the id: the document itself is private, and fetching it needs
  * the reader's identity, which lives in the browser.
  */
-export default async function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReaderPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ segment?: string | string[] }>;
+}) {
   const { id } = await params;
-  return <Reader documentId={id} />;
+  const { segment } = await searchParams;
+  return (
+    <Reader documentId={id} bookmarkSegmentId={typeof segment === "string" ? segment : undefined} />
+  );
 }
