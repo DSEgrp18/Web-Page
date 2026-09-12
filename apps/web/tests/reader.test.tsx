@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -24,6 +24,19 @@ function book(overrides: Partial<FakeBook> = {}): FakeBook {
 
 function openReader(server: FakeServer) {
   return renderApp(<Reader documentId="doc-1" />, server);
+}
+
+/**
+ * The reading panel's own pager.
+ *
+ * Both panels carry a "next page" control now, so an unqualified query for one
+ * matches two elements. Scoping to the reading side keeps these tests about the
+ * text rather than about the PDF canvas, which jsdom cannot render anyway.
+ */
+function readingPager() {
+  const pager = document.querySelector<HTMLElement>(".reading-pager");
+  if (!pager) throw new Error("the reading panel has no pager");
+  return within(pager);
 }
 
 describe("arriving at a page", () => {
@@ -58,10 +71,15 @@ describe("arriving at a page", () => {
     const server = new FakeServer({ books: [book()] });
     openReader(server);
     // Page 0 of the file is printed "12". A reader following along with a
-    // sighted classmate needs the number on the paper.
-    await waitFor(() =>
-      expect(screen.getByRole("heading", { level: 2 }).textContent).toContain("12"),
-    );
+    // sighted classmate needs the number on the paper, so it is stated beside
+    // the text rather than left to the file position.
+    await waitFor(() => {
+      // The label is assembled from several nodes, so this reads the bar it
+      // sits in rather than hunting for one element containing all of it.
+      const bar = document.querySelector(".reading-panel .panel-bar");
+      expect(bar?.textContent).toContain(strings.printedPage);
+      expect(bar?.textContent).toContain("12");
+    });
   });
 });
 
@@ -314,13 +332,13 @@ describe("moving between pages", () => {
     openReader(server);
 
     await screen.findByRole("button", { name: FIRST });
-    await user.click(screen.getByRole("button", { name: strings.nextPage }));
+    await user.click(readingPager().getByRole("button", { name: strings.nextPage }));
 
     await screen.findByRole("button", { name: ON_PAGE_TWO });
     // Without this a screen reader stays where it was and reads nothing new;
     // the reader presses "next page" and hears silence.
     await waitFor(() =>
-      expect(document.activeElement).toBe(screen.getByRole("heading", { level: 2 })),
+      expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 })),
     );
   });
 
@@ -337,12 +355,12 @@ describe("moving between pages", () => {
     openReader(server);
 
     await screen.findByRole("button", { name: FIRST });
-    await user.click(screen.getByRole("button", { name: strings.nextPage }));
+    await user.click(readingPager().getByRole("button", { name: strings.nextPage }));
     await screen.findByRole("button", { name: ON_PAGE_TWO });
 
-    expect(screen.getByRole("button", { name: strings.nextPage }).hasAttribute("disabled")).toBe(
-      true,
-    );
+    expect(
+      readingPager().getByRole("button", { name: strings.nextPage }).hasAttribute("disabled"),
+    ).toBe(true);
     expect(server.callsTo("GET", /\/pages\/2$/)).toHaveLength(0);
   });
 });

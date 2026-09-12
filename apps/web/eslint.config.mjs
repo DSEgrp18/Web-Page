@@ -35,6 +35,15 @@ export default tseslint.config(
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      // A focusable `separator` is a real ARIA widget: the spec calls it a
+      // window splitter and *requires* a tabindex, arrow keys, and
+      // aria-valuenow. The rule treats `separator` as non-interactive because
+      // the non-focusable form is, and cannot tell the two apart — so the role
+      // is named here once rather than disabled at the one place it is used.
+      "jsx-a11y/no-noninteractive-tabindex": [
+        "error",
+        { tags: [], roles: ["tabpanel", "separator"], allowExpressionValues: true },
+      ],
     },
   },
   {
