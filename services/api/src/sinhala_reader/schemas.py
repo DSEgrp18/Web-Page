@@ -371,8 +371,18 @@ class StudyAnswer(BaseModel):
     answer: str | None = Field(
         default=None,
         description=(
-            "An exact passage from the document. Null when the document does not support an answer."
+            "The answer. An exact passage from the document when `generated` is false, "
+            "or Sinhala prose written from the cited passages when it is true. "
+            "Null when the document does not support an answer."
         ),
     )
     citations: list[StudyCitation] = Field(default_factory=list)
     abstained: bool
+    generated: bool = Field(
+        default=False,
+        description=(
+            "True when a model wrote the answer, rather than the book supplying it. "
+            "The interface must label the two differently: a reader who cannot see the "
+            "page has no other way to tell whose words these are."
+        ),
+    )

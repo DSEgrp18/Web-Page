@@ -66,7 +66,21 @@ services:
       # Off unless chosen. Sending a reader's page to an external provider is
       # never a default.
       SINHALA_READER_STRUCTURE: ${SINHALA_READER_STRUCTURE:-deterministic}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # extractive returns the book's own sentences; gemini writes a Sinhala
+      # answer from the retrieved passages and labels it as written. Both are
+      # grounded in this reader's document and neither can invent a citation.
+      SINHALA_READER_ANSWERS: ${SINHALA_READER_ANSWERS:-extractive}
+    # The repository-root .env, read at run time and injected as environment —
+    # never copied into a layer, where a key would survive in the image history
+    # even if a later layer deleted it.
+    #
+    # Named explicitly because Compose's own `.env` lookup is relative to the
+    # *compose file*, not the repository: with `-f infra/docker-compose.yml` it
+    # looks in infra/ and silently finds nothing, which is how GEMINI_API_KEY
+    # came to be unset in a container while sitting in the root .env all along.
+    env_file:
+      - path: ../.env
+        required: false
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -102,7 +116,21 @@ services:
       SINHALA_TTS_MODEL_DIR: /models/xtts_si_female
       SINHALA_READER_TTS_DEVICE: ${SINHALA_READER_TTS_DEVICE:-cpu}
       SINHALA_READER_STRUCTURE: ${SINHALA_READER_STRUCTURE:-deterministic}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # extractive returns the book's own sentences; gemini writes a Sinhala
+      # answer from the retrieved passages and labels it as written. Both are
+      # grounded in this reader's document and neither can invent a citation.
+      SINHALA_READER_ANSWERS: ${SINHALA_READER_ANSWERS:-extractive}
+    # The repository-root .env, read at run time and injected as environment —
+    # never copied into a layer, where a key would survive in the image history
+    # even if a later layer deleted it.
+    #
+    # Named explicitly because Compose's own `.env` lookup is relative to the
+    # *compose file*, not the repository: with `-f infra/docker-compose.yml` it
+    # looks in infra/ and silently finds nothing, which is how GEMINI_API_KEY
+    # came to be unset in a container while sitting in the root .env all along.
+    env_file:
+      - path: ../.env
+        required: false
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

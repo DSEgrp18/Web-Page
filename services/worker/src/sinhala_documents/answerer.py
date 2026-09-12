@@ -54,11 +54,20 @@ class Citation:
 
 @dataclass(frozen=True)
 class Answer:
-    """An extractive answer, or an explicit lack of support."""
+    """An answer, or an explicit lack of support."""
 
     answer: str | None
     citations: tuple[Citation, ...]
     abstained: bool
+
+    generated: bool = False
+    """True when a model wrote these words, rather than the book supplying them.
+
+    Not decoration. A blind reader cannot see which kind of answer they were
+    given, and "the book says this" and "a model wrote this from the book" are
+    different claims with different failure modes. The interface labels them
+    differently, so this has to travel with the answer.
+    """
 
 
 def answer_question(question: str, passages: tuple[Passage, ...] | list[Passage]) -> Answer:
