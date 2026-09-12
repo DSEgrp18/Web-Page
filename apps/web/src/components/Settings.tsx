@@ -109,7 +109,7 @@ export function Settings() {
                 {/* The number is the label a sighted reader scans; the
                     percentage is what a screen reader should say. */}
                 <span aria-hidden="true" style={{ fontSize: `${0.8 + (scale - 0.9) * 0.7}rem` }}>
-                   අ
+                  අ
                 </span>
                 <span className="visually-hidden">{strings.textSizePercent(scale)}</span>
               </label>

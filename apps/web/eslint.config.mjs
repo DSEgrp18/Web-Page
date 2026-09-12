@@ -11,7 +11,18 @@ import tseslint from "typescript-eslint";
  * be read as if it did.
  */
 export default tseslint.config(
-  { ignores: [".next/**", "out/**", "coverage/**", "next-env.d.ts"] },
+  {
+    ignores: [
+      ".next/**",
+      "out/**",
+      "coverage/**",
+      "next-env.d.ts",
+      // Copied verbatim out of node_modules at build time. Linting somebody
+      // else's minified bundle produces 1,700 errors about code we do not own
+      // and cannot change, which buries the handful that are ours.
+      "public/**",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   jsxA11y.flatConfigs.recommended,

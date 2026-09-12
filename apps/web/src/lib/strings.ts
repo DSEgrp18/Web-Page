@@ -222,6 +222,61 @@ export const strings = {
   settingFollowSentence: "කියවන වාක්‍යය අනුව ගමන් කරන්න",
   settingPageTurnSound: "පිටුව හැරවීමේ ශබ්දය",
   settingPageTurnSoundHelp: "තිර කියවනයක් භාවිත කරන විට මෙය ඔබට බාධා විය හැක.",
+
+  // -- landing -----------------------------------------------------------
+  welcomeHeading: "සිංහල පොත් කියවන්න, අසන්න",
+  welcomeBody:
+    "PDF පොතක් එක් කරන්න. මුල් පිටුව එක් පසෙකත්, කියවිය හැකි සිංහල අකුර අනෙක් පසෙකත් පෙනේ. ඕනෑම වාක්‍යයක් තෝරා ඇහුම්කන් දෙන්න.",
+  welcomeSecondary: "ඔබේ පොත් ඔබට පමණක් පෙනේ.",
+
+  // -- library -----------------------------------------------------------
+  continueHeading: "දිගටම කියවන්න",
+  continueResume: "දිගටම කියවන්න",
+  libraryCount: (count: number) => `පොත් ${count} ක්`,
+  coverLoading: "කවරය සකසමින්…",
+  filterHeading: "පෙරහන",
+  filterAll: "සියල්ල",
+  filterReading: "කියවමින්",
+  filterFinished: "අවසන් කළ",
+  filterProcessing: "සූදානම් වෙමින්",
+  sortHeading: "පිළිවෙල",
+  sortRecent: "අවසන් කියවූ",
+  sortAdded: "අලුතින් එක් කළ",
+  sortTitle: "නම අනුව",
+  noResultsHeading: "ගැළපෙන පොතක් නැත",
+  noResultsBody: (query: string) => `"${query}" සඳහා පොතක් හමු නොවීය. වෙනත් වචනයක් උත්සාහ කරන්න.`,
+  clearSearch: "සෙවීම හිස් කරන්න",
+  noneInFilter: "මෙම පෙරහනට ගැළපෙන පොත් නැත.",
+  progressPercent: (percent: number) => `සියයට ${percent} ක් කියවා ඇත`,
+  notStarted: "තවම ආරම්භ කර නැත",
+  finishedReading: "අවසන් කර ඇත",
+  bookActions: (title: string) => `${title} සඳහා ක්‍රියා`,
+  renameBook: "නම වෙනස් කරන්න",
+  renameHeading: "පොතේ නම",
+  renameLabel: "නව නම",
+  renameHelp: "මෙය ඔබට පමණක් පෙනෙන නමකි. මුල් ගොනුවේ නම වෙනස් නොවේ.",
+  renameSave: "සුරකින්න",
+  renamed: "නම වෙනස් කරන ලදි.",
+  continueOrOpen: (started: boolean) => (started ? "දිගටම කියවන්න" : "කියවීම අරඹන්න"),
+
+  // -- upload ------------------------------------------------------------
+  uploadDialogHeading: "පොතක් එක් කරන්න",
+  uploadDrop: "ගොනුව මෙහි අදින්න",
+  uploadOr: "නැතහොත්",
+  uploadChoose: "ගොනුවක් තෝරන්න",
+  uploadOnlyPdf: "PDF ගොනු පමණි.",
+  uploadTooBig: "ගොනුව විශාල වැඩියි.",
+  uploadNotPdf: "මෙය PDF ගොනුවක් නොවේ.",
+  uploadTitleLabel: "පොතේ නම (අත්‍යවශ්‍ය නොවේ)",
+  uploadTitleHelp: "හිස් තැබුවහොත් ගොනුවේ නම භාවිත වේ.",
+  fileSize: (bytes: number) => {
+    const mb = bytes / (1024 * 1024);
+    return mb >= 1
+      ? `මෙගාබයිට් ${mb.toFixed(1)}`
+      : `කිලෝබයිට් ${Math.max(1, Math.round(bytes / 1024))}`;
+  },
+  removeFile: "ගොනුව ඉවත් කරන්න",
+  uploadFailed: "උඩුගත කිරීම අසාර්ථක විය.",
 } as const;
 
 /** What each theme choice is called. A switch, so a new theme cannot be missed. */

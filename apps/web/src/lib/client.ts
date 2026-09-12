@@ -131,6 +131,28 @@ export class ReaderApi {
     await this.request(`/documents/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
+  /** Give a book the reader's own name. Blank clears it back to the filename. */
+  renameDocument(id: string, title: string): Promise<DocumentDetail> {
+    return this.json<DocumentDetail>(`/documents/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+  }
+
+  /**
+   * The uploaded PDF itself, as a blob URL the caller owns.
+   *
+   * Fetched rather than pointed at, for the same reason as audio: a `<embed
+   * src>` cannot carry the identity header, so the request has to go through
+   * `fetch`. The caller must call `URL.revokeObjectURL` when it is finished, or
+   * the whole PDF stays in memory for the life of the tab.
+   */
+  async getDocumentFile(id: string, signal?: AbortSignal): Promise<Blob> {
+    const response = await this.request(`/documents/${encodeURIComponent(id)}/file`, { signal });
+    return response.blob();
+  }
+
   getJob(documentId: string, jobId: string): Promise<Job> {
     return this.json<Job>(
       `/documents/${encodeURIComponent(documentId)}/jobs/${encodeURIComponent(jobId)}`,

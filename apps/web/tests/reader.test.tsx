@@ -228,6 +228,7 @@ describe("coming back", () => {
         offset_seconds: 3.25,
         document_version: "v1",
         updated_at: "2026-09-09T00:00:00Z",
+        segment_index: 0,
         stale: false,
       },
     });
@@ -250,6 +251,7 @@ describe("coming back", () => {
         offset_seconds: 3.25,
         document_version: "v0",
         updated_at: "2026-09-09T00:00:00Z",
+        segment_index: 0,
         stale: true,
       },
     });
@@ -267,6 +269,7 @@ describe("coming back", () => {
         offset_seconds: 1,
         document_version: "v1",
         updated_at: "2026-09-09T00:00:00Z",
+        segment_index: 0,
         stale: false,
       },
     });

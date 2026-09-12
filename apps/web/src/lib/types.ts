@@ -77,14 +77,27 @@ export interface Job {
   updated_at: string;
 }
 
+/** Where a reader stopped, as the library needs it to draw a progress bar. */
+export interface ReadingPosition {
+  segment_id: string;
+  segment_index: number;
+  updated_at: string;
+  /** True when the book was reprocessed after this position was saved. */
+  stale: boolean;
+}
+
 export interface DocumentSummary {
   document_id: string;
   filename: string;
+  /** What the reader named it. Null means they have not; show the filename. */
+  title: string | null;
   size_bytes: number;
   created_at: string;
   version: string | null;
   page_count: number;
   segment_count: number;
+  /** Null when this reader has never opened the book. */
+  reading: ReadingPosition | null;
 }
 
 export interface DocumentDetail extends DocumentSummary {
@@ -107,6 +120,8 @@ export interface Progress {
   document_id: string;
   segment_id: string;
   offset_seconds: number;
+  /** How far into the book, resolved when the position was saved. */
+  segment_index: number;
   document_version: string;
   updated_at: string;
   /** True when the document was reprocessed after this position was saved. */
