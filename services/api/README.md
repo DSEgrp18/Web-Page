@@ -52,8 +52,19 @@ python -m pip install "fastapi>=0.115" "python-multipart>=0.0.9" "uvicorn" \
 SINHALA_READER_AUTH=development \
 SINHALA_READER_ORIGINS=http://localhost:3000 \
 PYTHONPATH="src:../worker/src:../tts/src" \
-  python -m uvicorn sinhala_reader.app:app --reload
+  python -m uvicorn sinhala_reader.serve:app --reload
 ```
+
+`serve` rather than `app`: it reads a `.env` at the repository root before
+anything reads the environment, so these settings can live in a file instead of
+in four exports before every command. Copy
+[`.env.example`](../../.env.example) to `.env`. Git refuses to track it and
+`scripts/verify-repo-hygiene.sh` fails the build if one is ever committed.
+
+The real environment always wins over the file, so a stale `.env` cannot
+override what a deployment set. `sinhala_reader.app:app` still works and reads
+no file: importing the app configures nothing, which is what keeps a
+developer's `.env` out of the test suite.
 
 `SINHALA_READER_ORIGINS` names the origins a **browser** may call this API from
 — [`apps/web`](../../apps/web) in development. It is unset by default, which
@@ -90,7 +101,7 @@ SINHALA_READER_TTS=xtts \
 SINHALA_READER_TTS_DEVICE=cpu \
 SINHALA_TTS_MODEL_DIR=/path/to/xtts_si_female \
 PYTHONPATH="src:../worker/src:../tts/src" \
-  python -m uvicorn sinhala_reader.app:app
+  python -m uvicorn sinhala_reader.serve:app
 ```
 
 The default is the placeholder, and that is a **safe** default rather than a
@@ -286,7 +297,7 @@ docker run -d --name reader-pg -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=reader   
 
 python -m pip install "psycopg[binary]>=3.2" "psycopg-pool>=3.2"
 
-SINHALA_READER_AUTH=development SINHALA_READER_ORIGINS=http://localhost:3000 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m uvicorn sinhala_reader.app:app --reload
+SINHALA_READER_AUTH=development SINHALA_READER_ORIGINS=http://localhost:3000 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m uvicorn sinhala_reader.serve:app --reload
 ```
 
 Migrations run at start-up, each exactly once, recorded in `schema_migrations`.
@@ -382,7 +393,7 @@ docker run -d --name reader-redis -p 56379:6379 redis:8-alpine
 python -m pip install "celery>=5.4" "redis>=5"
 
 # the API
-SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_AUTH=development SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m uvicorn sinhala_reader.app:app
+SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_AUTH=development SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m uvicorn sinhala_reader.serve:app
 
 # and a worker, in another terminal
 SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m celery -A sinhala_reader.worker worker --loglevel=info

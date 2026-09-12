@@ -74,7 +74,7 @@ cd services/api
 SINHALA_READER_AUTH=development \
 SINHALA_READER_ORIGINS=http://localhost:3000 \
 PYTHONPATH="src:../worker/src:../tts/src" \
-  python -m uvicorn sinhala_reader.app:app --reload
+  python -m uvicorn sinhala_reader.serve:app --reload
 
 # terminal 2 — the reader
 cd apps/web
