@@ -17,6 +17,7 @@ in order to send a JSON body would be a poor trade.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import urllib.error
@@ -24,6 +25,7 @@ import urllib.request
 from collections.abc import Callable
 
 from .blocks import Block
+from .ocr import OcrAdapter, OcrUnavailable
 from .structure import BlockRole
 from .structuring import StructureAdapter, StructureUnavailable
 
@@ -227,3 +229,101 @@ def _parse(payload: dict) -> tuple[Block, ...]:
             level = None
         blocks.append(Block(role=role, text=body, level=level))
     return tuple(blocks)
+
+
+#: Bump on any change to the OCR prompt or its parsing. Part of the OCR version,
+#: and therefore of extraction provenance and cache identity.
+OCR_PROMPT_VERSION = "1"
+
+_OCR_INSTRUCTIONS = """\
+This is a photograph of one page of a Sinhala school textbook.
+
+Transcribe the Sinhala text on it, in reading order.
+
+Rules:
+
+1. Transcribe only what is on the page. Do not translate, do not summarise, do
+   not complete a sentence that is cut off, and do not add anything that is not
+   printed there.
+2. Write proper Sinhala Unicode. The page may be typeset in an old font, but
+   what you return must be ordinary Sinhala script.
+3. Keep the line breaks of the page.
+4. If a word is genuinely unreadable, write it as best you can. Do not invent a
+   plausible sentence around it.
+5. Ignore page furniture that is not part of the text: nothing else.
+6. Return only the transcription, with no commentary, no preamble, and no
+   markdown fences.
+"""
+
+
+class GeminiOcr(OcrAdapter):
+    """Read a rendered page with Gemini, or say clearly that it could not.
+
+    Unlike the structure adapter, **there is nothing to verify this against**.
+    Structure could be checked character for character against text we already
+    had; a page that had no usable text has no such reference, which is the
+    whole reason it is here. So its output is always marked for review, and the
+    honest limit of this class is that it cannot tell a correct transcription
+    from a fluent invention. A recogniser that is wrong and a recogniser that is
+    right look identical from here.
+    """
+
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        model: str | None = None,
+        post: Callable[..., dict] | None = None,
+    ) -> None:
+        self._api_key = api_key if api_key is not None else os.environ.get(API_KEY_ENV, "")
+        self._model = model or os.environ.get(MODEL_ENV, "").strip() or DEFAULT_MODEL
+        self._post = post or _post
+
+    @property
+    def version(self) -> str:
+        return f"gemini-ocr/{self._model}/prompt-{OCR_PROMPT_VERSION}"
+
+    def text_for(self, image_png: bytes) -> str:
+        if not self._api_key:
+            raise OcrUnavailable(f"{API_KEY_ENV} is not set")
+        if not image_png:
+            raise OcrUnavailable("nothing was rendered for this page")
+
+        body = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": _OCR_INSTRUCTIONS},
+                        {
+                            "inline_data": {
+                                "mime_type": "image/png",
+                                "data": base64.b64encode(image_png).decode("ascii"),
+                            }
+                        },
+                    ]
+                }
+            ],
+            # Transcription is a reading of a fixed image, not a creative task.
+            "generationConfig": {"temperature": 0},
+        }
+        try:
+            payload = self._post(
+                ENDPOINT.format(model=self._model),
+                body,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+                api_key=self._api_key,
+            )
+        except urllib.error.HTTPError as error:
+            raise OcrUnavailable(f"OCR request failed: HTTP {error.code}") from error
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            raise OcrUnavailable(f"OCR request failed: {error}") from error
+
+        try:
+            text = payload["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise OcrUnavailable("OCR response had no content") from error
+        if not isinstance(text, str) or not text.strip():
+            # An empty transcription would be stored as a page with nothing on
+            # it, which a reader experiences as the book skipping a page.
+            raise OcrUnavailable("OCR returned no text")
+        return text.strip()
