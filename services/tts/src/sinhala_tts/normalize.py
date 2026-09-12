@@ -132,14 +132,41 @@ def _expand_match(match: re.Match[str]) -> str:
     return words
 
 
+#: Any digit at all. Used for the sweep below, not for parsing.
+_ANY_DIGITS = re.compile(r"\d+")
+
+
+def _sweep_remaining_digits(text: str) -> str:
+    """Read digit by digit anything :data:`_NUMBER` did not claim.
+
+    The front end **deletes** digits rather than refusing them, so a digit that
+    survives this module does not produce a mispronunciation a listener could
+    notice and report: it produces silence where a number should be. In
+    ``2018.05.07`` the pattern takes ``2018.05`` as a decimal and stops, because
+    its lookbehind refuses a run that follows a dot; the ``07`` then reached the
+    front end and vanished, and the listener heard a date with its last part
+    missing and nothing to indicate it.
+
+    So the invariant this module owes its caller is that **no digit reaches the
+    front end**, and this is what enforces it — deliberately last, and
+    deliberately dumb. Anything the real patterns understand has already been
+    handled properly; whatever is left is something nobody anticipated, and the
+    only safe reading of an unanticipated number is one that adds nothing and
+    drops nothing. Clumsy is recoverable. Silent is not.
+    """
+    return _ANY_DIGITS.sub(lambda m: digits_individually(m.group()), text)
+
+
 def expand_numbers(text: str) -> str:
     """Write digits out as Sinhala words.
 
     Handles integers, thousands separators, decimals, and a trailing percent
-    sign. Ordinals, currency, dates, and times are not handled yet and will be
-    read as plain numbers.
+    sign. Ordinals, currency, dates, and times are not read *as* ordinals,
+    currency, dates or times — that needs to know what contains them, which is
+    a document-structure question this module cannot answer. They are read
+    completely, which is the part that matters here.
     """
-    return _NUMBER.sub(_expand_match, text)
+    return _sweep_remaining_digits(_NUMBER.sub(_expand_match, text))
 
 
 def to_speech_text(text: str, *, numbers_as_words: bool = True) -> str:
