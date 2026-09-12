@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 from sinhala_documents.pipeline import ReadablePage, ReadableSegment
+from sinhala_documents.structure import BlockRole
 
 from .storage import Bookmark, Document, Job, Progress
 
@@ -50,6 +51,19 @@ class SegmentDetail(BaseModel):
     boxes: list[Box] = Field(
         default_factory=list, description="Lines this segment covers, for highlighting."
     )
+    role: BlockRole = Field(
+        default=BlockRole.UNKNOWN,
+        description=(
+            "What kind of thing this segment is part of: a paragraph, a heading, a "
+            "figure caption, a row of the contents. Decides how its numbers were read, "
+            "and lets a reader be told that what follows is a caption rather than the "
+            "next sentence of the paragraph - which somebody listening cannot see."
+        ),
+    )
+    level: int | None = Field(
+        default=None,
+        description="Heading depth, 1 outermost. Null for anything that is not a heading.",
+    )
 
     @classmethod
     def of(cls, segment: ReadableSegment) -> SegmentDetail:
@@ -61,6 +75,8 @@ class SegmentDetail(BaseModel):
             index=segment.index,
             page_index=segment.page_index,
             page_label=segment.page_label,
+            role=segment.role,
+            level=segment.level,
             display_text=segment.display_text,
             spoken_text=segment.spoken_text,
             boxes=[Box(x0=b.x0, top=b.top, x1=b.x1, bottom=b.bottom) for b in segment.boxes],

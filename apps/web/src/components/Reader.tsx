@@ -8,6 +8,7 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
 import { messageFor, strings } from "@/lib/strings";
+import { roleLabel } from "@/lib/roles";
 import type { Bookmark, DocumentDetail, Page, Progress } from "@/lib/types";
 import { usePlayer } from "@/lib/usePlayer";
 
@@ -326,14 +327,30 @@ export function Reader({
           <ol className="sentences">
             {segments.map((segment, index) => {
               const current = player.currentId === segment.segment_id;
+              const label = roleLabel(segment);
               return (
-                <li key={segment.segment_id} className="sentence" data-current={current}>
+                <li
+                  key={segment.segment_id}
+                  className="sentence"
+                  data-current={current}
+                  data-role={segment.role}
+                  data-level={segment.level ?? undefined}
+                >
                   <button
                     type="button"
                     className="sentence-text"
                     aria-current={current ? "true" : undefined}
                     onClick={() => player.playAt(index)}
                   >
+                    {/*
+                     * The role is part of the accessible name rather than a
+                     * visual badge alone. A sighted reader sees a caption is a
+                     * caption from its position and size; somebody listening
+                     * has only what is announced, and a caption read in
+                     * sequence with the paragraph beside it is exactly the
+                     * defect the structure work exists to fix.
+                     */}
+                    {label ? <span className="sentence-role">{label}</span> : null}
                     {segment.display_text}
                   </button>
                 </li>

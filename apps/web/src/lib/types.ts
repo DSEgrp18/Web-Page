@@ -28,7 +28,29 @@ export interface Segment {
   /** Normalised Sinhala with numbers written out. */
   spoken_text: string;
   boxes: Box[];
+  /**
+   * What kind of thing this segment is part of.
+   *
+   * Somebody listening cannot see that a caption has interrupted a paragraph,
+   * so the interface has to say it. `unknown` means nothing classified this
+   * page, which is different from classifying it as prose.
+   */
+  role: BlockRole;
+  /** Heading depth, 1 outermost. Null for anything that is not a heading. */
+  level: number | null;
 }
+
+export type BlockRole =
+  | "paragraph"
+  | "heading"
+  | "caption"
+  | "list_item"
+  | "contents_row"
+  | "table_cell"
+  | "running_head"
+  | "page_number"
+  | "address"
+  | "unknown";
 
 export type PageKind = "text" | "image" | "mixed" | "empty";
 export type Quality = "accepted" | "needs_review" | "undecodable";

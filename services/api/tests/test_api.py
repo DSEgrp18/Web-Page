@@ -469,3 +469,25 @@ def test_deleting_something_that_is_not_yours_does_nothing(
     intruder = as_reader(client, OTHER_READER)
     assert client.delete(f"/documents/{document_id}", headers=intruder).status_code == 404
     assert client.get(f"/documents/{document_id}", headers=as_reader(client)).status_code == 200
+
+
+def test_a_segment_says_what_kind_of_thing_it_is(client, prepared_document) -> None:
+    """Role and level have to reach the interface, or the structure work is invisible.
+
+    Somebody listening cannot see that what they are hearing is a caption rather
+    than the next sentence of the paragraph, so the interface has to be able to
+    tell them, which means the API has to say.
+    """
+    page = client.get(
+        f"/documents/{prepared_document['document_id']}/pages/0", headers=as_reader(client)
+    ).json()
+    assert page["segments"]
+    for segment in page["segments"]:
+        assert "role" in segment
+        assert "level" in segment
+
+    # The deterministic path classifies nothing, and says exactly that rather
+    # than claiming everything is a paragraph. A page nobody has classified and
+    # a page classified as prose are different facts.
+    assert {s["role"] for s in page["segments"]} == {"unknown"}
+    assert all(s["level"] is None for s in page["segments"])

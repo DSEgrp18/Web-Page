@@ -1503,3 +1503,67 @@ label {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Structure: what a sentence belongs to.
+ *
+ * The role is announced, not merely drawn — see lib/roles.ts. What is here is
+ * the sighted half of the same information, so the page looks like the book it
+ * came from instead of a flat list of sentences.
+ *
+ * Contrast is unchanged: every colour below is an existing token, so nothing
+ * here needs re-measuring against the ratios recorded at the top of this file.
+ */
+
+.sentence-role {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--ink-muted); /* 5.3:1 on paper — measured, see header */
+  margin-bottom: 2px;
+}
+
+/* A heading reads as a heading: larger, and with the space above that tells a
+   sighted reader a section started. Depth is shown by size, and announced by
+   lib/roles.ts, because size alone is not available to a listener. */
+.sentence[data-role="heading"] .sentence-text {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.sentence[data-role="heading"] {
+  margin-top: var(--space-3);
+}
+.sentence[data-role="heading"][data-level="1"] .sentence-text {
+  font-size: 1.5em;
+}
+.sentence[data-role="heading"][data-level="2"] .sentence-text {
+  font-size: 1.25em;
+}
+.sentence[data-role="heading"][data-level="3"] .sentence-text {
+  font-size: 1.1em;
+}
+
+/*
+ * A caption is set apart, because in the book it sits beside a picture that is
+ * not here. The rule on the inline-start edge is the visual equivalent of the
+ * announcement: this is not the next sentence of the paragraph.
+ */
+.sentence[data-role="caption"] .sentence-text {
+  font-size: 0.9em;
+  color: var(--ink-muted);
+  border-inline-start: 3px solid var(--line);
+  padding-inline-start: var(--space-2);
+}
+
+.sentence[data-role="contents_row"] .sentence-text,
+.sentence[data-role="address"] .sentence-text {
+  font-family: var(--font-ui);
+  font-size: 0.95em;
+}
+
+.sentence[data-role="list_item"] .sentence-text {
+  padding-inline-start: var(--space-2);
+}

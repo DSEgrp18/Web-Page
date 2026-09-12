@@ -135,6 +135,23 @@ export const strings = {
   sentencesHeading: "වාක්‍ය",
   sentenceCount: (count: number) => `වාක්‍ය ${count} ක්`,
   noSentences: "මෙම පිටුවේ කියවිය හැකි වාක්‍ය නැත.",
+
+  // What kind of thing a sentence belongs to. These are announced, not just
+  // shown: somebody listening cannot see that a caption has interrupted a
+  // paragraph, which is the defect the structure work exists to fix.
+  //
+  // Only the roles that change what a reader should expect are named. A
+  // paragraph is not announced, because announcing "paragraph" before every
+  // sentence of a book is noise, and unknown is not announced either, because
+  // it reads exactly as prose.
+  roleHeading: "මාතෘකාව",
+  roleCaption: "රූප සටහන් විස්තරය",
+  roleContentsRow: "පටුන",
+  roleListItem: "ලැයිස්තු අයිතමය",
+  roleTableCell: "වගු කොටුව",
+  roleAddress: "ලිපිනය",
+  /** Spoken before a heading, so its depth is audible: "මට්ටම 2 මාතෘකාව". */
+  headingLevel: (level: number) => `මට්ටම ${level}`,
   playSentence: "මෙම වාක්‍යය අසන්න",
 
   // -- playback ----------------------------------------------------------
