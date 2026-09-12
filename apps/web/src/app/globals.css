@@ -588,6 +588,107 @@ label {
   color: var(--ink-muted);
 }
 
+/* -- reader ------------------------------------------------------------- */
+
+.reader-page {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.reader-topline {
+  margin: 0;
+  font-weight: 700;
+}
+
+.reader-topline a {
+  text-decoration: none;
+}
+
+.reader-heading {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.reader-heading h2 {
+  margin-bottom: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.reader-heading .hint {
+  margin: 0;
+}
+
+.page-navigation {
+  padding-block: var(--space-2);
+}
+
+.page-navigation-controls {
+  justify-content: space-between;
+}
+
+.reader-sentences {
+  max-width: 58rem;
+  padding-bottom: var(--space-3);
+}
+
+.reader-sentences h3 {
+  margin-bottom: var(--space-2);
+}
+
+.sentence {
+  padding: 0.15rem 0;
+}
+
+.sentence-text {
+  border-color: transparent;
+  background: transparent;
+  text-align: start;
+}
+
+.sentence-text:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--paper-sunken);
+}
+
+.sentence[data-current="true"] .sentence-text {
+  padding: 1rem;
+}
+
+.player {
+  z-index: 2;
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 0;
+  border-radius: calc(var(--radius) * 2);
+  background: var(--accent-pressed);
+  color: var(--accent-ink);
+}
+
+.player .row {
+  justify-content: center;
+}
+
+.player button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-ink);
+}
+
+.player button:hover:not(:disabled) {
+  border-color: var(--accent-ink);
+}
+
+.player button.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.player select {
+  min-width: 7rem;
+  border-color: transparent;
+}
+
 /* -- sentences ----------------------------------------------------------- */
 
 .sentences {
@@ -634,9 +735,9 @@ label {
 .player {
   position: sticky;
   bottom: 0;
-  background: var(--paper);
-  border-top: 1px solid var(--line);
-  padding: 0.75rem 0;
+  border: 0;
+  background: var(--accent-pressed);
+  color: var(--accent-ink);
   margin-top: 1rem;
 }
 
