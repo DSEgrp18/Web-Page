@@ -45,12 +45,43 @@ voice that cannot run without the bundle anyway.
 built in: an image containing them could be pushed to a registry, and the
 licence position of the XTTS-v2 weights under CPML is unresolved.
 
-**This has not been run.** The image does not contain torch, so serving the real
-voice from compose needs a Dockerfile that installs it — with `torch` first and
-`transformers>=4.57,<5`, both of which
+[`tts.Dockerfile`](tts.Dockerfile) installs torch and coqui-tts, and
+[`compose.voice.yml`](compose.voice.yml) mounts the bundle:
+
+```bash
+MODEL_DIR="/path/to/folder/containing/xtts_si_female"   docker compose -f infra/docker-compose.yml -f infra/compose.voice.yml up --build
+```
+
+`MODEL_DIR` has no default on purpose. Without it compose refuses to start and
+says so, rather than mounting nothing and failing at the first synthesis.
+
+The mount is read-only. Nothing here has any reason to write to a checkpoint.
+
+An overlay rather than a setting because somebody without the bundle should get
+a working reader and a labelled tone, not a stack that will not start.
+
+**Built but not run.** The Dockerfile is written from what
 [`docs/model-inference-manifest.md`](../docs/model-inference-manifest.md)
-records as load-bearing. Until that exists, run the API outside Docker for the
-real voice, as `services/api/README.md` describes.
+records — `torch` installed first and from the CPU index, `transformers`
+pinned below 5, `libsndfile1` present for the reference clip — and both compose
+files parse. Nobody has yet built the image or heard a sentence come out of it,
+because it is several gigabytes and this machine's connection is slow. Until
+somebody has, run the API outside Docker for the real voice, as
+[`services/api/README.md`](../services/api/README.md) describes.
+
+### Mixing the two
+
+The datastores are useful on their own. Running PostgreSQL and Redis from
+compose while the API runs on the host gives the real voice *and* durable
+storage — which is what this repository's own development setup does:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d postgres redis
+```
+
+Then point the host API at them with `SINHALA_READER_DATABASE_URL` and
+`SINHALA_READER_REDIS_URL`, and run a worker beside it. On Windows that worker
+needs `--pool=solo`: Celery's default prefork pool does not work there.
 
 ## Page structure
 

@@ -33,7 +33,11 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
+COPY --from=build /app/next.config.mjs ./next.config.mjs
+
+# No `COPY public`: this app has no public/ directory, and COPY fails on a path
+# that does not exist rather than skipping it. Add one back here if static
+# assets ever land there — a missing favicon is a silent 404, not a build error.
 
 RUN useradd --create-home --uid 10002 web && chown -R web:web /app
 USER web
