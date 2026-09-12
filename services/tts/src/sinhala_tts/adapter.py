@@ -216,9 +216,18 @@ def bundle_version(model_dir: Path) -> str:
     every worker start. It is enough to notice that the bundle changed, which is
     what cache identity needs; a release still records the full checksum from
     the manifest.
+
+    **reference.wav is hashed, and that is not incidental.** XTTS has no voices
+    inside the checkpoint: it conditions on a reference clip, so the clip *is*
+    the voice. Left out of this digest, replacing the clip would change what the
+    model sounds like while the bundle version, the voice id and therefore the
+    cache key all stayed the same — every already-generated segment would keep
+    serving the old voice and every new one the new voice, inside one book, with
+    nothing to indicate it. CLAUDE.md requires the voice in cache identity and
+    forbids silently substituting one; this is where "the voice" actually lives.
     """
     digest = hashlib.sha256()
-    for name in ("config.json", "vocab.json"):
+    for name in ("config.json", "vocab.json", "reference.wav"):
         digest.update((model_dir / name).read_bytes())
     checkpoint = model_dir / "model.pth"
     stat = checkpoint.stat()

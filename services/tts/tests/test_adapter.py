@@ -10,6 +10,8 @@ rejected in production is rejected here too.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -21,6 +23,7 @@ from sinhala_tts.adapter import (
     SynthesisSettings,
     TextNotSpeakableError,
     TextTooLongError,
+    bundle_version,
     health,
     resolve_model_dir,
 )
@@ -284,3 +287,40 @@ def test_the_recorded_voice_id_is_not_the_one_that_was_asked_for(
     assert adapter.voice_id_for("si-female") == "development-si-female"
     result = adapter.synthesize(SENTENCE, "si-female")
     assert result.metadata.voice_id == "development-si-female"
+
+
+def _bundle(path: Path, *, reference: bytes) -> Path:
+    """The smallest thing bundle_version will read."""
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "config.json").write_text('{"a": 1}', encoding="utf-8")
+    (path / "vocab.json").write_text('{"b": 2}', encoding="utf-8")
+    (path / "model.pth").write_bytes(b"not really a checkpoint")
+    (path / "reference.wav").write_bytes(reference)
+    return path
+
+
+def test_changing_the_speaker_clip_changes_the_bundle_version(tmp_path) -> None:
+    """The clip is the voice, so it has to be in cache identity.
+
+    XTTS has no voices inside the checkpoint; it conditions on a reference clip.
+    If swapping that clip left the version alone, the cache key would not move
+    either — so every segment already generated would keep the old voice and
+    every new one would get the new voice, inside a single book, with nothing
+    anywhere to say so.
+    """
+    one = _bundle(tmp_path / "one", reference=b"dinithi-clip")
+    two = _bundle(tmp_path / "two", reference=b"harini-clip")
+
+    assert bundle_version(one) != bundle_version(two)
+
+
+def test_an_identical_bundle_keeps_its_version(tmp_path) -> None:
+    """Otherwise every restart would invalidate every cached clip."""
+    one = _bundle(tmp_path / "one", reference=b"same-clip")
+    two = _bundle(tmp_path / "two", reference=b"same-clip")
+    import os
+
+    stat = (one / "model.pth").stat()
+    os.utime(two / "model.pth", (stat.st_atime, stat.st_mtime))
+
+    assert bundle_version(one) == bundle_version(two)
