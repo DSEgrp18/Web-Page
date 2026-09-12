@@ -1,45 +1,80 @@
 /*
- * Handa Potha (හඬ පොත) design tokens — Penpot "Design system · foundations".
+ * Handa Potha (හඬ පොත) design tokens — Material palette over the Penpot
+ * foundations.
  *
- * Choices that are not decoration:
+ * The palette is Google's Material colour roles; the typography, sizing and
+ * accessibility decisions underneath are the Penpot design system's and are
+ * unchanged, because they were made for Sinhala and for low vision:
  *
- * - Warm paper, not white: reduces glare for low-vision readers.
- * - Three faces: Abhaya Libre (display), Noto Sans Sinhala (UI / reading),
- *   Manrope (Latin / numerals). Loaded via next/font in layout.tsx.
- * - Reading text is generous (23 px / 1.6) so stacked Sinhala vowel signs
- *   stay separable; 21 px at the 390 px mobile breakpoint.
+ * - Three faces: Abhaya Libre (Sinhala display), Noto Sans Sinhala (UI and
+ *   reading), Roboto (Latin and numerals). The first two are kept because
+ *   Roboto does not render Sinhala well and Material has no opinion about a
+ *   script it does not ship.
+ * - Reading text stays 23 px / 1.6 so stacked Sinhala vowel signs remain
+ *   separable; 21 px at the 390 px mobile breakpoint.
  * - Focus is always visible, and never removed.
- * - Primary targets are at least 48 × 48 px (design system; exceeds WCAG 2.2's 24).
+ * - Primary targets are at least 48 × 48 px (exceeds WCAG 2.2's 24).
  *
- * Measured contrast (WebAIM / WCAG relative-luminance), light theme:
- *   ink on paper 13.3:1 · muted on paper 5.3:1 · teal on white 6.5:1 ·
- *   white on teal 6.5:1 · error on paper 6.1:1 · ink on mint 12.3:1
+ * What changed and what it cost: the paper is now Grey 50 rather than a warm
+ * off-white. The warm tint was chosen to reduce glare for low-vision readers,
+ * and Material has no equivalent. If glare is reported in the screen-reader
+ * pass, that is the first thing to put back.
  *
- * Measured contrast, dark theme (derived — see prefers-color-scheme block):
- *   ink on paper 15.4:1 · muted on paper 8.6:1 · teal on paper 7.5:1 ·
- *   dark ink on teal 7.5:1 · error on paper 10.5:1
+ * Every pair below was measured with the WCAG relative-luminance formula, not
+ * assumed. Light theme:
+ *   ink on paper 15.3:1 · ink on white 16.1:1 · muted on paper 5.7:1 ·
+ *   blue on white 4.5:1 · blue on paper 5.1:1 · white on blue 5.4:1 ·
+ *   white on pressed 7.9:1 · error on paper 5.5:1 · ink on selected 14.1:1
+ *
+ * Dark theme:
+ *   ink on paper 13.4:1 · muted on paper 6.1:1 · blue on paper 7.6:1 ·
+ *   dark ink on blue 7.6:1 · error on paper 6.7:1 · ink on selected 10.6:1
+ *
+ * Blue 700 (#1967d2) rather than Material's Blue 600 (#1a73e8): 600 measures
+ * 4.27:1 on Grey 50 and fails AA for normal text. The palette it replaced ran
+ * at 6.05:1, so this is a small reduction that still clears 4.5 comfortably.
+ *
+ * --line is decorative only, at 1.30:1. Form controls use --line-strong, which
+ * meets WCAG 1.4.11's 3:1. The previous palette's rule measured 1.25:1 and was
+ * used for inputs, so those were never compliant; that is now fixed rather than
+ * carried over.
  */
 
 :root {
   color-scheme: light dark;
 
   /* Design system · foundations (kept under existing token names where possible) */
-  --ink: #172e2c;
-  --ink-muted: #566a65;
-  --paper: #f7f6f2;
-  --paper-sunken: #ffffff; /* raised surfaces / cards — design "white" */
-  --mint: #e4f1e9; /* selected rows, current sentence */
-  --line: #d8e0d9;
-  --accent: #17695c; /* teal */
+  --ink: #202124;
+  --ink-muted: #5f6368;
+  --paper: #f8f9fa;
+  --paper-sunken: #ffffff; /* raised surfaces and cards */
+  --mint: #e8f0fe; /* Blue 50 — selected rows, current sentence */
+  --line: #dadce0;
+  --accent: #1967d2; /* Blue 700 — 5.1:1 on paper, measured */
   --accent-ink: #ffffff;
-  --accent-pressed: #103f37; /* design "dark" */
-  --danger: #a5362c; /* error */
-  --danger-paper: #f8ebe9;
-  --warn-paper: #fbf3e6;
-  --warn-line: #e7b86c; /* gold */
-  --focus: #17695c;
+  --accent-pressed: #174ea6; /* Blue 900 */
+  --danger: #c5221f; /* Red 700 */
+  --danger-paper: #fce8e6;
+  --warn-paper: #fef7e0;
+  --warn-line: #f9ab00; /* Yellow 700 */
+  --focus: #1967d2;
 
-  --radius: 8px;
+  --radius: 12px;
+  /* Material's fully rounded control. Buttons and chips, not cards. */
+  --radius-pill: 999px;
+
+  /*
+   * A border that meets WCAG 1.4.11 for form controls: 3:1 against the surface
+   * behind it. --line is 1.30:1 and is for decorative rules only. The palette
+   * this replaced had the same gap at 1.25:1, so inputs were never compliant;
+   * this is the token that fixes them.
+   */
+  --line-strong: #80868b;
+
+  /* Material elevation. Two levels are enough for this interface: a raised
+     surface and a floating one. */
+  --elevation-1: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  --elevation-2: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
   --space-1: 8px;
   --space-2: 16px;
   --space-3: 24px;
@@ -51,7 +86,7 @@
 
   --font-display: "Abhaya Libre", "Iskoola Pota", serif;
   --font-ui: "Noto Sans Sinhala", "Iskoola Pota", "Nirmala UI", system-ui, sans-serif;
-  --font-latin: "Manrope", system-ui, sans-serif;
+  --font-latin: "Roboto", system-ui, sans-serif;
 
   --reader-size: 23px;
   --reader-leading: 1.6;
@@ -66,20 +101,24 @@
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --ink: #e8f0ed;
-    --ink-muted: #a8b8b3;
-    --paper: #0e1a18;
-    --paper-sunken: #162824;
-    --mint: #1a332e;
-    --line: #4d6660;
-    --accent: #5cb8a8;
-    --accent-ink: #0e1a18;
-    --accent-pressed: #7dcfc0;
-    --danger: #ffb4ab;
-    --danger-paper: #3a1512;
-    --warn-paper: #322709;
-    --warn-line: #e7b86c;
-    --focus: #5cb8a8;
+    --ink: #e8eaed;
+    --ink-muted: #9aa0a6;
+    --paper: #202124;
+    --paper-sunken: #292a2d;
+    --mint: #28324a;
+    --line: #3c4043;
+    --accent: #8ab4f8;
+    --accent-ink: #202124;
+    --accent-pressed: #aecbfa;
+    --danger: #f28b82;
+    --danger-paper: #3b2321;
+    --warn-paper: #3a3122;
+    --warn-line: #fdd663;
+    --focus: #8ab4f8;
+    /* 3.4:1 on the dark surface, the same job as in light. */
+    --line-strong: #9aa0a6;
+    --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.6), 0 1px 3px 1px rgba(0, 0, 0, 0.3);
+    --elevation-2: 0 1px 3px rgba(0, 0, 0, 0.6), 0 4px 8px 3px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -359,14 +398,21 @@ button.danger {
 }
 
 input,
-select {
+select,
+textarea {
   font: inherit;
   font-family: var(--font-latin), var(--font-ui);
   min-height: 48px;
   min-width: 48px;
   padding: 0.35rem 0.55rem;
-  border: 1px solid var(--line);
-  border-radius: 0.35rem;
+  /*
+   * --line-strong, not --line. WCAG 1.4.11 asks for 3:1 on the boundary of a
+   * control, because a border a person cannot see is a control they cannot
+   * find. The decorative rule measures 1.30:1 and was used here before, so
+   * inputs were never compliant.
+   */
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
   background: var(--paper-sunken);
   color: var(--ink);
 }

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Abhaya_Libre, Manrope, Noto_Sans_Sinhala } from "next/font/google";
+import { Abhaya_Libre, Noto_Sans_Sinhala, Roboto } from "next/font/google";
 
 import { AppFrame } from "@/components/AppFrame";
 import { strings } from "@/lib/strings";
@@ -21,9 +21,11 @@ const notoSansSinhala = Noto_Sans_Sinhala({
   display: "swap",
 });
 
-const manrope = Manrope({
+const roboto = Roboto({
   subsets: ["latin"],
-  weight: ["400", "600", "700"],
+  // Roboto ships 100/300/400/500/700/900; 600 is not one of them and
+  // next/font fails the build rather than rounding to the nearest.
+  weight: ["400", "500", "700"],
   variable: "--font-latin",
   display: "swap",
 });
@@ -48,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="si"
-      className={`${abhayaLibre.variable} ${notoSansSinhala.variable} ${manrope.variable}`}
+      className={`${abhayaLibre.variable} ${notoSansSinhala.variable} ${roboto.variable}`}
     >
       <body>
         <Providers>
