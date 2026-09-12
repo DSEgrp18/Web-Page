@@ -26,6 +26,7 @@ from sinhala_reader.security import ORIGINS_ENV
 from sinhala_reader.storage import InMemoryStore
 
 READER_UI = "http://localhost:3000"
+READER_HEADER_NAME = "x-reader-user"
 
 
 def app_with_origins(monkeypatch: pytest.MonkeyPatch, value: str | None) -> TestClient:
@@ -105,3 +106,47 @@ def test_readiness_says_when_any_website_can(monkeypatch: pytest.MonkeyPatch) ->
     # A wildcard plus header identity means any page can read any reader's
     # documents. That must be stated, not left to be discovered.
     assert any("Any website" in note for note in limitations)
+
+
+def test_the_browser_may_send_a_range_and_read_what_came_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Partial PDF reads are cross-origin, so both halves need CORS.
+
+    The preflight has to allow `Range`, or pdf.js never sends one and falls
+    back to downloading whole books. And `Content-Range` has to be exposed, or
+    the response header exists on the wire but not to the page, and pdf.js
+    cannot tell which bytes it received.
+    """
+    client = app_with_origins(monkeypatch, READER_UI)
+    preflight = client.options(
+        "/documents/doc_1/file",
+        headers={
+            "Origin": READER_UI,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "range",
+        },
+    )
+    assert preflight.status_code == 200
+    assert "range" in preflight.headers["access-control-allow-headers"].lower()
+
+    exposed = client.get("/readiness", headers={"Origin": READER_UI}).headers[
+        "access-control-expose-headers"
+    ]
+    assert "Content-Range" in exposed
+    assert "Accept-Ranges" in exposed
+
+
+def test_a_book_can_be_renamed_from_the_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PATCH is not in the CORS default set, and renaming is a PATCH."""
+    client = app_with_origins(monkeypatch, READER_UI)
+    preflight = client.options(
+        "/documents/doc_1",
+        headers={
+            "Origin": READER_UI,
+            "Access-Control-Request-Method": "PATCH",
+            "Access-Control-Request-Headers": "content-type," + READER_HEADER_NAME,
+        },
+    )
+    assert preflight.status_code == 200
+    assert "PATCH" in preflight.headers["access-control-allow-methods"]

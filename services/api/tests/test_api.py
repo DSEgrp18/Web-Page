@@ -603,3 +603,52 @@ def test_another_reader_never_appears_in_your_reading_positions(
     # The intruder has no documents at all, so the merge must not leak a
     # position keyed by a document id they cannot see.
     assert client.get("/documents", headers=as_reader(client, OTHER_READER)).json() == []
+
+
+def test_the_pdf_is_served_in_ranges_so_a_page_is_not_a_whole_book(
+    client: TestClient, book: bytes
+) -> None:
+    """pdf.js opens a book by reading its end, then only the page it needs.
+
+    Without this, showing page 1 of a 50 MB scan downloads 50 MB, and so does
+    drawing a thumbnail in the library.
+    """
+    document_id = upload(client, book).json()["document_id"]
+    path = f"/documents/{document_id}/file"
+
+    whole = client.get(path, headers=as_reader(client))
+    assert whole.status_code == 200
+    # Advertised even on a full response, because pdf.js checks for it before
+    # it will attempt partial loading at all.
+    assert whole.headers["accept-ranges"] == "bytes"
+
+    part = client.get(path, headers={**as_reader(client), "Range": "bytes=0-9"})
+    assert part.status_code == 206
+    assert part.content == book[:10]
+    assert part.headers["content-range"] == f"bytes 0-9/{len(book)}"
+
+    # `bytes=-N` is how the cross-reference table at the end is fetched.
+    tail = client.get(path, headers={**as_reader(client), "Range": "bytes=-16"})
+    assert tail.status_code == 206
+    assert tail.content == book[-16:]
+
+    # Open-ended: everything from here on.
+    rest = client.get(path, headers={**as_reader(client), "Range": "bytes=5-"})
+    assert rest.status_code == 206
+    assert rest.content == book[5:]
+
+
+def test_an_unusable_range_serves_the_whole_file_rather_than_failing(
+    client: TestClient, book: bytes
+) -> None:
+    """A strange header should make the page slower, not broken.
+
+    RFC 9110 allows ignoring a Range that cannot be satisfied, and 200 with the
+    whole file is a correct answer to the request.
+    """
+    document_id = upload(client, book).json()["document_id"]
+    path = f"/documents/{document_id}/file"
+    for header in ("bytes=99999999-", "bytes=10-5", "kilometres=0-3", "bytes=abc", "bytes=0-1,5-6"):
+        response = client.get(path, headers={**as_reader(client), "Range": header})
+        assert response.status_code == 200, header
+        assert response.content == book, header
