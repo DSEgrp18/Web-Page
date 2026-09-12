@@ -47,6 +47,42 @@ Maintain two clearly distinguished modes:
 
 Do not claim full document accessibility when illustrations, equations, or reading order have not been handled. Announce unsupported content and use reviewed descriptions where available.
 
+### Structure may be inferred by a model; words may not
+
+Read mode's rule governs **the words**, not the layout. A page is not prose: a
+table of contents, a figure caption, a heading, an address, and a running header
+are different kinds of thing, and flattening them into one stream produces both
+mis-structured narration and incorrect number reading. A number cannot be read
+correctly without knowing what contains it — `1.1` is a decimal in a sentence
+and a section number in a heading, and `1764` is a year, not a quantity.
+
+An LLM may therefore be used to determine **structure over text already
+extracted**: block roles (heading and level, paragraph, caption, list item,
+table cell, contents row, address, date), reading order, and block boundaries.
+It must reference the extracted spans rather than emit prose.
+
+This is permitted only because it is verifiable, and the verification is
+mandatory, not advisory:
+
+- Reassemble the model's output and compare it to the extraction it was given.
+  It must match character for character, ignoring whitespace. **A single
+  altered, invented, or dropped character rejects the whole page**, which then
+  falls back to deterministic structure and is marked `needs_review`.
+- Structure is provenance-bearing like any other extraction stage: record the
+  provider, model, prompt version, and settings, and include them in the
+  document version and in every affected cache key.
+- Structure inference is optional and configurable. The deterministic path must
+  remain and must stay correct enough to ship without a provider, because it is
+  what runs when the provider is unavailable, unaffordable, or wrong.
+- Sending a reader's document to an external model is external processing:
+  disclose it, apply page and cost limits, and keep uploads out of provider
+  training by configuration and contract.
+
+What remains forbidden is unchanged and is the point of the rule: a model must
+never supply, correct, complete, or smooth the words a reader hears as the
+document. A sighted proofreader catches an invented date; a blind student
+cannot.
+
 ## Proposed architecture
 
 - Frontend: Next.js, React, and TypeScript progressive web app.
@@ -147,6 +183,9 @@ If the checkpoint contains optimizer/training state, consider creating a separat
 3. Extract embedded text and detect garbled output or legacy Sinhala font encodings.
 4. Run Sinhala OCR on image-based or unusable pages. Benchmark a baseline such as Tesseract on representative pages.
 5. Recover reading order, headings, paragraphs, and repeated headers/footers.
+   Structure may be inferred by a model under the verification rule above;
+   captions, contents rows, and headings are separate blocks, never spliced
+   into the sentence they sit beside.
 6. Preserve original extraction, corrected display text, and separate spoken text.
 7. Retain page index, printed page label when available, bounding boxes, and extraction provenance.
 8. Flag uncertain extraction accessibly. OCR scores are not calibrated correctness probabilities.
