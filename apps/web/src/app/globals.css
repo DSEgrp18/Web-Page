@@ -181,6 +181,23 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/*
+ * `hidden` must actually hide.
+ *
+ * The browser's own stylesheet says `[hidden] { display: none }`, but *any*
+ * author rule that sets `display` beats it — author styles outrank the UA
+ * sheet regardless of specificity. So `.panel { display: grid }` silently
+ * defeats `hidden={!open}` on that panel, and the element is painted forever
+ * with no error anywhere: the attribute is set correctly, React is behaving,
+ * and the thing simply will not go away.
+ *
+ * That is exactly what happened to the settings panel. One rule here so it
+ * cannot happen again to the next component that toggles with `hidden`.
+ */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--paper);
@@ -1723,10 +1740,6 @@ textarea {
   background: var(--panel);
   border-inline-start: 1px solid var(--hair);
   box-shadow: var(--shadow-3);
-}
-
-.assistant[data-open="false"] {
-  display: none;
 }
 
 .assistant-head {
