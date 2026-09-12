@@ -1567,3 +1567,75 @@ label {
 .sentence[data-role="list_item"] .sentence-text {
   padding-inline-start: var(--space-2);
 }
+
+/*
+ * The study panel: asking without leaving the book.
+ *
+ * In the DOM it follows the sentences, so tab order matches reading order. On a
+ * wide screen it is painted beside them; at phone width it stays where it is in
+ * the flow, because a drawer over the text is one more thing to dismiss with a
+ * screen reader open.
+ */
+
+.study-panel {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+
+.study-panel-toggle {
+  min-height: 48px;
+}
+
+.study-panel-body {
+  margin-top: var(--space-2);
+  background: var(--paper-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+
+.study-panel-body textarea {
+  width: 100%;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+}
+
+.study-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+/* Empty until an answer arrives; no margin then, so the panel does not carry a
+   gap where nothing is. */
+.study-panel-result:not(:empty) {
+  margin-top: var(--space-3);
+}
+
+/*
+ * Beside the book, once there is room for both. 900px is where two columns stop
+ * squeezing the reading measure — reading text is 23px, and CLAUDE.md's
+ * typography choices are not worth trading for a layout.
+ */
+@media (min-width: 900px) {
+  .reader-page:has(.study-panel[data-open="true"]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 26rem);
+    gap: var(--space-4);
+    align-items: start;
+  }
+  .reader-page:has(.study-panel[data-open="true"]) > *:not(.study-panel) {
+    grid-column: 1;
+  }
+  .study-panel[data-open="true"] {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    position: sticky;
+    top: var(--space-2);
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+  }
+}

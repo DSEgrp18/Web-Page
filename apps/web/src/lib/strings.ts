@@ -144,6 +144,14 @@ export const strings = {
   // paragraph is not announced, because announcing "paragraph" before every
   // sentence of a book is noise, and unknown is not announced either, because
   // it reads exactly as prose.
+  // The study panel: asking without leaving the book.
+  studyPanelToggle: "පොත ගැන අසන්න",
+  closePanel: "වසන්න",
+  /** Said after a citation moves the reader, because the move is not visible. */
+  citationOpened: "උපුටා ගත් වාක්‍යයට ගෙන යන ලදි.",
+  /** A citation into text that has since changed. Saying nothing looks broken. */
+  citationUnavailable: "එම වාක්‍යය මෙම පිටුවේ තවදුරටත් නැත.",
+
   roleHeading: "මාතෘකාව",
   roleCaption: "රූප සටහන් විස්තරය",
   roleContentsRow: "පටුන",
