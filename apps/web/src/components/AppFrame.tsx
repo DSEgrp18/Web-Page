@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
 import { useReader } from "@/components/ReaderProvider";
@@ -20,20 +21,34 @@ export function AppFrame({ children }: { children: ReactNode }) {
       <a className="skip-link" href="#main">
         අන්තර්ගතයට යන්න
       </a>
-      <div className="shell">
-        <header className="masthead">
-          <div>
-            <h1>{strings.appName}</h1>
-            <p>{strings.appTagline}</p>
-          </div>
-          {owner ? <IdentityBadge /> : null}
-        </header>
-        <main id="main">
-          {/* The identity comes from an external store, so a returning reader
+      <div className="app-shell">
+        <aside className="app-sidebar" aria-label={strings.appName}>
+          <Link className="brand" href="/">
+            <span className="brand-name">{strings.appName}</span>
+            <span className="brand-tagline">{strings.appTagline}</span>
+          </Link>
+          <nav aria-label={strings.appName}>
+            <Link className="sidebar-link" href="/">
+              {strings.libraryHeading}
+            </Link>
+          </nav>
+          <p className="sidebar-note">{strings.appTagline}</p>
+        </aside>
+
+        <div className="app-content">
+          <header className="masthead">
+            <Link className="mobile-brand" href="/">
+              {strings.appName}
+            </Link>
+            {owner ? <IdentityBadge /> : null}
+          </header>
+          <main id="main" className="page-content">
+            {/* The identity comes from an external store, so a returning reader
               gets their own screen in the first client render rather than a
               flash of the sign-in form stealing the announcement. */}
-          {owner ? children : <IdentityForm />}
-        </main>
+            {owner ? children : <IdentityForm />}
+          </main>
+        </div>
       </div>
     </>
   );
@@ -42,8 +57,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
 function IdentityBadge() {
   const { owner, setOwner } = useReader();
   return (
-    <p className="row">
-      <span>{owner}</span>
+    <p className="identity-badge">
+      <span className="identity-name">{owner}</span>
       <button type="button" onClick={() => setOwner("")}>
         {strings.identityChange}
       </button>
@@ -59,6 +74,7 @@ function IdentityForm() {
 
   return (
     <form
+      className="identity-form panel"
       onSubmit={(event) => {
         event.preventDefault();
         if (value.trim()) setOwner(value);
