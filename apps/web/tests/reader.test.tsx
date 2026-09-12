@@ -276,6 +276,34 @@ describe("coming back", () => {
   });
 });
 
+describe("bookmarking", () => {
+  it("saves the playing sentence and offers a reversible undo", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    openReader(server);
+
+    await user.click(await screen.findByRole("button", { name: FIRST }));
+    const bookmark = await screen.findByRole("button", { name: strings.bookmarkSentence(1, 1) });
+    await user.click(bookmark);
+
+    await waitFor(() => expect(server.bookmarks).toHaveLength(1));
+    expect(await screen.findByRole("button", { name: strings.undoBookmark })).toBeTruthy();
+    expect(politeText()).toContain(strings.bookmarkSaved);
+
+    await user.click(screen.getByRole("button", { name: strings.undoBookmark }));
+    await waitFor(() => expect(server.bookmarks).toEqual([]));
+  });
+
+  it("opens a bookmarked sentence without playing it", async () => {
+    const server = new FakeServer({ books: [book()] });
+    renderApp(<Reader documentId="doc-1" bookmarkSegmentId="0001-s0" />, server);
+
+    const sentence = await screen.findByRole("button", { name: ON_PAGE_TWO });
+    await waitFor(() => expect(sentence.getAttribute("aria-current")).toBe("true"));
+    expect(playCalls).toHaveLength(0);
+  });
+});
+
 describe("moving between pages", () => {
   it("moves focus to the heading so the change is noticed", async () => {
     const user = userEvent.setup();

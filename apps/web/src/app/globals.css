@@ -689,6 +689,24 @@ label {
   border-color: transparent;
 }
 
+.bookmark-toast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--mint);
+  color: var(--accent-pressed);
+}
+
+.bookmark-toast p {
+  margin: 0;
+  font-weight: 700;
+}
+
 /* -- sentences ----------------------------------------------------------- */
 
 .sentences {

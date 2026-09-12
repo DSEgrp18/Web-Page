@@ -8,7 +8,7 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
 import { messageFor, strings } from "@/lib/strings";
-import type { DocumentDetail, Page, Progress } from "@/lib/types";
+import type { Bookmark, DocumentDetail, Page, Progress } from "@/lib/types";
 import { usePlayer } from "@/lib/usePlayer";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -29,7 +29,14 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
  * element navigation. Shortcuts can be added later, scoped to the player and
  * tested with a real screen reader — not guessed at now.
  */
-export function Reader({ documentId }: { documentId: string }) {
+export function Reader({
+  documentId,
+  bookmarkSegmentId,
+}: {
+  documentId: string;
+  /** From a bookmarks link; it is cued but never played automatically. */
+  bookmarkSegmentId?: string;
+}) {
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
 
@@ -40,11 +47,14 @@ export function Reader({ documentId }: { documentId: string }) {
   const [settledIndex, setSettledIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<Progress | null>(null);
+  const [bookmarkSaving, setBookmarkSaving] = useState(false);
+  const [undoBookmark, setUndoBookmark] = useState<Bookmark | null>(null);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   /** Focus is moved on navigation, but not on arrival. */
   const navigatedRef = useRef(false);
   const announcedPlaceholderRef = useRef(false);
+  const cuedBookmarkRef = useRef<string | null>(null);
 
   const fail = useCallback(
     (cause: unknown) => {
@@ -69,6 +79,11 @@ export function Reader({ documentId }: { documentId: string }) {
         return;
       }
       try {
+        if (bookmarkSegmentId) {
+          const segment = await api.getSegment(documentId, bookmarkSegmentId);
+          if (!cancelled) setPageIndex(segment.page_index);
+          return;
+        }
         const progress = await api.getProgress(documentId);
         if (cancelled) return;
         setSaved(progress);
@@ -88,7 +103,7 @@ export function Reader({ documentId }: { documentId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [api, documentId, fail]);
+  }, [api, documentId, bookmarkSegmentId, fail]);
 
   // -- the current page --------------------------------------------------
 
@@ -148,6 +163,27 @@ export function Reader({ documentId }: { documentId: string }) {
     stop();
   }, [pageIndex, stop]);
 
+  // A bookmark opens the correct page and identifies its sentence, but it
+  // never starts speaking by itself. This is deliberately separate from the
+  // page fetch so the player only receives an id it can resolve on this page.
+  useEffect(() => {
+    if (
+      !bookmarkSegmentId ||
+      cuedBookmarkRef.current === bookmarkSegmentId ||
+      !segments.some((segment) => segment.segment_id === bookmarkSegmentId)
+    ) {
+      return;
+    }
+    cuedBookmarkRef.current = bookmarkSegmentId;
+    player.cue(bookmarkSegmentId, 0, false);
+  }, [bookmarkSegmentId, player, segments]);
+
+  useEffect(() => {
+    if (!undoBookmark) return;
+    const timer = window.setTimeout(() => setUndoBookmark(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [undoBookmark]);
+
   useEffect(() => {
     if (player.realModel !== false || announcedPlaceholderRef.current) return;
     announcedPlaceholderRef.current = true;
@@ -179,6 +215,44 @@ export function Reader({ documentId }: { documentId: string }) {
     },
     [book, pageIndex],
   );
+
+  const currentSentenceIndex = segments.findIndex(
+    (segment) => segment.segment_id === player.currentId,
+  );
+  const bookmarkLabel =
+    currentSentenceIndex >= 0
+      ? strings.bookmarkSentence(pageIndex + 1, currentSentenceIndex + 1)
+      : strings.bookmarkCurrentSentence;
+
+  const addBookmark = useCallback(async () => {
+    if (!player.currentId) return;
+    setBookmarkSaving(true);
+    try {
+      // The API updates an existing bookmark at the same sentence. Only a new
+      // record gets Undo: deleting after an update would discard a place the
+      // reader had already kept.
+      const existing = await api.listBookmarks(documentId);
+      const wasAlreadySaved = existing.some((bookmark) => bookmark.segment_id === player.currentId);
+      const bookmark = await api.addBookmark(documentId, player.currentId);
+      say(wasAlreadySaved ? strings.bookmarkUpdated : `${strings.bookmarkSaved} ${strings.undo}`);
+      setUndoBookmark(wasAlreadySaved ? null : bookmark);
+    } catch (cause) {
+      fail(cause);
+    } finally {
+      setBookmarkSaving(false);
+    }
+  }, [api, documentId, fail, player.currentId, say]);
+
+  const undoSavedBookmark = useCallback(async () => {
+    if (!undoBookmark) return;
+    try {
+      await api.deleteBookmark(documentId, undoBookmark.bookmark_id);
+      setUndoBookmark(null);
+      say(strings.bookmarkRemoved);
+    } catch (cause) {
+      fail(cause);
+    }
+  }, [api, documentId, fail, say, undoBookmark]);
 
   if (error && !book) {
     return <ErrorNotice message={error} onRetry={() => window.location.reload()} />;
@@ -274,7 +348,22 @@ export function Reader({ documentId }: { documentId: string }) {
         </div>
       ) : null}
 
-      <PlayerBar player={player} disabled={segments.length === 0} />
+      {undoBookmark ? (
+        <div className="bookmark-toast" role="group" aria-label={strings.bookmarksHeading}>
+          <p>{strings.bookmarkSaved}</p>
+          <button type="button" onClick={() => void undoSavedBookmark()}>
+            {strings.undoBookmark}
+          </button>
+        </div>
+      ) : null}
+
+      <PlayerBar
+        player={player}
+        disabled={segments.length === 0}
+        bookmarkLabel={bookmarkLabel}
+        bookmarkSaving={bookmarkSaving}
+        onBookmark={() => void addBookmark()}
+      />
     </div>
   );
 }
@@ -369,9 +458,15 @@ function PageNotes({ page }: { page: Page }) {
 function PlayerBar({
   player,
   disabled,
+  bookmarkLabel,
+  bookmarkSaving,
+  onBookmark,
 }: {
   player: ReturnType<typeof usePlayer>;
   disabled: boolean;
+  bookmarkLabel: string;
+  bookmarkSaving: boolean;
+  onBookmark: () => void;
 }) {
   const speedId = useId();
   const playing = player.status === "playing";
@@ -393,6 +488,13 @@ function PlayerBar({
         </button>
         <button type="button" onClick={player.stop} disabled={disabled || player.status === "idle"}>
           {strings.stop}
+        </button>
+        <button
+          type="button"
+          onClick={onBookmark}
+          disabled={disabled || !player.currentId || bookmarkSaving}
+        >
+          {bookmarkSaving ? strings.pageLoading : bookmarkLabel}
         </button>
         <label htmlFor={speedId} className="visually-hidden">
           {strings.speed}
