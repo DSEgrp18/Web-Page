@@ -141,10 +141,21 @@ export function Library() {
   }, [api, pendingDelete, refresh, say, fail]);
 
   return (
-    <>
+    <div className="library-page">
       {error ? <ErrorNotice message={error} onDismiss={() => setError(null)} /> : null}
 
-      <section aria-labelledby="upload-heading" className="panel">
+      <header className="library-hero">
+        <div>
+          <p className="eyebrow">{strings.appName}</p>
+          <h1>{strings.libraryHeading}</h1>
+          <p className="hint">{strings.appTagline}</p>
+        </div>
+        <a className="button primary library-add-link" href="#upload-heading">
+          + {strings.uploadHeading}
+        </a>
+      </header>
+
+      <section aria-labelledby="upload-heading" className="panel upload-panel">
         <h2 id="upload-heading">{strings.uploadHeading}</h2>
         <form ref={formRef} onSubmit={upload}>
           <div className="field">
@@ -167,12 +178,16 @@ export function Library() {
         </form>
       </section>
 
-      <section aria-labelledby="library-heading">
+      <section aria-labelledby="library-heading" className="library-books">
         <h2 id="library-heading">{strings.libraryHeading}</h2>
-        {documents === null ? null : documents.length === 0 ? (
-          <p>{strings.libraryEmpty}</p>
+        {documents === null ? (
+          <p className="hint" aria-busy="true">
+            {strings.pageLoading}
+          </p>
+        ) : documents.length === 0 ? (
+          <EmptyLibrary />
         ) : (
-          <ul className="stack">
+          <ul className="book-grid">
             {documents.map((book) => (
               <DocumentRow key={book.document_id} book={book} onDelete={requestDelete} />
             ))}
@@ -190,7 +205,21 @@ export function Library() {
         onConfirm={() => void confirmDelete()}
         returnFocusRef={deleteTriggerRef}
       />
-    </>
+    </div>
+  );
+}
+
+function EmptyLibrary() {
+  return (
+    <div className="library-empty">
+      <div className="book-cover book-cover-empty" aria-hidden="true">
+        <span />
+      </div>
+      <p>{strings.libraryEmpty}</p>
+      <a className="button primary" href="#upload-heading">
+        + {strings.uploadHeading}
+      </a>
+    </div>
   );
 }
 
@@ -204,26 +233,31 @@ function DocumentRow({
   const ready = book.version !== null;
   const state = ready ? "succeeded" : "running";
   return (
-    <li>
-      <h3>{book.filename}</h3>
-      <p className="hint">
-        {jobStateMessage(state)}
-        {ready ? ` · ${strings.pageCount(book.page_count)}` : null}
-      </p>
-      <p className="row">
-        {ready ? (
-          <Link className="button" href={`/documents/${book.document_id}`}>
-            {strings.open}
-            {/* The name is inside the link so a screen reader listing links
+    <li className="book-card">
+      <div className="book-cover" aria-hidden="true">
+        <span />
+      </div>
+      <div className="book-card-body">
+        <h3>{book.filename}</h3>
+        <p className="hint">
+          {jobStateMessage(state)}
+          {ready ? ` · ${strings.pageCount(book.page_count)}` : null}
+        </p>
+        <p className="row book-actions">
+          {ready ? (
+            <Link className="button primary" href={`/documents/${book.document_id}`}>
+              {strings.open}
+              {/* The name is inside the link so a screen reader listing links
                 hears which book each one opens, not five identical "open"s. */}
+              <span className="visually-hidden"> — {book.filename}</span>
+            </Link>
+          ) : null}
+          <button type="button" onClick={(event) => onDelete(book, event.currentTarget)}>
+            {strings.deleteBook}
             <span className="visually-hidden"> — {book.filename}</span>
-          </Link>
-        ) : null}
-        <button type="button" onClick={(event) => onDelete(book, event.currentTarget)}>
-          {strings.deleteBook}
-          <span className="visually-hidden"> — {book.filename}</span>
-        </button>
-      </p>
+          </button>
+        </p>
+      </div>
     </li>
   );
 }
