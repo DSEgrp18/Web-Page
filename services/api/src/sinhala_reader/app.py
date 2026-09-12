@@ -84,6 +84,7 @@ from .storage import (
     is_durable,
     new_id,
 )
+from .structure import structure_limitations, structure_mode
 
 #: Names the audio a placeholder in the one place a client cannot miss it.
 REAL_MODEL_HEADER = "X-Reader-Real-Model"
@@ -282,10 +283,12 @@ def create_app(deps: Deps | None = None) -> FastAPI:
                 "Any website may call this API from a browser. With header identity that "
                 "means any page can read any reader's documents."
             )
+        limitations.extend(structure_limitations())
         return {
             "alive": report.alive,
             "serving": report.serving,
             "readiness": report.readiness,
+            "structure": structure_mode(),
             "real_model": deps.adapter.is_real_model,
             # Not `adapter.model_version`: that loads the bundle if it has not
             # been loaded, and a readiness probe that blocks for a minute and a
