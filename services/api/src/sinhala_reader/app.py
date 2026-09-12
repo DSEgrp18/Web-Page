@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sinhala_documents import DocumentRejected, check_pdf_bytes
 from sinhala_documents.answerer import answer_question
@@ -173,9 +173,15 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=origins,
-            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=[OWNER_HEADER, "Authorization", "Content-Type"],
-            expose_headers=[REAL_MODEL_HEADER],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            # `Range` has to be allowed or the preflight for a partial PDF read
+            # fails, and pdf.js falls back to fetching whole books.
+            allow_headers=[OWNER_HEADER, "Authorization", "Content-Type", "Range"],
+            # Cross-origin, a header the browser will not expose does not exist
+            # as far as the page is concerned: without `Content-Range` pdf.js
+            # cannot tell which bytes it got, and without `X-Reader-Real-Model`
+            # the reader cannot tell a placeholder tone from speech.
+            expose_headers=[REAL_MODEL_HEADER, "Content-Range", "Accept-Ranges", "Content-Length"],
             # Identity travels in a header, not a cookie. Allowing credentials
             # would let a third-party page ride along on an ambient session the
             # moment real authentication replaces the header.
@@ -383,13 +389,22 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         return _document_detail(deps.store, document_id, owner)
 
     @app.get("/documents/{document_id}/file", tags=["documents"])
-    def get_document_file(document_id: str, owner: str = Depends(require_owner)) -> Response:
-        """The PDF exactly as it was uploaded.
+    def get_document_file(
+        document_id: str, request: Request, owner: str = Depends(require_owner)
+    ) -> Response:
+        """The PDF exactly as it was uploaded, in whole or in part.
 
         The reading workspace shows the original page beside the extracted
         text, so the bytes have to reach the browser. Ownership is enforced
         here like everywhere else: another reader's document is *absent*, not
         forbidden, because a 403 on a real id confirms the id is real.
+
+        **Range requests are the point, not a nicety.** pdf.js asks for the
+        cross-reference table at the end of the file, then only the objects for
+        the page being shown. Without ranges, opening page 1 of a 50 MB scan
+        downloads 50 MB, and so does drawing its thumbnail in the library. With
+        them it downloads a few tens of kilobytes. The reader this is for is on
+        a phone, on their own data.
 
         ``inline`` rather than ``attachment``: this is rendered in a canvas by
         the page, not downloaded. And ``private, no-store`` because a shared
@@ -399,14 +414,25 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         data = deps.store.get_source(document_id)
         if data is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document.")
+
+        headers = {
+            "Content-Disposition": "inline",
+            "Cache-Control": "private, no-store",
+            # Advertised whether or not this request used one: pdf.js checks
+            # for this before it will attempt partial loading at all.
+            "Accept-Ranges": "bytes",
+        }
+        span = _byte_range(request.headers.get("range"), len(data))
+        if span is None:
+            return Response(content=data, media_type="application/pdf", headers=headers)
+
+        start, end = span
+        headers["Content-Range"] = f"bytes {start}-{end}/{len(data)}"
         return Response(
-            content=data,
+            content=data[start : end + 1],
+            status_code=status.HTTP_206_PARTIAL_CONTENT,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": "inline",
-                "Cache-Control": "private, no-store",
-                "Content-Length": str(len(data)),
-            },
+            headers=headers,
         )
 
     @app.delete(
@@ -706,6 +732,38 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         return ProgressDetail.of(progress, current_version=document.version)
 
     return app
+
+
+def _byte_range(header: str | None, size: int) -> tuple[int, int] | None:
+    """Parse one `Range: bytes=…` into inclusive offsets, or None for the lot.
+
+    Deliberately narrow. Only a single range is honoured, because that is all
+    pdf.js asks for and a multipart/byteranges response is a lot of machinery
+    for a case that does not arise here. Anything unparseable, reversed, or
+    past the end returns None, which serves the whole file — a correct answer
+    to the request, just not a partial one. RFC 9110 permits ignoring a Range
+    that cannot be satisfied, and serving 200 keeps a strange header from
+    turning into a failed page rather than a slower one.
+    """
+    if not header or not header.startswith("bytes=") or "," in header:
+        return None
+    spec = header[len("bytes=") :].strip()
+    first, _, last = spec.partition("-")
+    try:
+        if not first:
+            # `bytes=-500`: the final 500 bytes, which is how pdf.js finds the
+            # cross-reference table.
+            length = int(last)
+            if length <= 0:
+                return None
+            return max(0, size - length), size - 1
+        start = int(first)
+        end = int(last) if last else size - 1
+    except ValueError:
+        return None
+    if start > end or start >= size:
+        return None
+    return start, min(end, size - 1)
 
 
 def _document_detail(
