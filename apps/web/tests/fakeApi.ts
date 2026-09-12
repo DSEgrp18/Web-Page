@@ -76,8 +76,14 @@ export function segment(
   index: number,
   text: string,
   pageLabel: string | null = null,
+  // Defaults match the deterministic pipeline: nothing classified, which reads
+  // exactly as prose. A test that wants a heading or a caption says so.
+  role: Segment["role"] = "unknown",
+  level: number | null = null,
 ): Segment {
   return {
+    role,
+    level,
     segment_id: `${String(pageIndex).padStart(4, "0")}-s${index}`,
     index,
     page_index: pageIndex,
