@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useId, useState, type ReactNode } from "react";
 
 import { useReader } from "@/components/ReaderProvider";
@@ -15,6 +16,10 @@ import { strings } from "@/lib/strings";
  */
 export function AppFrame({ children }: { children: ReactNode }) {
   const { owner } = useReader();
+  const pathname = usePathname();
+
+  const navLinkClass = (href: string) =>
+    `sidebar-link${pathname === href ? " sidebar-link-current" : ""}`;
 
   return (
     <>
@@ -27,9 +32,12 @@ export function AppFrame({ children }: { children: ReactNode }) {
             <h1 className="brand-name">{strings.appName}</h1>
             <span className="brand-tagline">{strings.appTagline}</span>
           </Link>
-          <nav aria-label={strings.appName}>
-            <Link className="sidebar-link" href="/">
+          <nav aria-label={strings.primaryNavigation}>
+            <Link className={navLinkClass("/")} href="/">
               {strings.libraryHeading}
+            </Link>
+            <Link className={navLinkClass("/bookmarks")} href="/bookmarks">
+              {strings.bookmarksNav}
             </Link>
           </nav>
           <p className="sidebar-note">{strings.appTagline}</p>
@@ -40,6 +48,14 @@ export function AppFrame({ children }: { children: ReactNode }) {
             <Link className="mobile-brand" href="/">
               {strings.appName}
             </Link>
+            <nav className="mobile-nav" aria-label={strings.mobileNavigation}>
+              <Link className={navLinkClass("/")} href="/">
+                {strings.libraryHeading}
+              </Link>
+              <Link className={navLinkClass("/bookmarks")} href="/bookmarks">
+                {strings.bookmarksNav}
+              </Link>
+            </nav>
             {owner ? <IdentityBadge /> : null}
           </header>
           <main id="main" className="page-content">

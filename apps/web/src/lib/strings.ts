@@ -50,6 +50,8 @@ export const strings = {
 
   // -- bookmarks ---------------------------------------------------------
   bookmarksNav: "පිටු සලකුණු",
+  primaryNavigation: "ප්‍රධාන සංචාලනය",
+  mobileNavigation: "ජංගම සංචාලනය",
   bookmarksHeading: "පිටු සලකුණු",
   bookmarksIntro: "ඔබ නැවත එන්නට සලකුණු කළ තැන්.",
   bookmarksLoading: "පිටු සලකුණු ලබා ගනිමින්…",
@@ -65,6 +67,7 @@ export const strings = {
   bookmarksEmptyBody: "කියවන අතරතුර වැදගත් පිටුවක් සලකුණු කරන්න.",
   bookmarkOpen: "සලකුණු කළ තැන විවෘත කරන්න",
   bookmarkRemove: "පිටු සලකුණ ඉවත් කරන්න",
+  bookmarkRemoveNamed: (book: string, page: string) => `${book} හි ${page} පිටු සලකුණ ඉවත් කරන්න`,
   bookmarkStale: "පොත නැවත සකසා ඇති නිසා මෙම සලකුණ වෙනස් විය හැක.",
   bookmarkMissing: "මෙම සලකුණේ වාක්‍යය තවදුරටත් නොමැත.",
   bookmarkNoPage: "පිටු අංකය නොදනී",

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import RootLayout from "../src/app/layout";
 import { AppFrame } from "../src/components/AppFrame";
+import { Bookmarks } from "../src/components/Bookmarks";
 import { Library } from "../src/components/Library";
 import { Reader } from "../src/components/Reader";
 import { strings } from "../src/lib/strings";
@@ -101,6 +102,17 @@ describe("no automatically detectable violations", () => {
       libraryServer(),
     );
     await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
+  it("on the bookmarks screen", async () => {
+    const { container } = renderApp(
+      <AppFrame>
+        <Bookmarks />
+      </AppFrame>,
+      libraryServer(),
+    );
+    await screen.findByRole("heading", { name: strings.bookmarksEmptyTitle });
     expect(await violationsIn(container)).toEqual([]);
   });
 
