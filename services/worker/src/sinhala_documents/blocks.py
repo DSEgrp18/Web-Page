@@ -157,3 +157,62 @@ def verify(page_text: str, blocks: tuple[Block, ...] | list[Block]) -> Verificat
         f"the blocks do not account for the page exactly: "
         f"{len(all_invented)} character(s) added, {len(all_lost)} dropped"
     )
+
+
+def _stripped_with_positions(text: str) -> tuple[str, list[int]]:
+    """The text without whitespace, and where each kept character came from."""
+    characters: list[str] = []
+    positions: list[int] = []
+    for index, character in enumerate(text):
+        if not character.isspace():
+            characters.append(character)
+            positions.append(index)
+    return "".join(characters), positions
+
+
+def locate(
+    page_text: str, blocks: tuple[Block, ...] | list[Block]
+) -> tuple[tuple[int, int] | None, ...]:
+    """Where each block sits in the page, as offsets into ``page_text``.
+
+    Structure gives a block a role; this gives it back its place. CLAUDE.md
+    requires geometry to be retained so a sentence stays traceable to somewhere
+    on a page, and a block that has lost its offsets has lost its bounding
+    boxes with them.
+
+    Matching ignores whitespace, because the whole point of a block is that it
+    joins lines the page layout broke. A block that appears more than once —
+    a repeated heading, a one-word caption — takes the earliest occurrence not
+    already claimed by another block, so two identical blocks get two places
+    rather than both pointing at the first.
+
+    Returns ``None`` for a block that cannot be placed. After :func:`verify` has
+    passed that should not happen, and it is reported rather than raised anyway:
+    losing a bounding box is a degraded page, not an unreadable one.
+    """
+    haystack, positions = _stripped_with_positions(page_text)
+    claimed: list[tuple[int, int]] = []
+    spans: list[tuple[int, int] | None] = []
+
+    for block in blocks:
+        needle, _ = _stripped_with_positions(block.text)
+        if not needle:
+            spans.append(None)
+            continue
+
+        found: int | None = None
+        start = 0
+        while (at := haystack.find(needle, start)) != -1:
+            end = at + len(needle)
+            if not any(at < used_end and end > used_start for used_start, used_end in claimed):
+                found = at
+                break
+            start = at + 1
+
+        if found is None:
+            spans.append(None)
+            continue
+        claimed.append((found, found + len(needle)))
+        spans.append((positions[found], positions[found + len(needle) - 1] + 1))
+
+    return tuple(spans)
