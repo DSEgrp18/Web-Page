@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from sinhala_tts.normalize import MODEL_INPUT_CHAR_LIMIT, to_model_input
+from sinhala_tts.normalize import MODEL_INPUT_CHAR_LIMIT, NumberStyle, to_model_input
 from sinhala_tts.segmentation import Segment, segment_text, speakable
 
 
@@ -203,3 +203,35 @@ def test_unspeakable_segments_are_kept_but_marked() -> None:
 def test_speakable_filters_to_what_can_be_synthesised() -> None:
     segments = segment_text("මම ගෙදර යනවා. ()[]{}. ඔබ කොහෙද?")
     assert all(s.is_speakable for s in speakable(segments))
+
+
+def test_the_number_style_reaches_the_spoken_and_model_text() -> None:
+    """A heading's section number must not be read as a decimal."""
+    prose = segment_text("1.1 කාර්මික විප්ලවය")
+    heading = segment_text("1.1 කාර්මික විප්ලවය", numbers=NumberStyle.IDENTIFIER)
+    assert "දශම" in prose[0].spoken_text
+    assert "දශම" not in heading[0].spoken_text
+
+
+def test_the_style_changes_the_identity_of_a_segment() -> None:
+    """The id is derived from the model text, which the style changes.
+
+    That is the behaviour cache invalidation needs: reading the same sentence a
+    different way is different audio, and must not be served from the old entry.
+    """
+    prose = segment_text("1.1 කාර්මික විප්ලවය")
+    heading = segment_text("1.1 කාර්මික විප්ලවය", numbers=NumberStyle.IDENTIFIER)
+    assert prose[0].segment_id != heading[0].segment_id
+
+
+def test_the_limit_is_measured_in_the_style_that_will_be_spoken() -> None:
+    """Reading digits singly is longer, so sizing under prose would overflow.
+
+    A segment sized against "sixty five" and then spoken as "six five" is fine;
+    the reverse silently exceeds the model's limit, and the tokenizer truncates
+    rather than refusing.
+    """
+    text = " ".join(f"{n} වන වර්ෂය." for n in range(1000, 1040))
+    for style in (NumberStyle.PROSE, NumberStyle.IDENTIFIER):
+        for segment in segment_text(text, numbers=style):
+            assert segment.model_length <= MODEL_INPUT_CHAR_LIMIT, (style, segment.model_text)

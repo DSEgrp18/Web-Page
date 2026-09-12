@@ -151,3 +151,49 @@ def test_the_counts_are_not_truncated_with_the_report() -> None:
     assert not result
     assert "50 character(s) added" in result.reason
     assert len(result.invented) == 12
+
+
+def test_a_block_is_located_back_in_the_page() -> None:
+    """A block that has lost its offsets has lost its bounding boxes with it."""
+    from sinhala_documents.blocks import locate
+
+    spans = locate(PAGE, _good_blocks())
+    assert all(span is not None for span in spans)
+    for block, span in zip(_good_blocks(), spans, strict=True):
+        assert PAGE[span[0] : span[1]].replace("\n", " ") == block.text.replace("\n", " ")
+
+
+def test_locating_ignores_the_line_breaks_a_block_joined() -> None:
+    """Joining wrapped lines is the point of a block, not a mismatch."""
+    from sinhala_documents.blocks import locate
+
+    page = "පළමු පේළිය\nදෙවන පේළිය"
+    (span,) = locate(page, [Block(BlockRole.PARAGRAPH, "පළමු පේළිය දෙවන පේළිය")])
+    assert span == (0, len(page))
+
+
+def test_two_identical_blocks_get_two_places() -> None:
+    """Otherwise a repeated heading points twice at its first occurrence."""
+    from sinhala_documents.blocks import locate
+
+    page = "ආරම්භය\nමැද\nආරම්භය"
+    blocks = [Block(BlockRole.PARAGRAPH, "ආරම්භය"), Block(BlockRole.PARAGRAPH, "ආරම්භය")]
+    first, second = locate(page, blocks)
+    assert first != second
+    assert first[0] < second[0]
+
+
+def test_reordered_blocks_keep_their_own_places() -> None:
+    """Reading order may differ from page order; the offsets follow the page."""
+    from sinhala_documents.blocks import locate
+
+    spans = locate(PAGE, list(reversed(_good_blocks())))
+    assert [s[0] for s in spans] == sorted((s[0] for s in spans), reverse=True)
+
+
+def test_a_block_that_cannot_be_placed_is_reported_not_raised() -> None:
+    """A lost bounding box is a degraded page, not an unreadable one."""
+    from sinhala_documents.blocks import locate
+
+    (span,) = locate(PAGE, [Block(BlockRole.PARAGRAPH, "මෙය පිටුවේ නැත")])
+    assert span is None

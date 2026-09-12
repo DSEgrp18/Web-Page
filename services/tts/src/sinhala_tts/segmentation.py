@@ -38,6 +38,7 @@ from dataclasses import dataclass
 
 from .normalize import (
     MODEL_INPUT_CHAR_LIMIT,
+    NumberStyle,
     is_speakable,
     to_model_input,
     to_speech_text,
@@ -166,7 +167,14 @@ def _trim(text: str, begin: int, end: int) -> tuple[int, int]:
     return begin + lead, max(begin + lead, end - tail)
 
 
-def _split_oversized(text: str, begin: int, end: int, limit: int) -> list[tuple[int, int]]:
+def _split_oversized(
+    text: str,
+    begin: int,
+    end: int,
+    limit: int,
+    *,
+    numbers: NumberStyle = NumberStyle.PROSE,
+) -> list[tuple[int, int]]:
     """Break a sentence that is too long for the model into smaller spans.
 
     Prefers a clause boundary — a comma, semicolon or colon — and falls back to
@@ -180,7 +188,7 @@ def _split_oversized(text: str, begin: int, end: int, limit: int) -> list[tuple[
     begin, end = _trim(text, begin, end)
     if begin >= end:
         return []
-    if len(to_model_input(text[begin:end])) <= limit:
+    if len(to_model_input(text[begin:end], numbers=numbers)) <= limit:
         return [(begin, end)]
 
     # Longest prefix whose model text still fits. Bisecting rather than
@@ -190,7 +198,7 @@ def _split_oversized(text: str, begin: int, end: int, limit: int) -> list[tuple[
     best = begin + 1
     while low <= high:
         middle = (low + high) // 2
-        if len(to_model_input(text[begin:middle])) <= limit:
+        if len(to_model_input(text[begin:middle], numbers=numbers)) <= limit:
             best = middle
             low = middle + 1
         else:
@@ -211,7 +219,7 @@ def _split_oversized(text: str, begin: int, end: int, limit: int) -> list[tuple[
         cut = best
 
     first = _trim(text, begin, cut)
-    rest = _split_oversized(text, cut, end, limit) if cut < end else []
+    rest = _split_oversized(text, cut, end, limit, numbers=numbers) if cut < end else []
     return ([first] if first[1] > first[0] else []) + rest
 
 
@@ -226,31 +234,42 @@ def _segment_id(index: int, model_text: str) -> str:
     return f"{index:04d}-{digest}"
 
 
-def segment_text(text: str, *, limit: int = MODEL_INPUT_CHAR_LIMIT) -> list[Segment]:
+def segment_text(
+    text: str,
+    *,
+    limit: int = MODEL_INPUT_CHAR_LIMIT,
+    numbers: NumberStyle = NumberStyle.PROSE,
+) -> list[Segment]:
     """Split document text into segments the model can speak.
 
     Every returned segment's ``model_text`` is within ``limit``, so the caller
     never has to guard against it. Segments with nothing speakable are returned
     with ``is_speakable`` False rather than dropped, so indices and offsets
     still describe the document.
+
+    ``numbers`` travels all the way through rather than being applied at the
+    end, because it changes the *length* of the model text and the limit is
+    measured against that: "65" is two words as a quantity and three digits read
+    singly, and a segment sized under one reading can exceed the model's limit
+    under the other.
     """
     if not text.strip():
         return []
 
     spans: list[tuple[int, int]] = []
     for begin, end in _sentence_spans(text):
-        spans.extend(_split_oversized(text, begin, end, limit))
+        spans.extend(_split_oversized(text, begin, end, limit, numbers=numbers))
 
     segments: list[Segment] = []
     for index, (begin, end) in enumerate(spans):
         display = text[begin:end]
-        model_text = to_model_input(display)
+        model_text = to_model_input(display, numbers=numbers)
         segments.append(
             Segment(
                 segment_id=_segment_id(index, model_text),
                 index=index,
                 display_text=display,
-                spoken_text=to_speech_text(display),
+                spoken_text=to_speech_text(display, numbers=numbers),
                 model_text=model_text,
                 start_offset=begin,
                 end_offset=end,
