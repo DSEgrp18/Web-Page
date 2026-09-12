@@ -69,6 +69,42 @@ def test_numbers_too_large_are_read_digit_by_digit_not_dropped() -> None:
     assert to_speech_text("12345") == "එක දෙක තුන හතර පහ"
 
 
+def test_no_digit_ever_reaches_the_front_end() -> None:
+    """The invariant, stated as a property over the real defect cases.
+
+    The front end deletes digits instead of refusing them, so a digit that
+    survives normalisation is not a mispronunciation — it is silence where a
+    number should be, which a listener cannot detect.
+    """
+    cases = [
+        "2018.05.07",
+        "1.1.1",
+        "අංක 65C",
+        "10.5.2018 දින",
+        "3.14.15",
+        "1,500.50.25",
+    ]
+    for case in cases:
+        assert not any(c.isdigit() for c in to_speech_text(case)), case
+
+
+def test_a_dotted_date_keeps_its_last_part() -> None:
+    """2018.05.07 lost the 07 entirely.
+
+    _NUMBER takes "2018.05" as a decimal and its lookbehind then refuses "07"
+    because a dot precedes it, so the day reached the front end and vanished.
+    The listener heard a date with a missing part and nothing to indicate it.
+    """
+    spoken = to_speech_text("2018.05.07")
+    assert "හත" in spoken, spoken
+    assert to_model_input("2018.05.07").endswith("hatha")
+
+
+def test_a_trailing_identifier_digit_survives() -> None:
+    """අංක 65C: the digits were expanded, and would be dropped if they were not."""
+    assert not any(c.isdigit() for c in to_speech_text("අංක 65C"))
+
+
 def test_expansion_does_not_glue_the_number_to_the_next_word() -> None:
     """A regex that consumed the trailing space would recreate defect 2 here."""
     spoken = to_speech_text("පිටුව 42 බලන්න")
