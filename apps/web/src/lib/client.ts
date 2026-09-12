@@ -17,6 +17,7 @@
 import type {
   AudioClip,
   AudioManifest,
+  Bookmark,
   DocumentDetail,
   DocumentSummary,
   Job,
@@ -162,6 +163,27 @@ export class ReaderApi {
       `/documents/${encodeURIComponent(documentId)}/segments/${encodeURIComponent(
         segmentId,
       )}/audio/manifest`,
+    );
+  }
+
+  // -- bookmarks ---------------------------------------------------------
+
+  addBookmark(documentId: string, segmentId: string, note?: string): Promise<Bookmark> {
+    return this.json<Bookmark>(`/documents/${encodeURIComponent(documentId)}/bookmarks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ segment_id: segmentId, ...(note ? { note } : {}) }),
+    });
+  }
+
+  listBookmarks(documentId: string): Promise<Bookmark[]> {
+    return this.json<Bookmark[]>(`/documents/${encodeURIComponent(documentId)}/bookmarks`);
+  }
+
+  async deleteBookmark(documentId: string, bookmarkId: string): Promise<void> {
+    await this.request(
+      `/documents/${encodeURIComponent(documentId)}/bookmarks/${encodeURIComponent(bookmarkId)}`,
+      { method: "DELETE" },
     );
   }
 
