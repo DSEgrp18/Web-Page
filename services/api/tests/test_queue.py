@@ -180,7 +180,7 @@ class TestFailures:
         """
         import sinhala_reader.preparation as preparation
 
-        def explode(_source):
+        def explode(_source, **_settings):
             raise OSError("the disk went away")
 
         monkeypatch.setattr(preparation, "prepare_document", explode)
@@ -353,7 +353,7 @@ def test_a_transient_failure_is_retried_and_then_reported(
     attempts: list[int] = []
     counting = threading.Lock()
 
-    def always_fails(_source):
+    def always_fails(_source, **_settings):
         with counting:
             attempts.append(1)
         raise OSError("storage is having a moment")
