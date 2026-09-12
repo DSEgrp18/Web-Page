@@ -274,3 +274,38 @@ class BookmarkDetail(BaseModel):
             page_label=segment.page_label if segment else None,
             display_text=segment.display_text if segment else None,
         )
+
+
+# A question is a request for help with one private book, not a place to paste
+# another book. The bound keeps a single request cheap enough to answer and the
+# browser's live-region response comprehensible.
+MAX_QUESTION = 500
+
+
+class QuestionBody(BaseModel):
+    question: str = Field(min_length=1, max_length=MAX_QUESTION)
+
+
+class StudyCitation(BaseModel):
+    """The exact source and place supporting an extractive answer."""
+
+    passage_id: str
+    page_index: int
+    page_label: str | None = None
+    section: str = ""
+    segment_ids: list[str] = Field(default_factory=list)
+    quote: str
+
+
+class StudyAnswer(BaseModel):
+    """A document-grounded answer, or an explicit abstention."""
+
+    document_id: str
+    answer: str | None = Field(
+        default=None,
+        description=(
+            "An exact passage from the document. Null when the document does not support an answer."
+        ),
+    )
+    citations: list[StudyCitation] = Field(default_factory=list)
+    abstained: bool
