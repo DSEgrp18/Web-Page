@@ -50,6 +50,14 @@ export const strings = {
   changeFile: "ගොනුව වෙනස් කරන්න",
   uploadSelected: "තෝරාගත් ගොනුව",
   preparingBook: "පොත සූදානම් කරමින්…",
+  preparingStepsHeading: "පොත කියවීමට සූදානම් කරමින්",
+  preparingStepsIntro: "මෙය අවසන් වූ විට ඔබට මෙය ශබ්දයෙන් කියවිය හැක.",
+  preparingSteps: [
+    "ගොනුව පරීක්ෂා කිරීම",
+    "පිටු වල අකුරු සකස් කිරීම",
+    "වාක්‍ය ලෙස බෙදීම",
+    "හඬට සූදානම් කිරීම",
+  ],
   open: "විවෘත කරන්න",
   deleteBook: "මකන්න",
   // Penpot → Dialog · delete book

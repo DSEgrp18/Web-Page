@@ -186,6 +186,8 @@ export function Library() {
         />
       ) : documents.length === 0 ? (
         <EmptyLibrary onStart={() => setShowUpload(true)} />
+      ) : primaryBook?.version === null ? (
+        <PreparingBook book={primaryBook} />
       ) : (
         <>
           {primaryBook ? <CurrentBook book={primaryBook} /> : null}
@@ -320,6 +322,27 @@ function CurrentBook({ book }: { book: DocumentSummary }) {
       <div className="book-cover current-book-cover" aria-hidden="true">
         <span />
       </div>
+    </section>
+  );
+}
+
+function PreparingBook({ book }: { book: DocumentSummary }) {
+  return (
+    <section className="preparing-state" aria-labelledby="preparing-heading">
+      <p className="preparing-filename">{book.filename}</p>
+      <h2 id="preparing-heading">{strings.preparingStepsHeading}</h2>
+      <p className="preparing-intro">{strings.preparingStepsIntro}</p>
+      <ol className="preparing-steps">
+        {strings.preparingSteps.map((step, index) => (
+          <li key={step}>
+            <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+            <p>{step}</p>
+          </li>
+        ))}
+      </ol>
+      <p className="preparing-status" aria-live="polite">
+        {strings.preparingBook}
+      </p>
     </section>
   );
 }

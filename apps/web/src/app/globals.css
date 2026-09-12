@@ -908,6 +908,64 @@ label {
   justify-content: start;
 }
 
+.preparing-state {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 32rem;
+  margin: 1rem auto 0;
+  padding: 1.25rem;
+  border-radius: 0.85rem;
+  background: var(--paper-sunken);
+}
+
+.preparing-filename,
+.preparing-intro,
+.preparing-status {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+}
+
+.preparing-state h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.preparing-steps {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preparing-steps li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+}
+
+.preparing-steps span {
+  color: var(--accent);
+  font-family: var(--font-latin);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.preparing-steps p {
+  margin: 0;
+  color: var(--accent-pressed);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.preparing-status {
+  margin-top: 0.75rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
 /* -- bookmarks ---------------------------------------------------------- */
 
 .bookmarks-page {
