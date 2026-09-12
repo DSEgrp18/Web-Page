@@ -13,6 +13,7 @@ import pytest
 from sinhala_tts.normalize import (
     MODEL_INPUT_CHAR_LIMIT,
     NORMALIZER_VERSION,
+    NumberStyle,
     contains_sinhala,
     exceeds_model_limit,
     expand_numbers,
@@ -105,6 +106,33 @@ def test_a_trailing_identifier_digit_survives() -> None:
     assert not any(c.isdigit() for c in to_speech_text("අංක 65C"))
 
 
+def test_an_identifier_is_read_digit_by_digit_not_as_a_quantity() -> None:
+    """අංක 65C is a house number. Sixty-five is an amount the document never states."""
+    assert to_speech_text("අංක 65C", numbers=NumberStyle.IDENTIFIER) == "අංක හය පහ C"
+    assert to_speech_text("අංක 65C") == "අංක හැට පහC"
+
+
+def test_a_section_number_is_not_a_decimal() -> None:
+    """1.1 in a heading is "one one", not "one point one"."""
+    prose = to_speech_text("1.1 කාර්මික විප්ලවය")
+    heading = to_speech_text("1.1 කාර්මික විප්ලවය", numbers=NumberStyle.IDENTIFIER)
+    assert "දශම" in prose
+    assert heading == "එක එක කාර්මික විප්ලවය"
+
+
+def test_an_identifier_does_not_keep_a_full_stop_the_model_hears_as_an_ending() -> None:
+    """ "එක . එක" reaches the model as a sentence boundary inside a heading."""
+    assert "." not in to_speech_text("රූපය 1.1", numbers=NumberStyle.IDENTIFIER)
+    assert to_model_input("රූපය 1.1", numbers=NumberStyle.IDENTIFIER) == "ruupaya eka eka"
+
+
+def test_every_style_leaves_no_digit_for_the_front_end_to_delete() -> None:
+    """RAW is the exception, and says so: it is for text that is not narrated."""
+    for style in (NumberStyle.PROSE, NumberStyle.IDENTIFIER):
+        spoken = to_speech_text("2018.05.07 සහ අංක 65C", numbers=style)
+        assert not any(c.isdigit() for c in spoken), (style, spoken)
+
+
 def test_expansion_does_not_glue_the_number_to_the_next_word() -> None:
     """A regex that consumed the trailing space would recreate defect 2 here."""
     spoken = to_speech_text("පිටුව 42 බලන්න")
@@ -115,8 +143,8 @@ def test_expansion_does_not_glue_the_number_to_the_next_word() -> None:
 def test_numbers_can_be_left_alone() -> None:
     """With expansion off the digits are still deleted downstream, which is why
     it defaults to on. The switch exists for comparison during evaluation."""
-    assert to_speech_text("පිටුව 42 බලන්න", numbers_as_words=False) == "පිටුව 42 බලන්න"
-    assert to_model_input("පිටුව 42 බලන්න", numbers_as_words=False) == "pituva balanna"
+    assert to_speech_text("පිටුව 42 බලන්න", numbers=NumberStyle.RAW) == "පිටුව 42 බලන්න"
+    assert to_model_input("පිටුව 42 බලන්න", numbers=NumberStyle.RAW) == "pituva balanna"
 
 
 # --------------------------------------------------------------------------

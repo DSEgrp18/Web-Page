@@ -35,6 +35,7 @@ a listener could be shown, and what makes a pronunciation complaint diagnosable.
 from __future__ import annotations
 
 import re
+from enum import StrEnum
 
 from .sinhala_numbers import (
     DECIMAL_POINT,
@@ -136,6 +137,38 @@ def _expand_match(match: re.Match[str]) -> str:
 _ANY_DIGITS = re.compile(r"\d+")
 
 
+class NumberStyle(StrEnum):
+    """How the digits in a piece of text should be read.
+
+    A number cannot be read correctly without knowing what contains it. ``65``
+    is a quantity in a sentence and half a house number in an address; ``1.1``
+    is a decimal in prose and a section number in a heading. Nothing inside a
+    string tells them apart, so the caller — which knows what kind of block the
+    text came from — chooses.
+
+    This module deliberately does **not** know about document structure. It
+    offers readings; the pipeline decides which reading a block gets.
+    """
+
+    PROSE = "prose"
+    """Quantities. 1933 is "one thousand nine hundred thirty three"."""
+
+    IDENTIFIER = "identifier"
+    """Labels, not amounts: house numbers, codes, section and figure numbers.
+
+    Read one digit at a time, because the digits are a name rather than a count.
+    Reading the 65 of "අංක 65C" as sixty-five states a quantity the document
+    never did.
+    """
+
+    RAW = "raw"
+    """Leave digits alone.
+
+    They are then **deleted** by the front end rather than spoken, so this is
+    only for text that is not going to be narrated. See :func:`to_model_input`.
+    """
+
+
 def _sweep_remaining_digits(text: str) -> str:
     """Read digit by digit anything :data:`_NUMBER` did not claim.
 
@@ -154,7 +187,11 @@ def _sweep_remaining_digits(text: str) -> str:
     only safe reading of an unanticipated number is one that adds nothing and
     drops nothing. Clumsy is recoverable. Silent is not.
     """
-    return _ANY_DIGITS.sub(lambda m: digits_individually(m.group()), text)
+    # Padded with spaces, then collapsed by the caller. Without this, "65C"
+    # becomes "පහC", which the front end romanises as one word — the letter is
+    # swallowed by the digit before it, which is the same defect the _NUMBER
+    # pattern is careful to avoid at its own boundaries.
+    return _ANY_DIGITS.sub(lambda m: f" {digits_individually(m.group())} ", text)
 
 
 def expand_numbers(text: str) -> str:
@@ -169,22 +206,55 @@ def expand_numbers(text: str) -> str:
     return _sweep_remaining_digits(_NUMBER.sub(_expand_match, text))
 
 
-def to_speech_text(text: str, *, numbers_as_words: bool = True) -> str:
+#: An identifier: digit runs joined by the separators an identifier uses. Matched
+#: whole so "1.1" is one label rather than two numbers with a full stop between.
+_IDENTIFIER = re.compile(r"\d+(?:[.\-/]\d+)*")
+
+
+def read_as_identifier(text: str) -> str:
+    """Read every digit one at a time, as a label rather than a quantity.
+
+    "අංක 65C" becomes "අංක හය පහ C": a house number is a name written in
+    digits, and reading it as sixty-five asserts an amount the document does
+    not contain. The same applies to a section number, a figure number, and a
+    row of a table of contents.
+
+    Separators **inside** an identifier are not spoken, so "1.1" is "එක එක" and
+    not "එක . එක". Left in, the full stop reaches the model as a sentence
+    boundary, and a heading is narrated as though it ended after its first
+    digit.
+
+    Which of these readings a piece of text gets is not decided here. See
+    :class:`NumberStyle`.
+    """
+    return _IDENTIFIER.sub(
+        lambda m: f" {digits_individually(''.join(c for c in m.group() if c.isdigit()))} ",
+        text,
+    )
+
+
+def to_speech_text(text: str, *, numbers: NumberStyle = NumberStyle.PROSE) -> str:
     """Display text to spoken text: still Sinhala, but safe to narrate.
 
     The result is human-readable Sinhala. Store it alongside the display text
     rather than instead of it — display and retrieval must keep the original,
     because "42" is what a reader searches for, not "හතළිස් දෙක".
+
+    ``numbers`` selects how digits are read. The default suits prose, which is
+    most of a book; a caller that knows the text is a heading, an address or a
+    contents row should say so.
     """
     text = normalize_whitespace(text)
-    if numbers_as_words:
+    if numbers is NumberStyle.PROSE:
         text = expand_numbers(text)
+    elif numbers is NumberStyle.IDENTIFIER:
+        text = read_as_identifier(text)
     # Expansion inserts spaces, and may have introduced doubles around a number
     # that was already surrounded by them.
     return _WHITESPACE.sub(" ", text).strip()
 
 
-def to_model_input(text: str, *, numbers_as_words: bool = True) -> str:
+def to_model_input(text: str, *, numbers: NumberStyle = NumberStyle.PROSE) -> str:
     """Spoken text to the ASCII the model is actually given.
 
     This is the only place the vendored front end is called. The output is not
@@ -198,7 +268,7 @@ def to_model_input(text: str, *, numbers_as_words: bool = True) -> str:
     comparison before they are adopted. It is recorded in the manifest as an
     open question.
     """
-    return to_ascii(to_speech_text(text, numbers_as_words=numbers_as_words))
+    return to_ascii(to_speech_text(text, numbers=numbers))
 
 
 def is_speakable(model_text: str) -> bool:
