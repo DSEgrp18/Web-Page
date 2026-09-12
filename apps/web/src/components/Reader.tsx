@@ -8,6 +8,7 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
 import { messageFor, strings } from "@/lib/strings";
+import { StudyPanel } from "@/components/StudyPanel";
 import { roleLabel } from "@/lib/roles";
 import type { Bookmark, DocumentDetail, Page, Progress } from "@/lib/types";
 import { usePlayer } from "@/lib/usePlayer";
@@ -217,6 +218,25 @@ export function Reader({
     [book, pageIndex],
   );
 
+  /**
+   * Move to a cited sentence without leaving the page.
+   *
+   * The panel's whole advantage over the study page: checking where an answer
+   * came from costs nothing. Returns false when the sentence is not on the page
+   * in front of us — a citation into text that has since been re-extracted —
+   * because appearing to do nothing is worse than saying so.
+   */
+  const openCitation = useCallback(
+    (segmentId: string) => {
+      if (!segments.some((segment) => segment.segment_id === segmentId)) return false;
+      // Cued, never played. CLAUDE.md forbids narration starting by itself, and
+      // the same call the bookmark link uses keeps that true here.
+      player.cue(segmentId, 0, false);
+      return true;
+    },
+    [player, segments],
+  );
+
   const currentSentenceIndex = segments.findIndex(
     (segment) => segment.segment_id === player.currentId,
   );
@@ -359,6 +379,8 @@ export function Reader({
           </ol>
         )}
       </section>
+
+      <StudyPanel documentId={documentId} onOpenCitation={openCitation} />
 
       {player.realModel === false ? (
         <div className="notice">
