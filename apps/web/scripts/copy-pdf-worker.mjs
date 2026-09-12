@@ -1,5 +1,5 @@
 /**
- * Put pdf.js's worker where the browser can fetch it.
+ * Put pdf.js's runtime files where the browser can fetch them.
  *
  * pdf.js parses and renders on a Web Worker, and the worker has to be loaded
  * from a URL rather than bundled — `GlobalWorkerOptions.workerSrc` is a path,
@@ -12,9 +12,22 @@
  * there is no step to remember and no way for the two to drift.
  *
  * The copy is gitignored for the same reason.
+ *
+ * ## standard_fonts, which is not optional for real books
+ *
+ * A PDF may reference one of the 14 standard fonts — Helvetica, Times, Courier
+ * — without embedding it, and then pdf.js needs its own substitutes to draw the
+ * page. Without `standardFontDataUrl` pointing at these files it throws
+ * "Ensure that the standardFontDataUrl API parameter is provided" and the page
+ * comes out blank or missing text. It costs 804 KiB, fetched only for documents
+ * that actually need it.
+ *
+ * cmaps are deliberately *not* copied: they are 1.5 MiB and exist for CJK
+ * encodings, which Sinhala textbooks do not use. Add them if a real document
+ * turns up that needs them.
  */
 
-import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,4 +44,12 @@ const to = join(app, "public/pdf.worker.min.mjs");
 mkdirSync(dirname(to), { recursive: true });
 copyFileSync(from, to);
 
-console.log(`pdf.js worker ${version} -> public/pdf.worker.min.mjs`);
+cpSync(
+  join(app, "node_modules/pdfjs-dist/standard_fonts"),
+  join(app, "public/pdf-standard-fonts"),
+  {
+    recursive: true,
+  },
+);
+
+console.log(`pdf.js ${version} -> public/pdf.worker.min.mjs + public/pdf-standard-fonts/`);

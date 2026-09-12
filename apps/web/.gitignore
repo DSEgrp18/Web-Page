@@ -1,3 +1,6 @@
 
 # Copied from node_modules at build time; must match the installed pdfjs-dist.
 /public/pdf.worker.min.mjs
+
+# Copied from node_modules at build time, like the worker.
+/public/pdf-standard-fonts/
