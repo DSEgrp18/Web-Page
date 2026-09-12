@@ -49,7 +49,8 @@ licence position of the XTTS-v2 weights under CPML is unresolved.
 [`compose.voice.yml`](compose.voice.yml) mounts the bundle:
 
 ```bash
-MODEL_DIR="/path/to/folder/containing/xtts_si_female"   docker compose -f infra/docker-compose.yml -f infra/compose.voice.yml up --build
+export MODEL_DIR="/path/to/folder/containing/xtts_si_female"
+docker compose -f infra/docker-compose.yml -f infra/compose.voice.yml up --build
 ```
 
 `MODEL_DIR` has no default on purpose. Without it compose refuses to start and
