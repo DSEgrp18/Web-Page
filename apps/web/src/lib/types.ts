@@ -108,6 +108,27 @@ export interface Bookmark {
   display_text: string | null;
 }
 
+/** A passage the study answer quotes, with the precise place it came from. */
+export interface StudyCitation {
+  passage_id: string;
+  page_index: number;
+  page_label: string | null;
+  section: string | null;
+  segment_ids: string[];
+  quote: string;
+}
+
+/**
+ * A grounded study result. `answer` is an extract from the document, never a
+ * made-up explanation; a null answer means the service deliberately abstained.
+ */
+export interface StudyAnswer {
+  document_id: string;
+  answer: string | null;
+  citations: StudyCitation[];
+  abstained: boolean;
+}
+
 export interface Readiness {
   alive: boolean;
   serving: boolean;

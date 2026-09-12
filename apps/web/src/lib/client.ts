@@ -25,6 +25,7 @@ import type {
   Progress,
   Readiness,
   Segment,
+  StudyAnswer,
 } from "./types";
 
 export type FailureKind =
@@ -164,6 +165,16 @@ export class ReaderApi {
         segmentId,
       )}/audio/manifest`,
     );
+  }
+
+  // -- study -------------------------------------------------------------
+
+  askQuestion(documentId: string, question: string): Promise<StudyAnswer> {
+    return this.json<StudyAnswer>(`/documents/${encodeURIComponent(documentId)}/questions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
   }
 
   // -- bookmarks ---------------------------------------------------------
