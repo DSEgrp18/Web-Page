@@ -197,3 +197,26 @@ def test_a_block_that_cannot_be_placed_is_reported_not_raised() -> None:
 
     (span,) = locate(PAGE, [Block(BlockRole.PARAGRAPH, "මෙය පිටුවේ නැත")])
     assert span is None
+
+
+def test_a_joined_line_break_without_a_space_still_verifies() -> None:
+    """Measured on the real book: the commonest rejection, and not an edit.
+
+    The page wraps mid-sentence; a model joining the two lines without putting a
+    space in has changed nothing a reader will ever encounter, because the
+    pipeline re-slices the page's own characters once the block is located.
+    """
+    page = "නිපදවී ය.\nමගීින් ගෙන යාම"
+    assert verify(page, [Block(BlockRole.PARAGRAPH, "නිපදවී ය.මගීින් ගෙන යාම")])
+
+
+def test_a_substituted_character_is_still_rejected() -> None:
+    """The other real rejection, which must keep failing.
+
+    The page contains \x99, a control character left by a legacy font. The
+    model returned ™ instead — a correction, and exactly what may not happen.
+    """
+    page = "\x99 මහා පරිමාණ ගොවිබිම්"
+    result = verify(page, [Block(BlockRole.LIST_ITEM, "™ මහා පරිමාණ ගොවිබිම්")])
+    assert not result
+    assert "™" in result.invented

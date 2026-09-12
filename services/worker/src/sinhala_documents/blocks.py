@@ -23,7 +23,9 @@ the fact. It is stricter than it looks:
 
 * Every block's text must appear in the page, so nothing can be invented or
   rephrased, and no block can be a scramble of words that are individually
-  present.
+  present. Whitespace is ignored in that comparison, because the model's
+  spacing never reaches a reader: the pipeline re-slices the page's own
+  characters once a block is located.
 * The characters of all blocks together must be exactly the characters of the
   page, counted, so nothing can be dropped, doubled, or quietly corrected.
 
@@ -33,8 +35,8 @@ wrong order and putting it right is a fix, not a corruption.
 
 What this cannot catch
 ----------------------
-A model that swaps two identical words, or reorders blocks wrongly, produces
-text this accepts. Character accounting proves nothing was invented or lost; it
+A model that swaps two identical words, reorders blocks wrongly, or moves a word
+boundary produces text this accepts. Character accounting proves nothing was invented or lost; it
 does not prove the order is right. That is a real limit and the reason roles
 carry provenance and pages carry a review state.
 """
@@ -137,11 +139,25 @@ def verify(page_text: str, blocks: tuple[Block, ...] | list[Block]) -> Verificat
     def failure(reason: str) -> Verification:
         return Verification(False, reason, invented=invented, lost=lost)
 
+    # Compared without whitespace at all, not merely with runs collapsed.
+    #
+    # The looser rule is the consistent one: the character accounting above
+    # ignores whitespace, and locate() strips it, so a stricter test here bought
+    # nothing and rejected real pages. Measured on the textbook, five of the
+    # eight rejections in one sample were a single missing space where the model
+    # joined two wrapped lines without a separator.
+    #
+    # It is safe because **the model's text is never used as text**. The
+    # pipeline re-slices the page's own characters once the block is located, so
+    # the model's spacing reaches no reader and no index. What is being checked
+    # here is whether the model is describing this page, not how it typed it.
+    packed = page.replace(" ", "")
+
     for block in blocks:
         flattened = _flatten(block.text)
         if not flattened:
             return failure(f"a {block.role} block is empty")
-        if flattened not in page:
+        if flattened.replace(" ", "") not in packed:
             # The most important branch in this module. Anything the model wrote
             # itself lands here: a rephrasing, a completed sentence, a corrected
             # spelling, a heading it thought was implied.
