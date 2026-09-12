@@ -9,6 +9,7 @@
  */
 
 import { cleanup } from "@testing-library/react";
+import { resetPreferences } from "../src/lib/preferences";
 import { createElement, type AnchorHTMLAttributes, type ReactNode } from "react";
 import { afterEach, vi } from "vitest";
 
@@ -189,4 +190,8 @@ afterEach(() => {
   scrollIntoViewCalls.length = 0;
   currentTime = 0;
   window.localStorage.clear();
+  // The preferences module caches its snapshot for the life of the module,
+  // which outlives every test. Clearing storage alone would leave the next
+  // test reading what this one saved.
+  resetPreferences();
 });

@@ -29,6 +29,8 @@ export interface Preferences {
   syncPages: boolean;
   /** Off by default: it competes with screen-reader speech. */
   pageTurnSound: boolean;
+  /** How much width the original-PDF panel gets, 20-80. */
+  splitPercent: number;
 }
 
 export const TEXT_SCALES = [0.9, 1, 1.15, 1.3, 1.5] as const;
@@ -39,6 +41,7 @@ export const DEFAULTS: Preferences = {
   followSentence: true,
   syncPages: true,
   pageTurnSound: false,
+  splitPercent: 50,
 };
 
 const KEY = "swara.preferences";
@@ -79,6 +82,12 @@ function sanitise(value: Partial<Preferences>): Preferences {
     followSentence: value.followSentence ?? DEFAULTS.followSentence,
     syncPages: value.syncPages ?? DEFAULTS.syncPages,
     pageTurnSound: value.pageTurnSound ?? DEFAULTS.pageTurnSound,
+    // Clamped, not trusted. A stored 5000 would leave the reading panel a few
+    // pixels wide with no visible way to get it back.
+    splitPercent:
+      typeof value.splitPercent === "number" && Number.isFinite(value.splitPercent)
+        ? Math.max(20, Math.min(80, Math.round(value.splitPercent)))
+        : DEFAULTS.splitPercent,
   };
 }
 
@@ -94,6 +103,20 @@ export function subscribePreferences(onChange: () => void): () => void {
 export function preferencesSnapshot(): Preferences {
   if (snapshot === null) snapshot = read();
   return snapshot;
+}
+
+/**
+ * Forget the cached snapshot, so the next read comes from storage again.
+ *
+ * Only tests need this. In a browser the module lives exactly as long as the
+ * page does, and the cache is what makes `useSyncExternalStore` stable. But a
+ * test run shares one module across every test, so clearing `localStorage`
+ * between them would otherwise leave one test reading the settings the
+ * previous test saved.
+ */
+export function resetPreferences(): void {
+  snapshot = null;
+  applyTheme("system");
 }
 
 export function serverPreferencesSnapshot(): Preferences {

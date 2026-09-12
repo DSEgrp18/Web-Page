@@ -29,7 +29,7 @@ export const strings = {
   identityHelp:
     "මෙය තාවකාලික සංවර්ධන ක්‍රමයකි. සැබෑ පිවිසුම් ක්‍රමයක් තවම සකසා නැත; ඔබගේ ලේඛන පෞද්ගලික බව මෙයින් සහතික නොවේ.",
   identitySave: "ඉදිරියට",
-  identityChange: "නම වෙනස් කරන්න",
+  identityChange: "කියවන්නා වෙනස් කරන්න",
 
   // -- library -----------------------------------------------------------
   libraryHeading: "මගේ පොත්",
@@ -146,8 +146,6 @@ export const strings = {
   // paragraph is not announced, because announcing "paragraph" before every
   // sentence of a book is noise, and unknown is not announced either, because
   // it reads exactly as prose.
-  // The study panel: asking without leaving the book.
-  studyPanelToggle: "පොත ගැන අසන්න",
   closePanel: "වසන්න",
   /** Said after a citation moves the reader, because the move is not visible. */
   citationOpened: "උපුටා ගත් වාක්‍යයට ගෙන යන ලදි.",
@@ -277,6 +275,61 @@ export const strings = {
   },
   removeFile: "ගොනුව ඉවත් කරන්න",
   uploadFailed: "උඩුගත කිරීම අසාර්ථක විය.",
+
+  // -- workspace ---------------------------------------------------------
+  originalPanel: "මුල් පිටුව",
+  readingPanel: "කියවීම",
+  workspaceTabs: "පිටුව බැලීමේ ක්‍රමය",
+  splitLabel: "පැනල දෙකේ පළල",
+  splitHelp: "වම හා දකුණ බෙදන රේඛාව. ඊතල යතුරු වලින් පළල වෙනස් කරන්න.",
+  expandOriginal: "මුල් පිටුව විශාල කරන්න",
+  expandReading: "කියවීම විශාල කරන්න",
+  restoreSplit: "පැනල දෙකම පෙන්වන්න",
+  syncPages: "පිටු එකට ගමන් කරයි",
+  syncPagesOff: "පිටු වෙන් වෙන්ව ගමන් කරයි",
+  zoomIn: "පිටුව විශාල කරන්න",
+  zoomOut: "පිටුව කුඩා කරන්න",
+  fitWidth: "පළලට ගළපන්න",
+  zoomLevel: (percent: number) => `විශාලනය සියයට ${percent}`,
+  pdfLoading: "මුල් පිටුව සකසමින්…",
+  pdfFailed: "මුල් ගොනුව පෙන්විය නොහැක.",
+  pdfPageOf: (page: number, total: number) => `පිටු ${total} න් ${page}`,
+  thumbnails: "පිටු කුඩා රූප",
+  showThumbnails: "පිටු ලැයිස්තුව",
+  hideThumbnails: "පිටු ලැයිස්තුව සඟවන්න",
+  thumbnailGoTo: (page: number) => `පිටුව ${page} ට යන්න`,
+  returnToSentence: "කියවන වාක්‍යයට ආපසු",
+  bookTextSize: "අකුරු ප්‍රමාණය",
+
+  // -- player ------------------------------------------------------------
+  playerLabel: "ශබ්ද පාලනය",
+  playbackPosition: (index: number, total: number) => `වාක්‍ය ${total} න් ${index}`,
+  volume: "හඬ ප්‍රමාණය",
+  audioUnavailable: "මෙම වාක්‍යයට ශබ්දයක් නැත.",
+  buffering: "ශබ්දය සකසමින්…",
+
+  // -- assistant ---------------------------------------------------------
+  assistantToggle: "පොත ගැන අසන්න",
+  assistantHeading: "පොත ගැන අසන්න",
+  assistantFor: (book: string) => `${book} ගැන පමණි`,
+  assistantIntro: "ප්‍රශ්නයක් අසන්න. පිළිතුර මෙම පොතේම ඇති කොටසකින් පෙන්වයි.",
+  assistantExtractive: "මෙම පිළිතුරු පොතේ වචන ම වේ. ඒවා සාරාංශ හෝ පැහැදිලි කිරීම් නොවේ.",
+  assistantMinimise: "කුඩා කරන්න",
+  assistantClear: "සංවාදය හිස් කරන්න",
+  assistantCleared: "සංවාදය හිස් කරන ලදි.",
+  assistantEmpty: "තවම ප්‍රශ්න අසා නැත.",
+  assistantYou: "ඔබ",
+  assistantAnswer: "පොතෙන්",
+  // Not plain "අසන්න": that is the play button's name, and two buttons with
+  // the same accessible name doing different things is exactly what a screen
+  // reader cannot disambiguate.
+  assistantAsk: "ප්‍රශ්නය අසන්න",
+  assistantSelectionLabel: "තෝරාගත් කොටස",
+  assistantSelectionClear: "තේරීම ඉවත් කරන්න",
+  assistantSuggestions: "යෝජනා",
+  suggestThisPage: "මෙම පිටුවේ ඇත්තේ කුමක්ද?",
+  suggestExplain: "මෙය ගැන පොතේ කියන්නේ කුමක්ද?",
+  conversationLabel: "ප්‍රශ්න හා පිළිතුරු",
 } as const;
 
 /** What each theme choice is called. A switch, so a new theme cannot be missed. */
