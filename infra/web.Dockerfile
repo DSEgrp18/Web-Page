@@ -35,9 +35,14 @@ RUN npm ci --omit=dev
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/next.config.mjs ./next.config.mjs
 
-# No `COPY public`: this app has no public/ directory, and COPY fails on a path
-# that does not exist rather than skipping it. Add one back here if static
-# assets ever land there — a missing favicon is a silent 404, not a build error.
+# public/ carries the brand artwork, the loader video, and — the one that is not
+# merely cosmetic — pdf.js's worker, which `npm run prebuild` copies out of
+# node_modules. Without this line every one of them is a 404: the interface
+# renders unbranded and the original-PDF panel cannot start its worker at all.
+#
+# It is a silent failure in the worst way. `next build` succeeds, the page
+# loads, and only the assets are missing, so nothing in CI notices.
+COPY --from=build /app/public ./public
 
 RUN useradd --create-home --uid 10002 web && chown -R web:web /app
 USER web

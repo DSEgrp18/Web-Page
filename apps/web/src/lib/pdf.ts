@@ -65,6 +65,10 @@ export async function openDocument(
   const task = pdfjs.getDocument({
     url: documentFileUrl(documentId),
     httpHeaders: { [OWNER_HEADER]: owner },
+    // A PDF may reference Helvetica or Times without embedding them, and then
+    // pdf.js needs its own substitutes. Without this it throws and the page
+    // comes out blank — which a blind reader has no way to notice.
+    standardFontDataUrl: "/pdf-standard-fonts/",
     // Identity is a header, not a cookie. Sending credentials would be a
     // different security model than the API is written for.
     withCredentials: false,
