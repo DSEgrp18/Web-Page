@@ -92,6 +92,25 @@ export const strings = {
   bookmarkMissing: "මෙම සලකුණේ වාක්‍යය තවදුරටත් නොමැත.",
   bookmarkNoPage: "පිටු අංකය නොදනී",
 
+  // -- study -------------------------------------------------------------
+  studyBook: "පොත සමඟ අධ්‍යයනය කරන්න",
+  studyHeading: "පොත සමඟ අධ්‍යයනය කරන්න",
+  studyIntro: "ප්‍රශ්නයක් අසන්න. පිළිතුර පොතේම ඇති කොටසකින් පෙන්වයි.",
+  studyHonesty: "මෙහි පෙන්වන්නේ පොතේ වචන සහ ඒවා ඇති තැන් පමණි.",
+  questionLabel: "ඔබේ ප්‍රශ්නය",
+  questionPlaceholder: "මෙම පොත ගැන ප්‍රශ්නයක් අසන්න",
+  questionRequired: "ප්‍රශ්නයක් ඇතුළත් කරන්න.",
+  askQuestion: "ප්‍රශ්නය අසන්න",
+  answering: "පිළිතුර සොයමින්…",
+  answerHeading: "පිළිතුර",
+  answerFound: "පිළිතුර සහ එයට අදාළ කොටස හමු විය.",
+  sourcesHeading: "අදාළ කොටස්",
+  openCitation: "මෙම කොටස විවෘත කරන්න",
+  citationPage: (page: string) => `පිටුව ${page}`,
+  citationSection: (section: string) => `කොටස: ${section}`,
+  studyAbstainedHeading: "මෙම පොතෙන් පිළිතුරක් සොයාගත නොහැක",
+  studyAbstainedBody: "මෙම ප්‍රශ්නයට සහය දෙන කොටසක් පොතේ හමු නොවීය. වෙනත් වචන වලින් අසන්න.",
+
   // -- preparation -------------------------------------------------------
   stateQueued: "පෝලිමේ",
   stateRunning: "පොත සූදානම් වෙමින්…",
