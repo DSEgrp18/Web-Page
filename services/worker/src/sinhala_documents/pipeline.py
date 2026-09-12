@@ -28,15 +28,25 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from sinhala_tts.normalize import MODEL_INPUT_CHAR_LIMIT, NORMALIZER_VERSION
 from sinhala_tts.segmentation import Segment, segment_text
 
+from .blocks import locate
 from .legacy_fm_abhaya import CONVERTER_VERSION
-from .model import BoundingBox, DocumentExtraction, PageExtraction, PageKind, QualityState
+from .model import (
+    BoundingBox,
+    DocumentExtraction,
+    PageExtraction,
+    PageKind,
+    QualityState,
+    worst,
+)
 from .pdf_extract import extract_document
+from .structure import BlockRole, is_narrated, number_style_for
+from .structuring import DeterministicStructure, StructureAdapter, structure_page
 
 #: Bumped when this module changes how pages become segments.
 PIPELINE_VERSION = "1"
@@ -63,6 +73,16 @@ class ReadableSegment:
 
     boxes: tuple[BoundingBox, ...]
     """The lines this segment covers, for highlighting."""
+
+    role: BlockRole = BlockRole.UNKNOWN
+    """What kind of thing this segment is part of.
+
+    Decides how its numbers were read, and lets a reader be told that what they
+    are hearing is a caption rather than the next sentence of the paragraph.
+    """
+
+    level: int | None = None
+    """Heading depth, for a segment inside a heading. ``None`` otherwise."""
 
     @property
     def box(self) -> BoundingBox | None:
@@ -167,39 +187,89 @@ def _digest(source: bytes | str | Path) -> str:
 
 
 def prepare_pages(
-    extraction: DocumentExtraction, *, limit: int = MODEL_INPUT_CHAR_LIMIT
+    extraction: DocumentExtraction,
+    *,
+    limit: int = MODEL_INPUT_CHAR_LIMIT,
+    structure: StructureAdapter | None = None,
 ) -> tuple[ReadablePage, ...]:
-    """Segment each page's readable text, keeping geometry and page identity."""
+    """Segment each page's readable text, keeping geometry and page identity.
+
+    Segmentation runs **per block** rather than per page, which is what lets a
+    caption stop being read out in the middle of the sentence it sits beside,
+    and what lets a heading's "1.1" be read as a section number instead of a
+    decimal.
+
+    The one thing worth being precise about: a block supplies its *role*, and
+    never its text. Having located the block, the text segmented is this page's
+    own slice — ``page.readable_text[begin:end]`` — so what a reader hears is
+    always the characters we extracted, even if the structure came from a model.
+    Verification already guarantees the two are the same; this makes it true by
+    construction rather than by trust.
+    """
+    structure = structure or DeterministicStructure()
     pages: list[ReadablePage] = []
     index = 0
     for page in extraction.pages:
         spans = _line_spans(page)
+        structured = structure_page(page.readable_text, structure)
+        places = locate(page.readable_text, structured.blocks)
+
+        if any(place is None for place in places):
+            # A block nobody can place would take its text out of the document
+            # entirely. Structure is an improvement; losing a paragraph is not a
+            # trade worth making, so the whole page reverts to one block.
+            structured = structure_page(page.readable_text, DeterministicStructure())
+            places = locate(page.readable_text, structured.blocks)
+
         segments: list[ReadableSegment] = []
-        for segment in segment_text(page.readable_text, limit=limit):
-            if not segment.is_speakable:
-                # Kept out of the reader entirely rather than played as silence.
+        notes = list(page.notes)
+        if structured.note:
+            notes.append(structured.note)
+
+        for block, place in zip(structured.blocks, places, strict=True):
+            if place is None or not is_narrated(block.role):
+                # Still extracted, still displayed, still indexed. A running
+                # head is a navigation aid on paper and an interruption in
+                # audio, arriving between every page of a chapter.
                 continue
-            segments.append(
-                ReadableSegment(
-                    segment_id=f"{page.page_index:04d}-{segment.segment_id}",
-                    index=index,
-                    page_index=page.page_index,
-                    page_label=page.page_label,
-                    display_text=segment.display_text,
-                    spoken_text=segment.spoken_text,
-                    model_text=segment.model_text,
-                    boxes=_boxes_for(segment, spans),
+            begin, _ = place
+            body = page.readable_text[place[0] : place[1]]
+            for segment in segment_text(body, limit=limit, numbers=number_style_for(block.role)):
+                if not segment.is_speakable:
+                    # Kept out of the reader entirely rather than played as
+                    # silence.
+                    continue
+                # Offsets are within the block; the boxes are indexed by the
+                # page, so they are shifted back before the lookup.
+                placed = replace(
+                    segment,
+                    start_offset=segment.start_offset + begin,
+                    end_offset=segment.end_offset + begin,
                 )
-            )
-            index += 1
+                segments.append(
+                    ReadableSegment(
+                        segment_id=f"{page.page_index:04d}-{segment.segment_id}",
+                        index=index,
+                        page_index=page.page_index,
+                        page_label=page.page_label,
+                        display_text=segment.display_text,
+                        spoken_text=segment.spoken_text,
+                        model_text=segment.model_text,
+                        boxes=_boxes_for(placed, spans),
+                        role=block.role,
+                        level=block.level,
+                    )
+                )
+                index += 1
+
         pages.append(
             ReadablePage(
                 page_index=page.page_index,
                 page_label=page.page_label,
                 kind=page.kind,
-                quality=page.quality,
+                quality=worst([page.quality, structured.quality]),
                 segments=tuple(segments),
-                notes=page.notes,
+                notes=tuple(notes),
             )
         )
     return tuple(pages)
