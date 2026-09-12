@@ -1,0 +1,37 @@
+# What must never enter a build context.
+#
+# The first three are the same rules scripts/verify-repo-hygiene.sh enforces for
+# Git, for the same reasons and with a sharper edge: a build context is copied
+# in full before any Dockerfile line runs, so a missing entry here does not just
+# slow the build, it puts 5.6 GB of model weights and a reader's documents
+# inside an image that may later be pushed somewhere.
+
+# Model weights. Mounted at run time, never built in. See infra/README.md.
+models/
+
+# Uploaded documents and anything generated from them.
+data/generated/
+data/uploads/
+
+# Secrets. Passed as environment at run time; never baked into a layer, where
+# they would survive in the image history even if a later layer deleted them.
+.env
+.env.*
+!.env.example
+
+.git/
+.github/
+.venv/
+venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/node_modules/
+apps/web/.next/
+apps/web/out/
+.vscode/
+scratchpad/
+*.pdf
+*.wav
+*.pth
+*.bin
