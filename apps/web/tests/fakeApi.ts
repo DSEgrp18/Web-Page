@@ -10,7 +10,14 @@
  * these tests cannot, and do not claim to.
  */
 
-import type { Bookmark, DocumentDetail, Page, Progress, Segment } from "../src/lib/types";
+import type {
+  Bookmark,
+  DocumentDetail,
+  Page,
+  Progress,
+  Segment,
+  StudyAnswer,
+} from "../src/lib/types";
 
 export const OWNER = "reader-one";
 
@@ -29,6 +36,8 @@ export interface FakeServerOptions {
   realModel?: boolean;
   progress?: Progress | null;
   bookmarks?: Bookmark[];
+  /** A fixed result lets a screen test cover both cited and abstaining answers. */
+  studyAnswer?: StudyAnswer;
   /** Number of `GET /documents` calls an upload stays unprepared for. */
   preparationPolls?: number;
 }
@@ -96,6 +105,7 @@ export class FakeServer {
   progress: Progress | null;
   bookmarks: Bookmark[];
   realModel: boolean;
+  studyAnswer?: StudyAnswer;
   private pollsLeft: number;
   private counter = 0;
 
@@ -104,6 +114,7 @@ export class FakeServer {
     this.progress = options.progress ?? null;
     this.bookmarks = options.bookmarks ?? [];
     this.realModel = options.realModel ?? false;
+    this.studyAnswer = options.studyAnswer;
     this.pollsLeft = options.preparationPolls ?? 0;
   }
 
@@ -137,6 +148,9 @@ export class FakeServer {
 
     const page = /^\/documents\/([^/]+)\/pages\/(-?\d+)$/.exec(path);
     if (method === "GET" && page) return this.page(page[1]!, Number(page[2]));
+
+    const question = /^\/documents\/([^/]+)\/questions$/.exec(path);
+    if (method === "POST" && question) return this.askQuestion(question[1]!, init);
 
     const progress = /^\/documents\/([^/]+)\/progress$/.exec(path);
     if (progress) {
@@ -237,6 +251,37 @@ export class FakeServer {
       if (found) return this.json(found);
     }
     return this.notFound();
+  }
+
+  private async askQuestion(id: string, init: RequestInit): Promise<Response> {
+    const book = this.book(id);
+    if (!book) return this.notFound();
+    if (!book.version) return this.json({ detail: "not ready" }, 409);
+    const body = JSON.parse(String(init.body)) as { question?: unknown };
+    if (typeof body.question !== "string" || body.question.trim().length === 0) {
+      return this.json({ detail: "question is required" }, 422);
+    }
+    if (this.studyAnswer) return this.json(this.studyAnswer);
+
+    const first = book.pages.flatMap((page) => page.segments)[0];
+    if (!first) {
+      return this.json({ document_id: id, answer: null, citations: [], abstained: true });
+    }
+    return this.json({
+      document_id: id,
+      answer: first.display_text,
+      citations: [
+        {
+          passage_id: `${id}-passage-0`,
+          page_index: first.page_index,
+          page_label: first.page_label,
+          section: null,
+          segment_ids: [first.segment_id],
+          quote: first.display_text,
+        },
+      ],
+      abstained: false,
+    });
   }
 
   private audio(id: string, segmentId: string): Response {

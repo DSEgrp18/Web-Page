@@ -122,6 +122,7 @@ export const strings = {
 
   // -- reader ------------------------------------------------------------
   backToLibrary: "පොත් ලැයිස්තුවට",
+  backToReader: "කියවීමට ආපසු යන්න",
   pageWord: "පිටුව",
   printedPage: "මුද්‍රිත පිටුව",
   ofPages: (index: number, total: number) => `පිටු ${total} න් ${index}`,

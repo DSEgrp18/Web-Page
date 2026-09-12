@@ -9,6 +9,7 @@ import { AppFrame } from "../src/components/AppFrame";
 import { Bookmarks } from "../src/components/Bookmarks";
 import { Library } from "../src/components/Library";
 import { Reader } from "../src/components/Reader";
+import { Study } from "../src/components/Study";
 import { strings } from "../src/lib/strings";
 import { FakeServer, readablePage } from "./fakeApi";
 import { noticeText, renderApp } from "./render";
@@ -132,6 +133,17 @@ describe("no automatically detectable violations", () => {
     // the placeholder notice has appeared.
     await user.click(sentence);
     await waitFor(() => expect(sentence.getAttribute("aria-current")).toBe("true"));
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
+  it("in study mode", async () => {
+    const { container } = renderApp(
+      <AppFrame>
+        <Study documentId="doc-1" />
+      </AppFrame>,
+      libraryServer(),
+    );
+    await screen.findByLabelText(strings.questionLabel);
     expect(await violationsIn(container)).toEqual([]);
   });
 
