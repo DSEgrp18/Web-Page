@@ -25,7 +25,7 @@
  * pays for it and nothing else does.
  */
 
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 
 import { API_BASE, OWNER_HEADER } from "./client";
 
@@ -83,11 +83,42 @@ export async function openDocument(
 }
 
 /**
+ * Whatever is still drawing on each canvas.
+ *
+ * A `WeakMap`, so a canvas that goes out of the document takes its entry with
+ * it rather than pinning a render task for the life of the tab.
+ */
+const inFlight = new WeakMap<HTMLCanvasElement, RenderTask>();
+
+/**
  * Draw one page into a canvas at a given CSS width.
  *
- * Scaled by `devicePixelRatio` so text is not soft on a phone, and capped:
- * a 3x canvas of an A4 page at full width is large enough to be worth not
- * allocating twice.
+ * ## Renders on one canvas are serialised, and that is not a nicety
+ *
+ * pdf.js composes its transform onto whatever the context already has — its
+ * own `resetCtxToDefault` resets styles but deliberately *not* the matrix, so
+ * it trusts the caller to hand over a canvas at identity. Setting
+ * `canvas.width` is what provides that, because assigning to it resets the
+ * context.
+ *
+ * Which is exactly the trap. `PdfPanel` draws from an effect *and* from a
+ * `ResizeObserver`, so a second render can begin while the first is still
+ * going — and the `canvas.width` line below would then reset the context out
+ * from under the running one. It carries on drawing with an identity matrix
+ * instead of the viewport's, and the viewport's matrix is what flips PDF's
+ * y-up coordinates to the canvas's y-down. The page comes out **upside down**,
+ * on some pages and not others, depending entirely on whether a second draw
+ * happened to land mid-render.
+ *
+ * So: cancel whatever is drawing here, wait for it to actually stop, and only
+ * then touch the canvas. `cancel()` alone is not enough — it resolves the task
+ * asynchronously, and the window between asking and stopping is the whole bug.
+ *
+ * ## Device pixels come from the viewport, not a transform
+ *
+ * The scale is folded into `getViewport` and the CSS size set separately,
+ * rather than passing a `transform` matrix. Same result, one fewer matrix to
+ * compose, and nothing to get the sign of wrong.
  */
 export async function renderPage(
   pdf: PDFDocumentProxy,
@@ -95,25 +126,38 @@ export async function renderPage(
   canvas: HTMLCanvasElement,
   cssWidth: number,
 ): Promise<{ width: number; height: number }> {
+  const running = inFlight.get(canvas);
+  if (running) {
+    running.cancel();
+    // A cancelled task rejects with RenderingCancelledException. That is the
+    // expected outcome here, not a failure.
+    await running.promise.catch(() => {});
+  }
+
   const page = await pdf.getPage(pageNumber);
   const unscaled = page.getViewport({ scale: 1 });
-  const scale = cssWidth / unscaled.width;
-  const viewport = page.getViewport({ scale });
+  const cssScale = cssWidth / unscaled.width;
 
+  // Capped at 2: a 3x canvas of a full-width A4 page is large enough to be
+  // worth not allocating, and the difference is not visible.
   const ratio = Math.min(globalThis.devicePixelRatio || 1, 2);
-  canvas.width = Math.floor(viewport.width * ratio);
-  canvas.height = Math.floor(viewport.height * ratio);
-  canvas.style.width = `${Math.floor(viewport.width)}px`;
-  canvas.style.height = `${Math.floor(viewport.height)}px`;
+  const viewport = page.getViewport({ scale: cssScale * ratio });
 
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("This browser did not give us a 2D canvas.");
+  canvas.width = Math.floor(viewport.width);
+  canvas.height = Math.floor(viewport.height);
+  canvas.style.width = `${Math.floor(viewport.width / ratio)}px`;
+  canvas.style.height = `${Math.floor(viewport.height / ratio)}px`;
 
-  await page.render({
-    canvas,
-    canvasContext: context,
-    viewport,
-    transform: [ratio, 0, 0, ratio, 0, 0],
-  }).promise;
-  return { width: viewport.width, height: viewport.height };
+  // `canvas` only. pdf.js documents that passing `canvasContext` alongside it
+  // is for backwards compatibility and that the canvas must be null to use it —
+  // and it discards our context anyway, taking its own with `alpha: false`.
+  const task = page.render({ canvas, viewport });
+  inFlight.set(canvas, task);
+  try {
+    await task.promise;
+  } finally {
+    // Only if it is still ours: a newer render may already have claimed it.
+    if (inFlight.get(canvas) === task) inFlight.delete(canvas);
+  }
+  return { width: viewport.width / ratio, height: viewport.height / ratio };
 }
