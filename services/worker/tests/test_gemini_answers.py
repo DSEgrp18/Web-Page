@@ -11,6 +11,7 @@ every failure degrades to the extractive answerer rather than to an error.
 from __future__ import annotations
 
 import json
+import urllib.error
 
 import pytest
 
@@ -22,6 +23,7 @@ from sinhala_documents.answering import (
 )
 from sinhala_documents.gemini_answers import (
     MAX_GROUNDING_CHARACTERS,
+    SEED_LIMIT,
     GeminiAnswerer,
     ground,
 )
@@ -77,26 +79,37 @@ def prompt_of(body: dict) -> str:
     return body["contents"][0]["parts"][0]["text"]
 
 
+def model_of(url: str) -> str:
+    return url.rsplit("/models/", 1)[1].split(":", 1)[0]
+
+
 class FakeGemini:
     """Answers the planning call and the answering call separately, and records both."""
 
-    def __init__(self, *, queries=None, answer=None, plan_error=None, answer_error=None):
+    def __init__(self, *, queries=None, answer=None, plan_error=None, answer_errors=None):
         self.queries = queries if queries is not None else []
         self.result = answer or {"sufficient": True, "answer": "පිළිතුර.", "used_passages": [1]}
         self.plan_error = plan_error
-        self.answer_error = answer_error
+        #: model name → the error answering with that model raises.
+        self.answer_errors = answer_errors or {}
         self.plans: list[dict] = []
         self.answers: list[dict] = []
+        #: (model, timeout) for every answering call, in order.
+        self.answer_calls: list[tuple[str, int]] = []
+        self.plan_models: list[str] = []
 
     def __call__(self, url, body, *, timeout, api_key):
         if is_plan(body):
             self.plans.append(body)
+            self.plan_models.append(model_of(url))
             if self.plan_error:
                 raise self.plan_error
             return reply({"queries": self.queries})
         self.answers.append(body)
-        if self.answer_error:
-            raise self.answer_error
+        self.answer_calls.append((model_of(url), timeout))
+        error = self.answer_errors.get(model_of(url))
+        if error:
+            raise error
         return reply(self.result)
 
     @property
@@ -414,6 +427,30 @@ def test_what_is_sent_stays_within_the_budget() -> None:
     assert 1 <= len(grounding) < 18
 
 
+def test_every_best_match_is_sent_before_any_neighbour() -> None:
+    """A tight budget may cut context, never a match.
+
+    On the real book the first half of a list was a lower-ranked match, and
+    widening the higher-ranked matches first spent the budget before reaching
+    it. The model got the second half alone and renumbered it.
+    """
+
+    # Two phrases, because one search returns at most eight passages. Matches sit
+    # on even passages only, so no neighbour contains a search term.
+    def text(n: int) -> str:
+        term = {0: "ජනපද ", 2: "රාජ්‍ය "}.get(n % 4, "")
+        return f"{term}{'අ' * 1500} {n}"
+
+    long_book = tuple(passage(n, text(n)) for n in range(1, 40))
+
+    grounding = ground(long_book, ["ජනපද", "රාජ්‍ය"])
+
+    matches = [p for p in grounding if "ජනපද" in p.text or "රාජ්‍ය" in p.text]
+    assert len(matches) == SEED_LIMIT
+    # And the budget was spent on neighbours after that, not left unused.
+    assert len(grounding) > SEED_LIMIT
+
+
 def test_a_passage_several_phrasings_agree_on_is_preferred() -> None:
     """Fusion: agreement between phrasings outranks one phrasing's first place."""
     book = tuple(passage(n, f"වෙනත් පාඨය {n}") for n in range(1, 30)) + (
@@ -494,8 +531,80 @@ def test_a_network_failure_becomes_the_extractive_answer_not_an_error() -> None:
     assert result.answer == PASSAGES[0].text
 
 
-def test_the_version_names_the_model_and_the_prompt() -> None:
+def test_the_version_names_the_models_the_thinking_and_the_prompt() -> None:
     """Provenance: an answer written by a different prompt is a different answerer."""
-    version = GeminiAnswerer(api_key="k", model="gemini-test").version
+    version = GeminiAnswerer(api_key="k", model="gemini-test", plan_model="gemini-small").version
     assert "gemini-test" in version
-    assert "answer-prompt-2" in version
+    assert "gemini-small" in version
+    assert "thinking-minimal" in version
+    assert "answer-prompt-3" in version
+
+
+# --------------------------------------------------------------------------
+# Models
+# --------------------------------------------------------------------------
+
+
+def http_error(code: int) -> urllib.error.HTTPError:
+    return urllib.error.HTTPError("https://example.invalid", code, "error", {}, None)
+
+
+def two_models(fake) -> GeminiAnswerer:
+    return answerer(fake, model="big", plan_model="small")
+
+
+def test_the_search_is_planned_by_the_small_model_and_answered_by_the_big_one() -> None:
+    fake = FakeGemini()
+
+    two_models(fake).answer(QUESTION, PASSAGES)
+
+    assert fake.plan_models == ["small"]
+    assert [model for model, _ in fake.answer_calls] == ["big"]
+
+
+def test_only_the_answer_is_asked_to_think_and_it_is_given_longer() -> None:
+    fake = FakeGemini()
+
+    answerer(fake, timeout=30, answer_timeout=90).answer(QUESTION, PASSAGES)
+
+    assert fake.answers[0]["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "minimal"}
+    assert "thinkingConfig" not in fake.plans[0]["generationConfig"]
+    assert fake.answer_calls[0][1] == 90
+
+
+@pytest.mark.parametrize("code", [429, 503])
+def test_a_busy_answer_model_hands_the_answer_to_the_small_one(code) -> None:
+    """Rate-limited is "not now", not "never". Extracts are a bigger step down."""
+    fake = FakeGemini(answer_errors={"big": http_error(code)})
+
+    result = two_models(fake).answer(QUESTION, PASSAGES)
+
+    assert result.abstained is False
+    assert result.generated is True
+    assert [model for model, _ in fake.answer_calls] == ["big", "small"]
+    # The thinking setting belongs to the big model; the stand-in is asked plainly.
+    assert "thinkingConfig" not in fake.answers[1]["generationConfig"]
+    # And it is asked the same thing.
+    assert prompt_of(fake.answers[1]) == prompt_of(fake.answers[0])
+
+
+@pytest.mark.parametrize(
+    "error",
+    [http_error(400), TimeoutError("slow"), OSError("connection refused")],
+    ids=["bad-request", "timeout", "network"],
+)
+def test_other_failures_are_not_retried_on_another_model(error) -> None:
+    """A malformed request fails on every model, and a dead network is dead for both."""
+    fake = FakeGemini(answer_errors={"big": error})
+
+    with pytest.raises(AnswerUnavailable):
+        two_models(fake).answer(QUESTION, PASSAGES)
+
+    assert [model for model, _ in fake.answer_calls] == ["big"]
+
+
+def test_when_both_models_are_busy_it_is_unavailable() -> None:
+    fake = FakeGemini(answer_errors={"big": http_error(429), "small": http_error(429)})
+
+    with pytest.raises(AnswerUnavailable):
+        two_models(fake).answer(QUESTION, PASSAGES)
