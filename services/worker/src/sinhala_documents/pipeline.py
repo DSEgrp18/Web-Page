@@ -44,6 +44,7 @@ from .model import (
     QualityState,
     worst,
 )
+from .ocr import OcrAdapter, OcrMode, apply_ocr
 from .pdf_extract import extract_document
 from .structure import BlockRole, is_narrated, number_style_for
 from .structuring import DeterministicStructure, StructureAdapter, structure_page
@@ -159,21 +160,25 @@ def _boxes_for(
     )
 
 
-def _document_version(source_digest: str) -> str:
+def _document_version(source_digest: str, ocr: str | None = None) -> str:
     """Identity of the text, not just of the file.
 
     The same PDF read with a different converter, or different number words, is
     a different document as far as generated audio is concerned.
+
+    ``ocr`` names the recognition mode and engine, when there is one. It is left
+    out entirely when recognition is off, so a document prepared before OCR
+    existed keeps its version and its cached audio.
     """
-    parts = "|".join(
-        [
-            source_digest,
-            f"pipeline={PIPELINE_VERSION}",
-            f"converter={CONVERTER_VERSION}",
-            f"normalizer={NORMALIZER_VERSION}",
-        ]
-    )
-    return hashlib.sha256(parts.encode("utf-8")).hexdigest()[:16]
+    parts = [
+        source_digest,
+        f"pipeline={PIPELINE_VERSION}",
+        f"converter={CONVERTER_VERSION}",
+        f"normalizer={NORMALIZER_VERSION}",
+    ]
+    if ocr:
+        parts.append(f"ocr={ocr}")
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
 def _digest(source: bytes | str | Path) -> str:
@@ -282,6 +287,8 @@ def prepare_document(
     limit: int = MODEL_INPUT_CHAR_LIMIT,
     password: str = "",
     structure: StructureAdapter | None = None,
+    ocr: OcrAdapter | None = None,
+    ocr_mode: OcrMode = OcrMode.OFF,
 ) -> ReadableDocument:
     """Extract, decode, and segment a PDF into playable units.
 
@@ -290,9 +297,19 @@ def prepare_document(
     on which pages were chosen: it identifies the text, so a segment prepared
     alone and the same segment prepared with the whole book share a cache entry
     rather than generating the audio twice.
+
+    ``ocr_mode`` chooses which pages are read from their image instead; see
+    :class:`~.ocr.OcrMode`. Without an ``ocr`` adapter nothing is recognised,
+    whatever the mode.
     """
     extraction = extract_document(source, page_indexes=page_indexes, password=password)
-    version = _document_version(_digest(source))
+    recognising = ocr is not None and ocr_mode is not OcrMode.OFF
+    if recognising:
+        assert ocr is not None
+        extraction = apply_ocr(extraction, source, ocr, ocr_mode)
+    version = _document_version(
+        _digest(source), f"{ocr_mode.value}:{ocr.version}" if recognising and ocr else None
+    )
     pages = prepare_pages(extraction, limit=limit, structure=structure)
 
     notes = list(extraction.notes)

@@ -137,6 +137,24 @@ deterministic structure and are served normally, so a large upload can come back
 with some pages structured and some not, with nothing in the interface to say
 which.
 
+## Reading pages from their image (OCR)
+
+On by default here, for broken pages only. Some PDFs carry embedded text that is
+not what is printed: legacy fonts the converter cannot decode, or a hidden
+second copy of the page that extraction reads as well. Those pages are rendered
+and read by **Tesseract, inside the container**. Nothing is sent anywhere.
+
+| `SINHALA_READER_OCR` | Pages read from their image |
+| --- | --- |
+| `broken` (compose default) | Only pages whose embedded text failed |
+| `all` | Every page |
+| `off` (default outside compose) | None; broken pages stay unread |
+
+Recognised text can misread letters, so those pages are marked as not checked,
+and the document version changes with the mode, which regenerates their audio.
+Measured on the 168-page Grade 11 history textbook: 19 pages were recognised,
+and preparation took about 89 seconds instead of 19.
+
 ## What this is not
 
 Not a deployment. There is no TLS, no secret management, no backups, no resource

@@ -34,6 +34,13 @@ RUN pip install --no-cache-dir \
       "celery>=5.4" \
       "redis>=5"
 
+# Tesseract and its Sinhala model, for pages whose embedded text does not match
+# what is printed. See services/worker/src/sinhala_documents/ocr.py. It reads
+# page images locally: nothing is sent anywhere.
+RUN apt-get update \
+ && apt-get install --no-install-recommends -y tesseract-ocr tesseract-ocr-sin \
+ && rm -rf /var/lib/apt/lists/*
+
 # Three source trees, kept separate the way the packages are. PYTHONPATH rather
 # than an install because none of them is published, which is what CI and the
 # tests already do.

@@ -66,6 +66,9 @@ services:
       # Off unless chosen. Sending a reader's page to an external provider is
       # never a default.
       SINHALA_READER_STRUCTURE: ${SINHALA_READER_STRUCTURE:-deterministic}
+      # Pages whose embedded text failed are read from their image by Tesseract,
+      # locally. off | broken | all. See services/worker/src/sinhala_documents/ocr.py.
+      SINHALA_READER_OCR: ${SINHALA_READER_OCR:-broken}
       # extractive returns the book's own sentences; gemini writes a Sinhala
       # answer from the retrieved passages and labels it as written. Both are
       # grounded in this reader's document and neither can invent a citation.
@@ -116,6 +119,9 @@ services:
       SINHALA_TTS_MODEL_DIR: /models/xtts_si_female
       SINHALA_READER_TTS_DEVICE: ${SINHALA_READER_TTS_DEVICE:-cpu}
       SINHALA_READER_STRUCTURE: ${SINHALA_READER_STRUCTURE:-deterministic}
+      # Pages whose embedded text failed are read from their image by Tesseract,
+      # locally. off | broken | all. See services/worker/src/sinhala_documents/ocr.py.
+      SINHALA_READER_OCR: ${SINHALA_READER_OCR:-broken}
       # extractive returns the book's own sentences; gemini writes a Sinhala
       # answer from the retrieved passages and labels it as written. Both are
       # grounded in this reader's document and neither can invent a citation.
