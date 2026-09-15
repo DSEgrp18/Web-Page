@@ -6,7 +6,10 @@ import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
 import { messageFor, strings } from "@/lib/strings";
-import type { StudyAnswer } from "@/lib/types";
+import type { Exchange, StudyAnswer } from "@/lib/types";
+
+/** How many earlier exchanges a question carries. The API accepts at most 6. */
+const HISTORY_LIMIT = 4;
 
 /** One exchange. Kept in memory only: a question is about a book, not a record. */
 interface Turn {
@@ -133,13 +136,21 @@ export function AssistantDrawer({
       // retriever has no idea what is on screen unless the question says so.
       const sent = selection ? `${selection}\n\n${trimmed}` : trimmed;
       const id = `${Date.now()}-${turns.length}`;
+      // The recent conversation, so a follow-up such as "and the list of them?"
+      // means something. Failed exchanges are left out: an error is not
+      // something the reader was told about the book. The server bounds it
+      // too; this keeps what is sent small in the first place.
+      const history: Exchange[] = turns
+        .filter((turn) => turn.answer !== null)
+        .slice(-HISTORY_LIMIT)
+        .map((turn) => ({ question: turn.question, answer: turn.answer?.answer ?? null }));
 
       setAsking(true);
       setQuestion("");
       setTurns((previous) => [...previous, { id, question: trimmed, answer: null, error: null }]);
 
       try {
-        const answer = await api.askQuestion(documentId, sent);
+        const answer = await api.askQuestion(documentId, sent, history);
         setTurns((previous) =>
           previous.map((turn) => (turn.id === id ? { ...turn, answer } : turn)),
         );
@@ -155,7 +166,7 @@ export function AssistantDrawer({
         onClearSelection();
       }
     },
-    [alert, api, documentId, onClearSelection, say, selection, turns.length],
+    [alert, api, documentId, onClearSelection, say, selection, turns],
   );
 
   const openCitation = useCallback(

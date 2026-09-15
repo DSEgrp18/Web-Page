@@ -35,6 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sinhala_documents import DocumentRejected, check_pdf_bytes
 from sinhala_documents.answering import (
     AnswerAdapter,
+    Exchange,
     ExtractiveAnswerer,
     answer_with_fallback,
 )
@@ -578,7 +579,11 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         document = owned(document_id, owner)
         prepared = prepared_or_409(document)
         result = answer_with_fallback(
-            deps.answerer, deps.fallback_answerer, body.question, build_passages(prepared)
+            deps.answerer,
+            deps.fallback_answerer,
+            body.question,
+            build_passages(prepared),
+            tuple(Exchange(question=turn.question, answer=turn.answer) for turn in body.history),
         )
         return StudyAnswer(
             document_id=document_id,
