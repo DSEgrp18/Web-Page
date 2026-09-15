@@ -1822,6 +1822,9 @@ textarea {
   background: var(--panel-sunken);
   border-radius: 0 var(--r) var(--r) 0;
   line-height: var(--leading-reading);
+  /* A written answer lists one item per line. Collapsing that into a single
+     run of "1. … 2. … 7. …" is how a list becomes unreadable. */
+  white-space: pre-line;
 }
 
 .citations {

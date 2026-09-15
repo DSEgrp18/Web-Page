@@ -90,15 +90,22 @@ from .retrieval import LexicalIndex
 #: Bump on any change to either prompt, either schema, retrieval settings, or
 #: the parsing below. Part of the adapter version, so it reaches provenance: an
 #: answer written by a different prompt was produced by a different answerer.
-PROMPT_VERSION = "2"
+PROMPT_VERSION = "3"
 
 MODEL_ENV = "SINHALA_READER_ANSWER_MODEL"
 
-#: A "lite" model on purpose. Answering from supplied passages is not the hard
-#: end of what these models do, and the free tier's limit on the larger flash
-#: model is **20 requests per day** — ten questions now that each costs two
-#: requests, across every reader, and then the feature silently becomes
-#: extractive.
+#: Which model plans the search. See :data:`DEFAULT_PLAN_MODEL`.
+PLAN_MODEL_ENV = "SINHALA_READER_PLAN_MODEL"
+
+#: The model that writes the answer.
+#:
+#: Not the lite model, and that was measured rather than assumed. Asked for the
+#: colonies Britain founded, over identical passages — the figure's list arrives
+#: as two columns interleaved and partly repeated — the lite model gave four
+#: jumbled names on one run, three renumbered names on another, and the right
+#: nine on a third. The flash model gave the nine with the book's own numbers
+#: and said that numbers 5, 6, 11 and 12 are not in the book's text, which is
+#: exactly true. A wrong list read aloud to a blind student is undetectable.
 #:
 #: Pinned rather than a `-latest` alias, because the version string reaches
 #: provenance and an alias would make a recorded version meaningless. Pinning
@@ -106,15 +113,47 @@ MODEL_ENV = "SINHALA_READER_ANSWER_MODEL"
 #: while this was being written — which is why the model is configurable.
 #:
 #: **Not selected by evaluation.** CLAUDE.md asks for the answer model to be
-#: chosen through Sinhala evaluation and that has not happened; this is a
-#: working default, not a measured one.
-DEFAULT_MODEL = "gemini-3.5-flash-lite"
+#: chosen through Sinhala evaluation. A handful of runs on one question is a
+#: reason to prefer one model, not a measurement of either.
+DEFAULT_MODEL = "gemini-3.5-flash"
+
+#: The model that plans the search, and the one an answer falls back to.
+#:
+#: Planning is turning one question into a few Sinhala keywords: the lite model
+#: does that well, quickly, and against a far larger free-tier allowance. It is
+#: also the answer model's stand-in when that is rate-limited or overloaded —
+#: a lite answer, still labelled as written by a model, is more use to a reader
+#: than silently falling all the way back to extracts.
+DEFAULT_PLAN_MODEL = "gemini-3.5-flash-lite"
+
+#: How long the answering call may take. Longer than the default request
+#: timeout: the flash model is slower, and one question's answer is worth
+#: waiting for in a way a page of structure is not.
+ANSWER_TIMEOUT_SECONDS = 90
+
+#: How much the answer model reasons before answering. "minimal" because the
+#: default thinking level measured at over 150 seconds for one answer — past
+#: any timeout a reader would sit through — while minimal answered the same
+#: question correctly in seconds.
+THINKING_LEVEL = "minimal"
+
+#: HTTP statuses that mean "this model, not now" rather than "this request is
+#: wrong". Only these move an answer to the plan model; anything else would
+#: fail there too.
+_TRY_ANOTHER_MODEL = frozenset({429, 503})
 
 #: How many passages each search phrase may contribute to the fusion.
 SEARCH_LIMIT = 8
 
-#: How many of the fused best matches are sent, each with its neighbours.
-SEED_LIMIT = 6
+#: How many of the fused best matches are sent. Each is then widened by its
+#: neighbours while the budget lasts.
+#:
+#: Six was too few on the real book. Asked for the colonies Britain founded,
+#: three planned phrases each found the list's first half — but in fourth place
+#: for one phrase and nowhere for the others, so it fused to eleventh, and the
+#: model was handed the second half alone. It answered with three names,
+#: renumbered 1 to 3, which is worse than abstaining.
+SEED_LIMIT = 10
 
 #: Reciprocal-rank-fusion constant. The conventional value, not a tuned one:
 #: there is no evaluation set to tune it against. It makes a passage found by
@@ -122,8 +161,10 @@ SEED_LIMIT = 6
 FUSION_K = 60
 
 #: The most passage text sent with one question. The real cost and privacy
-#: bound: about a dozen passages — a few pages of one chapter, never the book.
-MAX_GROUNDING_CHARACTERS = 12_000
+#: bound: about two dozen passages — some pages of a chapter or two, and under a
+#: tenth of the 258,000-character textbook this was measured on. Sinhala text is
+#: a few thousand tokens at this size, well inside what the model takes.
+MAX_GROUNDING_CHARACTERS = 24_000
 
 #: Passages longer than this are truncated before sending. Passages target ~900
 #: characters, so anything far above this is a sign extraction went wrong.
@@ -178,9 +219,12 @@ fill a gap with what is usually true — not even a well-known name, date, or \
 number.
 2. Answer as completely as the passages allow. If the question asks for a list, \
 give every item the passages name. The passage text was extracted from a printed \
-page and can repeat fragments or be missing some; ignore repeats, and if part of \
-the answer is missing (for example a numbered list with numbers skipped), give \
-what is there and say plainly that the book's text does not include the rest.
+page and is often messy: a list printed in columns can arrive interleaved, like \
+"1. A 7. G 1. A 7. G 2. B 8. H", with lines repeated, and it can continue into \
+the next passage. Read every numbered item from every column and passage, \
+ignore the repeats, keep the book's own numbers — never renumber — and give the \
+items in number order. If numbers are missing from the text, say which ones, \
+and say the book's text does not include them.
 3. If the passages contain nothing that answers the question, set "sufficient" \
 to false and leave "answer" empty. Abstaining is correct and expected. A \
 confident wrong answer cannot be detected by somebody who cannot see the page.
@@ -262,9 +306,10 @@ def ground(
 
     Each query is searched separately and the rankings are fused, so a passage
     several phrasings agree on outranks one a single phrasing happened to put
-    first. The best few are then widened by one passage either side — the seed
-    before its neighbours, so a tight budget cuts context and never a match —
-    and returned in the order the book has them.
+    first. Every best match is taken before any neighbour, so a tight budget
+    cuts context and never a match; then the best matches are widened by one
+    passage either side, best first, and everything is returned in the order
+    the book has it.
     """
     if not passages:
         return ()
@@ -279,17 +324,18 @@ def ground(
 
     seeds = sorted(fused, key=lambda where: (-fused[where], where))[:SEED_LIMIT]
 
+    wanted = seeds + [where for seed in seeds for where in (seed - 1, seed + 1)]
+
     chosen: set[int] = set()
     used = 0
-    for seed in seeds:
-        for where in (seed, seed - 1, seed + 1):
-            if where < 0 or where >= len(passages) or where in chosen:
-                continue
-            size = len(passages[where].text[:MAX_PASSAGE_CHARACTERS])
-            if used + size > MAX_GROUNDING_CHARACTERS:
-                continue
-            chosen.add(where)
-            used += size
+    for where in wanted:
+        if where < 0 or where >= len(passages) or where in chosen:
+            continue
+        size = len(passages[where].text[:MAX_PASSAGE_CHARACTERS])
+        if used + size > MAX_GROUNDING_CHARACTERS:
+            continue
+        chosen.add(where)
+        used += size
 
     return tuple(passages[where] for where in sorted(chosen))
 
@@ -308,23 +354,32 @@ class GeminiAnswerer(AnswerAdapter):
         *,
         api_key: str | None = None,
         model: str | None = None,
+        plan_model: str | None = None,
         post: Callable[..., dict] | None = None,
         timeout: int = REQUEST_TIMEOUT_SECONDS,
+        answer_timeout: int = ANSWER_TIMEOUT_SECONDS,
     ) -> None:
         self._api_key = api_key if api_key is not None else os.environ.get(API_KEY_ENV, "")
         self._model = model or os.environ.get(MODEL_ENV, "").strip() or DEFAULT_MODEL
+        self._plan_model = (
+            plan_model or os.environ.get(PLAN_MODEL_ENV, "").strip() or DEFAULT_PLAN_MODEL
+        )
         self._post = post or _post
         self._timeout = timeout
+        self._answer_timeout = answer_timeout
 
     @property
     def version(self) -> str:
-        return f"gemini/{self._model}/answer-prompt-{PROMPT_VERSION}"
+        return (
+            f"gemini/{self._model}+plan-{self._plan_model}"
+            f"/thinking-{THINKING_LEVEL}/answer-prompt-{PROMPT_VERSION}"
+        )
 
-    def _call(self, body: dict) -> dict:
+    def _call(self, model: str, body: dict, timeout: int) -> dict:
         return self._post(
-            ENDPOINT.format(model=self._model),
+            ENDPOINT.format(model=model),
             body,
-            timeout=self._timeout,
+            timeout=timeout,
             api_key=self._api_key,
         )
 
@@ -352,7 +407,7 @@ class GeminiAnswerer(AnswerAdapter):
             },
         }
         try:
-            payload = self._call(body)
+            payload = self._call(self._plan_model, body, self._timeout)
             result = json.loads(payload["candidates"][0]["content"]["parts"][0]["text"])
             queries = result["queries"]
         except (
@@ -400,16 +455,36 @@ class GeminiAnswerer(AnswerAdapter):
                 {"role": "user", "parts": [{"text": _prompt(question, grounding, history)}]}
             ],
             "generationConfig": {
-                # Deterministic, so the same question on the same text gives the
-                # same answer and a reported problem can be reproduced.
+                # As repeatable as the provider allows. Not deterministic: the
+                # same request measured different answers on repeated runs, which
+                # is one more reason the answer is labelled as a model's.
                 "temperature": 0,
                 "responseMimeType": "application/json",
                 "responseSchema": _schema(),
+                "thinkingConfig": {"thinkingLevel": THINKING_LEVEL},
             },
         }
 
         try:
-            payload = self._call(body)
+            payload = self._call(self._model, body, self._answer_timeout)
+        except urllib.error.HTTPError as error:
+            if error.code not in _TRY_ANOTHER_MODEL or self._plan_model == self._model:
+                raise AnswerUnavailable(f"Gemini did not answer: {error}") from error
+            # Rate-limited or overloaded: this model, not now. The thinking
+            # setting is dropped because it belongs to the answer model; the
+            # stand-in is asked plainly.
+            fallback = {
+                **body,
+                "generationConfig": {
+                    key: value
+                    for key, value in body["generationConfig"].items()
+                    if key != "thinkingConfig"
+                },
+            }
+            try:
+                payload = self._call(self._plan_model, fallback, self._answer_timeout)
+            except (urllib.error.URLError, TimeoutError, OSError) as second:
+                raise AnswerUnavailable(f"Gemini did not answer: {second}") from second
         except (urllib.error.URLError, TimeoutError, OSError) as error:
             raise AnswerUnavailable(f"Gemini did not answer: {error}") from error
 
