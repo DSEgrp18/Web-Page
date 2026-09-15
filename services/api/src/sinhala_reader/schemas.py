@@ -349,8 +349,28 @@ class RenameBody(BaseModel):
     title: str = Field(max_length=200)
 
 
+#: How many earlier exchanges a question may carry, and how long an earlier
+#: answer may be. Enough for a follow-up to be understood; the answerer uses
+#: fewer still.
+MAX_HISTORY = 6
+MAX_HISTORY_ANSWER = 4_000
+
+
+class HistoryTurn(BaseModel):
+    """An earlier exchange, so a follow-up question can be understood.
+
+    Supplied by the browser, so it is the reader's own claim about what was
+    said and is treated accordingly: context for working out what "them" means,
+    never evidence for an answer.
+    """
+
+    question: str = Field(min_length=1, max_length=MAX_QUESTION)
+    answer: str | None = Field(default=None, max_length=MAX_HISTORY_ANSWER)
+
+
 class QuestionBody(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION)
+    history: list[HistoryTurn] = Field(default_factory=list, max_length=MAX_HISTORY)
 
 
 class StudyCitation(BaseModel):
