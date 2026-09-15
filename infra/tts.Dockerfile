@@ -61,6 +61,13 @@ RUN pip install --no-cache-dir \
       "celery>=5.4" \
       "redis>=5"
 
+# Tesseract and its Sinhala model, for pages whose embedded text does not match
+# what is printed. See services/worker/src/sinhala_documents/ocr.py. After the
+# Python layers so that adding it does not invalidate the torch download.
+RUN apt-get update \
+ && apt-get install --no-install-recommends -y tesseract-ocr tesseract-ocr-sin \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY services/api/src /app/services/api/src
 COPY services/worker/src /app/services/worker/src
 COPY services/tts/src /app/services/tts/src
