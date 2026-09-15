@@ -20,6 +20,7 @@ import type {
   Bookmark,
   DocumentDetail,
   DocumentSummary,
+  Exchange,
   Job,
   Page,
   Progress,
@@ -191,11 +192,20 @@ export class ReaderApi {
 
   // -- study -------------------------------------------------------------
 
-  askQuestion(documentId: string, question: string): Promise<StudyAnswer> {
+  /**
+   * Ask about one book. `history` is the recent conversation, so that "and the
+   * list of them?" can be understood; it is omitted when empty, which keeps a
+   * first question's request exactly what it always was.
+   */
+  askQuestion(
+    documentId: string,
+    question: string,
+    history: readonly Exchange[] = [],
+  ): Promise<StudyAnswer> {
     return this.json<StudyAnswer>(`/documents/${encodeURIComponent(documentId)}/questions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(history.length > 0 ? { question, history } : { question }),
     });
   }
 

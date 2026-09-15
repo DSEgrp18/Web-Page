@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from conftest import OTHER_READER, Page, Text, as_reader, build_pdf, upload
 from fastapi.testclient import TestClient
+from sinhala_documents.answerer import Answer
+from sinhala_documents.answering import AnswerAdapter, Exchange
+
+from sinhala_reader.app import Deps, create_app
+from sinhala_reader.storage import InMemoryStore
 
 
 def ask(client: TestClient, document_id: str, question: str, owner: str | None = None):
@@ -57,6 +62,9 @@ def test_an_unsupported_question_abstains_instead_of_guessing(
         "answer": None,
         "citations": [],
         "abstained": True,
+        # The default answerer extracts; it never writes. A reader must be able
+        # to tell which kind of answer they were handed.
+        "generated": False,
     }
 
 
@@ -73,5 +81,61 @@ def test_an_empty_question_is_rejected_before_retrieval(
     client: TestClient, prepared_document
 ) -> None:
     response = ask(client, prepared_document["document_id"], "")
+
+    assert response.status_code == 422
+
+
+class RecordingAnswerer(AnswerAdapter):
+    """Records what it was asked, and abstains."""
+
+    def __init__(self) -> None:
+        self.history: tuple[Exchange, ...] | None = None
+
+    @property
+    def version(self) -> str:
+        return "recording/1"
+
+    def answer(self, question, passages, history=()):
+        self.history = history
+        return Answer(answer=None, citations=(), abstained=True, generated=True)
+
+
+def test_the_earlier_conversation_reaches_the_answerer(book: bytes) -> None:
+    """A follow-up like "and the list of them?" cannot be answered without it."""
+    answerer = RecordingAnswerer()
+    client = TestClient(
+        create_app(Deps(store=InMemoryStore(), run_in_background=False, answerer=answerer))
+    )
+    document_id = upload(client, book).json()["document_id"]
+
+    response = client.post(
+        f"/documents/{document_id}/questions",
+        json={
+            "question": "i want the list of them",
+            "history": [
+                {"question": "what colonies did britain found?", "answer": "දහතුනකි."},
+                {"question": "when?", "answer": None},
+            ],
+        },
+        headers=as_reader(client),
+    )
+
+    assert response.status_code == 200, response.text
+    assert answerer.history == (
+        Exchange(question="what colonies did britain found?", answer="දහතුනකි."),
+        Exchange(question="when?", answer=None),
+    )
+
+
+def test_a_conversation_is_bounded(client: TestClient, prepared_document) -> None:
+    """History is the browser's claim, so its size is the server's decision."""
+    response = client.post(
+        f"/documents/{prepared_document['document_id']}/questions",
+        json={
+            "question": "ප්‍රශ්නය",
+            "history": [{"question": "පෙර ප්‍රශ්නය", "answer": None}] * 7,
+        },
+        headers=as_reader(client),
+    )
 
     assert response.status_code == 422

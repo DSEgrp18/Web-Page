@@ -6,7 +6,10 @@ import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
 import { messageFor, strings } from "@/lib/strings";
-import type { StudyAnswer } from "@/lib/types";
+import type { Exchange, StudyAnswer } from "@/lib/types";
+
+/** How many earlier exchanges a question carries. The API accepts at most 6. */
+const HISTORY_LIMIT = 4;
 
 /** One exchange. Kept in memory only: a question is about a book, not a record. */
 interface Turn {
@@ -80,6 +83,14 @@ export function AssistantDrawer({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [asking, setAsking] = useState(false);
 
+  /*
+   * Whether this deployment writes answers or extracts them. There is no
+   * endpoint that says so before the first question, and guessing would put
+   * the wrong claim above every answer — so it is learned from the first reply
+   * and kept. An abstention still tells us: the flag travels with it.
+   */
+  const generated = turns.some((turn) => turn.answer?.generated);
+
   const drawerId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -125,13 +136,21 @@ export function AssistantDrawer({
       // retriever has no idea what is on screen unless the question says so.
       const sent = selection ? `${selection}\n\n${trimmed}` : trimmed;
       const id = `${Date.now()}-${turns.length}`;
+      // The recent conversation, so a follow-up such as "and the list of them?"
+      // means something. Failed exchanges are left out: an error is not
+      // something the reader was told about the book. The server bounds it
+      // too; this keeps what is sent small in the first place.
+      const history: Exchange[] = turns
+        .filter((turn) => turn.answer !== null)
+        .slice(-HISTORY_LIMIT)
+        .map((turn) => ({ question: turn.question, answer: turn.answer?.answer ?? null }));
 
       setAsking(true);
       setQuestion("");
       setTurns((previous) => [...previous, { id, question: trimmed, answer: null, error: null }]);
 
       try {
-        const answer = await api.askQuestion(documentId, sent);
+        const answer = await api.askQuestion(documentId, sent, history);
         setTurns((previous) =>
           previous.map((turn) => (turn.id === id ? { ...turn, answer } : turn)),
         );
@@ -147,7 +166,7 @@ export function AssistantDrawer({
         onClearSelection();
       }
     },
-    [alert, api, documentId, onClearSelection, say, selection, turns.length],
+    [alert, api, documentId, onClearSelection, say, selection, turns],
   );
 
   const openCitation = useCallback(
@@ -217,11 +236,17 @@ export function AssistantDrawer({
         </header>
 
         {/*
-         * Said plainly, at the top, not in a footnote: these answers are the
-         * book's own sentences. A reader who believes they are getting an
-         * explanation will read them as one.
+         * Said plainly, at the top, not in a footnote.
+         *
+         * Which sentence appears depends on what the server is configured to
+         * do, and that is only knowable once an answer comes back — so it
+         * starts as the conservative claim and corrects itself. Getting this
+         * the wrong way round would be the worse failure: a reader told they
+         * are reading the book, who is actually reading a model.
          */}
-        <p className="notice assistant-honesty">{strings.assistantExtractive}</p>
+        <p className="notice assistant-honesty" data-generated={generated}>
+          {generated ? strings.assistantGenerated : strings.assistantExtractive}
+        </p>
 
         <div
           className="assistant-log"
@@ -251,8 +276,10 @@ export function AssistantDrawer({
                   <p>{strings.studyAbstainedBody}</p>
                 </div>
               ) : (
-                <div className="turn-answer">
-                  <span className="turn-who">{strings.assistantAnswer}</span>
+                <div className="turn-answer" data-generated={turn.answer.generated}>
+                  <span className="turn-who">
+                    {turn.answer.generated ? strings.answerFromAi : strings.answerFromBook}
+                  </span>
                   <blockquote>{turn.answer.answer}</blockquote>
 
                   {turn.answer.citations.length > 0 ? (
