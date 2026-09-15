@@ -19,6 +19,37 @@ removes the database.
 | `postgres` | Documents, audio, progress, bookmarks |
 | `redis` | The queue |
 
+## Updating after the code changes (Windows)
+
+A container runs the code that was copied into its image, so new code needs a
+rebuild, not a restart. From the repository root:
+
+```powershell
+.\refresh
+```
+
+It pulls the current branch (fast-forward only, so it never merges or discards
+anything), rebuilds `web`, `api` and `worker` one at a time, recreates the
+containers whose image changed, waits for the API to be healthy, and prints
+the status. Books, reading positions and bookmarks are kept.
+
+It works out the settings itself: the real voice when
+`models/xtts_si_female/model.pth` exists, and Gemini answers when `.env` sets
+`GEMINI_API_KEY`. The images are built one at a time because building them
+together beside a loaded voice model has run Docker out of memory.
+
+| Command | What it does |
+| --- | --- |
+| `.\refresh -Only web` | Rebuild just the interface |
+| `.\refresh -Only api,worker` | Rebuild just the backend |
+| `.\refresh -NoPull` | Rebuild the code in the folder as it is |
+| `.\refresh -NoVoice` | Use the placeholder tone, saving memory |
+
+It builds **whichever branch is checked out**. After merging a pull request on
+GitHub, switch to `main` (`git switch main`) before running it.
+
+Afterwards, reload the browser with `Ctrl+Shift+R`.
+
 ## Why this exists, beyond convenience
 
 Run by hand, the API defaults to in-memory storage and a thread per job, and
