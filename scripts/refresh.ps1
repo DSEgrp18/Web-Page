@@ -138,8 +138,12 @@ docker compose @files ps
 $note = ""
 try {
     $ready = Invoke-RestMethod -Uri "http://127.0.0.1:8000/readiness" -TimeoutSec 10
-    if ($voice -eq "real voice" -and -not $ready.real_model) {
-        $note = "The voice model is still loading. Audio will work in a few minutes."
+    # "readiness", not "real_model": real_model says which voice is configured
+    # and is already true while the model is still loading.
+    if ($voice -eq "real voice" -and $ready.readiness -eq "loading") {
+        $note = "The voice model is still loading. Audio will work in about 3 minutes."
+    } elseif ($voice -eq "real voice" -and $ready.readiness -ne "ready") {
+        $note = "The voice did not load ($($ready.readiness)). See why with: docker logs --tail 50 sinhala-reader-api-1"
     }
 } catch {
     $note = "The API is up, but its readiness check did not answer yet."
