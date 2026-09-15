@@ -85,7 +85,9 @@ describe("rendering a page", () => {
     const pdf = fakePdf((t) => made.push(t as ReturnType<typeof fakeTask>));
     const canvas = fakeCanvas(order);
 
-    const first = renderPage(pdf, 1, canvas, 500);
+    // Cancelled, by design. Handled now rather than at the end, or the rejection
+    // lands before anything is listening and Vitest reports it as unhandled.
+    const first = renderPage(pdf, 1, canvas, 500).catch(() => {});
     // Let the first render reach `page.render`.
     await vi.waitFor(() => expect(made).toHaveLength(1));
 
@@ -102,7 +104,7 @@ describe("rendering a page", () => {
     await vi.waitFor(() => expect(made).toHaveLength(2));
     made[1]!.finish();
 
-    await first.catch(() => {});
+    await first;
     await second;
   });
 
@@ -111,7 +113,9 @@ describe("rendering a page", () => {
     const pdf = fakePdf((t) => made.push(t as ReturnType<typeof fakeTask>));
     const canvas = fakeCanvas([]);
 
-    const first = renderPage(pdf, 1, canvas, 400);
+    // Cancelled, by design. Handled now rather than at the end, or the rejection
+    // lands before anything is listening and Vitest reports it as unhandled.
+    const first = renderPage(pdf, 1, canvas, 400).catch(() => {});
     await vi.waitFor(() => expect(made).toHaveLength(1));
 
     const second = renderPage(pdf, 2, canvas, 400);
@@ -119,7 +123,7 @@ describe("rendering a page", () => {
     await vi.waitFor(() => expect(made).toHaveLength(2));
     made[1]!.finish();
 
-    await first.catch(() => {});
+    await first;
     await second;
 
     // pdf.js throws "Cannot use the same canvas during multiple render
