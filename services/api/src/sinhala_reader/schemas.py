@@ -349,8 +349,28 @@ class RenameBody(BaseModel):
     title: str = Field(max_length=200)
 
 
+#: How many earlier exchanges a question may carry, and how long an earlier
+#: answer may be. Enough for a follow-up to be understood; the answerer uses
+#: fewer still.
+MAX_HISTORY = 6
+MAX_HISTORY_ANSWER = 4_000
+
+
+class HistoryTurn(BaseModel):
+    """An earlier exchange, so a follow-up question can be understood.
+
+    Supplied by the browser, so it is the reader's own claim about what was
+    said and is treated accordingly: context for working out what "them" means,
+    never evidence for an answer.
+    """
+
+    question: str = Field(min_length=1, max_length=MAX_QUESTION)
+    answer: str | None = Field(default=None, max_length=MAX_HISTORY_ANSWER)
+
+
 class QuestionBody(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION)
+    history: list[HistoryTurn] = Field(default_factory=list, max_length=MAX_HISTORY)
 
 
 class StudyCitation(BaseModel):
@@ -371,8 +391,18 @@ class StudyAnswer(BaseModel):
     answer: str | None = Field(
         default=None,
         description=(
-            "An exact passage from the document. Null when the document does not support an answer."
+            "The answer. An exact passage from the document when `generated` is false, "
+            "or Sinhala prose written from the cited passages when it is true. "
+            "Null when the document does not support an answer."
         ),
     )
     citations: list[StudyCitation] = Field(default_factory=list)
     abstained: bool
+    generated: bool = Field(
+        default=False,
+        description=(
+            "True when a model wrote the answer, rather than the book supplying it. "
+            "The interface must label the two differently: a reader who cannot see the "
+            "page has no other way to tell whose words these are."
+        ),
+    )

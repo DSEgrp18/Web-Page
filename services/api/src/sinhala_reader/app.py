@@ -33,7 +33,12 @@ from dataclasses import replace
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sinhala_documents import DocumentRejected, check_pdf_bytes
-from sinhala_documents.answerer import answer_question
+from sinhala_documents.answering import (
+    AnswerAdapter,
+    Exchange,
+    ExtractiveAnswerer,
+    answer_with_fallback,
+)
 from sinhala_documents.passages import build_passages
 from sinhala_tts.adapter import ReadinessState, TextNotSpeakableError, TtsAdapter
 from sinhala_tts.adapter import health as adapter_health
@@ -41,6 +46,7 @@ from sinhala_tts.adapter import health as adapter_health
 from . import passwords
 from .accounts import router as accounts_router
 from .adapters import ADAPTER_ENV, adapter_mode, build_adapter, loaded_model_version, warm
+from .answers import answer_limitations, answers_mode, build_answerer
 from .audio import SynthesisService
 from .preparation import (
     PreparationService,
@@ -113,12 +119,18 @@ class Deps:
         store: Store | None = None,
         adapter: TtsAdapter | None = None,
         *,
+        answerer: AnswerAdapter | None = None,
         run_in_background: bool = True,
         warm_on_start: bool = True,
     ) -> None:
         self.store = store or build_store()
         # Chosen from configuration, defaulting to the labelled placeholder.
         self.adapter = adapter or build_adapter()
+        #: Chosen from configuration, defaulting to the book's own words.
+        self.answerer = answerer or build_answerer()
+        #: What runs when the configured answerer cannot. Always extractive:
+        #: it needs no provider, so it cannot fail the same way.
+        self.fallback_answerer = ExtractiveAnswerer()
         #: Load the checkpoint at start-up rather than in the first request.
         #: Tests turn it off to hold an adapter in a chosen state.
         self.warm_on_start = warm_on_start
@@ -295,12 +307,14 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             )
         limitations.extend(structure_limitations())
         limitations.extend(ocr_limitations())
+        limitations.extend(answer_limitations())
         return {
             "alive": report.alive,
             "serving": report.serving,
             "readiness": report.readiness,
             "structure": structure_mode(),
             "ocr": ocr_mode().value,
+            "answers": answers_mode(),
             "real_model": deps.adapter.is_real_model,
             # Not `adapter.model_version`: that loads the bundle if it has not
             # been loaded, and a readiness probe that blocks for a minute and a
@@ -567,7 +581,13 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         """
         document = owned(document_id, owner)
         prepared = prepared_or_409(document)
-        result = answer_question(body.question, build_passages(prepared))
+        result = answer_with_fallback(
+            deps.answerer,
+            deps.fallback_answerer,
+            body.question,
+            build_passages(prepared),
+            tuple(Exchange(question=turn.question, answer=turn.answer) for turn in body.history),
+        )
         return StudyAnswer(
             document_id=document_id,
             answer=result.answer,
@@ -583,6 +603,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
                 for citation in result.citations
             ],
             abstained=result.abstained,
+            generated=result.generated,
         )
 
     # -- bookmarks ---------------------------------------------------------

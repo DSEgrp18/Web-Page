@@ -179,6 +179,37 @@ describe("the assistant", () => {
     expect(screen.queryByRole("button", { name: /සාරාංශ/ })).toBeNull();
   });
 
+  it("says the answer is the book's own words when it is", async () => {
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()] }));
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+
+    await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+
+    expect(await screen.findByText(strings.answerFromBook)).toBeTruthy();
+    expect(screen.getByText(strings.assistantExtractive)).toBeTruthy();
+    expect(screen.queryByText(strings.answerFromAi)).toBeNull();
+  });
+
+  it("says the answer was written by a model when it was", async () => {
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()], generatedAnswers: true }));
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+
+    await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+
+    // The whole point of the flag. A reader who cannot see the page has no
+    // other way to tell whose words these are, and being told the book said
+    // something a model wrote is the failure this prevents.
+    expect(await screen.findByText(strings.answerFromAi)).toBeTruthy();
+    expect(screen.getByText(strings.assistantGenerated)).toBeTruthy();
+    expect(screen.queryByText(strings.assistantExtractive)).toBeNull();
+  });
+
   it("keeps the conversation when it is minimised", async () => {
     const user = userEvent.setup();
     open(new FakeServer({ books: [book()] }));
@@ -223,5 +254,56 @@ describe("the assistant", () => {
     await user.click(screen.getByRole("button", { name: strings.assistantClear }));
     await waitFor(() => expect(screen.queryByText("කවදාද?")).toBeNull());
     await waitFor(() => expect(politeText()).toContain(strings.assistantCleared));
+  });
+
+  it("sends the conversation with a follow-up, so 'the list of them' means something", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    open(server);
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+
+    const asked = () =>
+      server
+        .callsTo("POST", /\/documents\/doc-1\/questions$/)
+        .map((call) => JSON.parse(String(call.body)) as { question: string; history?: unknown });
+
+    await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+    await screen.findByText(strings.answerFromBook);
+
+    await user.type(screen.getByLabelText(strings.questionLabel), "ඒවායේ ලැයිස්තුව");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+    await waitFor(() => expect(asked()).toHaveLength(2));
+
+    // A first question is sent exactly as it always was.
+    expect(asked()[0]).toEqual({ question: "පළමු" });
+    expect(asked()[1]).toEqual({
+      question: "ඒවායේ ලැයිස්තුව",
+      history: [{ question: "පළමු", answer: expect.any(String) }],
+    });
+  });
+
+  it("does not send a conversation the reader cleared", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    open(server);
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+
+    await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+    await screen.findByText(strings.answerFromBook);
+    await user.click(screen.getByRole("button", { name: strings.assistantClear }));
+
+    await user.type(screen.getByLabelText(strings.questionLabel), "දෙවන");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+
+    await waitFor(() =>
+      expect(server.callsTo("POST", /\/documents\/doc-1\/questions$/)).toHaveLength(2),
+    );
+    const second = server.callsTo("POST", /\/documents\/doc-1\/questions$/)[1];
+    // Clearing is a promise that the old topic is gone, including from the server.
+    expect(JSON.parse(String(second?.body))).toEqual({ question: "දෙවන" });
   });
 });
