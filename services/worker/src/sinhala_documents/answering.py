@@ -22,11 +22,28 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from .answerer import Answer, answer_question
 from .passages import Passage
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class Exchange:
+    """One earlier question in the same conversation, and what was answered.
+
+    Supplied so a follow-up can be understood: "and the list of them?" means
+    nothing without the question before it. It is **context, never evidence**.
+    An earlier answer may itself have been a model's words, so an answerer may
+    use it to work out what is being asked and must not cite or repeat it as
+    what the book says.
+    """
+
+    question: str
+    answer: str | None = None
+    """None when the earlier question was not answered."""
 
 
 class AnswerUnavailable(RuntimeError):
@@ -43,7 +60,12 @@ class AnswerAdapter(ABC):
     """Turn a question and some retrieved passages into an answer."""
 
     @abstractmethod
-    def answer(self, question: str, passages: tuple[Passage, ...]) -> Answer: ...
+    def answer(
+        self,
+        question: str,
+        passages: tuple[Passage, ...],
+        history: tuple[Exchange, ...] = (),
+    ) -> Answer: ...
 
     @property
     @abstractmethod
@@ -63,7 +85,15 @@ class ExtractiveAnswerer(AnswerAdapter):
     def version(self) -> str:
         return "extractive/1"
 
-    def answer(self, question: str, passages: tuple[Passage, ...]) -> Answer:
+    def answer(
+        self,
+        question: str,
+        passages: tuple[Passage, ...],
+        history: tuple[Exchange, ...] = (),
+    ) -> Answer:
+        # History is ignored. Word overlap has no way to resolve "them", and
+        # quietly searching with an earlier question's words would return
+        # extracts for a question the reader did not just ask.
         return answer_question(question, passages)
 
 
@@ -72,6 +102,7 @@ def answer_with_fallback(
     fallback: AnswerAdapter,
     question: str,
     passages: tuple[Passage, ...],
+    history: tuple[Exchange, ...] = (),
 ) -> Answer:
     """Ask `adapter`, and fall back rather than fail.
 
@@ -85,11 +116,11 @@ def answer_with_fallback(
     logging private content by default and a question is a reader's own words.
     """
     try:
-        return adapter.answer(question, passages)
+        return adapter.answer(question, passages, history)
     except AnswerUnavailable as reason:
         log.warning(
             "Falling back to the extractive answerer: %s (%s could not answer)",
             reason,
             adapter.version,
         )
-        return fallback.answer(question, passages)
+        return fallback.answer(question, passages, history)

@@ -156,6 +156,15 @@ export interface StudyCitation {
 }
 
 /**
+ * An earlier question and its answer, sent so a follow-up can be understood.
+ * Context for the answerer, never evidence: null when it was not answered.
+ */
+export interface Exchange {
+  question: string;
+  answer: string | null;
+}
+
+/**
  * A grounded study result. A null answer means the service deliberately
  * abstained rather than reach for something unsupported.
  */
