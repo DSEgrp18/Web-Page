@@ -28,10 +28,13 @@ from collections.abc import Callable
 from dataclasses import replace
 
 from sinhala_documents import DocumentRejected
+from sinhala_documents.ocr import OcrAdapter, OcrMode
 from sinhala_documents.pipeline import ReadableDocument, prepare_document
 from sinhala_documents.serialise import UnreadableFormat, from_json, to_json
 from sinhala_documents.structuring import StructureAdapter
 
+from .recognition import build_ocr
+from .recognition import ocr_mode as configured_ocr_mode
 from .storage import Document, Job, JobState, Store
 from .structure import build_structure
 
@@ -140,12 +143,16 @@ class PreparationService:
         *,
         dispatch: Dispatch | None = None,
         structure: StructureAdapter | None = None,
+        ocr: OcrAdapter | None = None,
+        ocr_mode: OcrMode | None = None,
     ) -> None:
         self._store = store
         self._dispatch = dispatch
         # Chosen once, here, rather than per document: a provider decided
         # per-request is a provider that can change halfway through a book.
         self._structure = structure or build_structure()
+        self._ocr_mode = ocr_mode if ocr_mode is not None else configured_ocr_mode()
+        self._ocr = ocr if ocr is not None else build_ocr()
 
     def start(self, document: Document, job: Job) -> Job:
         """Queue preparation and return the job immediately."""
@@ -191,7 +198,9 @@ class PreparationService:
             return
 
         try:
-            prepared = prepare_document(source, structure=self._structure)
+            prepared = prepare_document(
+                source, structure=self._structure, ocr=self._ocr, ocr_mode=self._ocr_mode
+            )
         except DocumentRejected as error:
             # The one case where the message is about the reader's file rather
             # than about the server, and is safe to show them. Never retried:

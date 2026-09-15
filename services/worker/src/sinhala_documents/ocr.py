@@ -43,11 +43,15 @@ import os
 import subprocess
 import unicodedata
 from abc import ABC, abstractmethod
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from pathlib import Path
 
 from .model import (
     BoundingBox,
+    DocumentExtraction,
     ExtractionMethod,
     PageExtraction,
     PageKind,
@@ -83,9 +87,8 @@ _AL_LAKUNA = "\u0dca"
 _ZWNJ = "\u200c"
 
 NOTE = (
-    "This page was read from its image by optical character recognition, because "
-    "its embedded text does not match what is printed. Recognition can misread "
-    "letters, and this page has not been checked by a person."
+    "This page was read from its image by optical character recognition. Recognition "
+    "can misread letters, and this page has not been checked by a person."
 )
 
 
@@ -316,7 +319,10 @@ def render_page(source: bytes | str | Path, page_index: int, *, dpi: int = DEFAU
     try:
         if not 0 <= page_index < len(document):
             raise OcrUnavailable(f"Page {page_index} is not in this document.")
-        image = document[page_index].render(scale=dpi / 72).to_pil()
+        try:
+            image = document[page_index].render(scale=dpi / 72).to_pil()
+        except pdfium.PdfiumError as error:
+            raise OcrUnavailable(f"Page {page_index} could not be rendered: {error}") from error
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         return buffer.getvalue()
@@ -355,3 +361,108 @@ def recognise_page(
 
     notes = (NOTE, *_page_notes(kind, page.image_count, lines, columns=False))
     return replace(page, lines=lines, kind=kind, notes=notes)
+
+
+class OcrMode(StrEnum):
+    """Which pages are read from their image."""
+
+    OFF = "off"
+    """None. The text layer is all there is, and broken pages stay unread."""
+
+    BROKEN = "broken"
+    """Only pages whose text layer failed. Every other page keeps its exact
+    embedded text, which recognition could only make worse."""
+
+    ALL = "all"
+    """Every page. Consistent, and slower; adds recognition errors to pages whose
+    embedded text was already exact."""
+
+
+#: A page repeating this many of its own lines is holding a hidden copy of
+#: itself. Page 121 repeated five. One repeat is left alone: a refrain, a
+#: repeated heading, or two table rows can legitimately match.
+DUPLICATED_LINES = 2
+
+#: Lines shorter than this are not counted as repeats. "1." and a page number
+#: repeat on ordinary pages.
+_REPEAT_MINIMUM = 20
+
+#: A withheld line shorter than this, not counting spaces, is not worth reading a
+#: whole page from its image for. On the real textbook, four of the pages with a
+#: single withheld line were withholding "=", "a", "S" and "•": recognising those
+#: pages would replace thirty exact lines with recognised ones to recover a
+#: stray symbol. The other single withheld lines were real sentences.
+_WITHHELD_MINIMUM = 5
+
+
+def _withholds_text(line: TextLine) -> bool:
+    """Whether the *withheld spans* of this line amount to text.
+
+    The spans, not the line: on those pages the stray "=" sat inside a line of
+    perfectly readable Sinhala, and counting the whole line counted that too.
+    """
+    withheld = "".join(span.text for span in line.spans if span.quality is QualityState.UNDECODABLE)
+    return sum(not character.isspace() for character in withheld) >= _WITHHELD_MINIMUM
+
+
+def text_layer_failed(page: PageExtraction) -> bool:
+    """Whether this page's embedded text cannot be trusted to be what is printed.
+
+    Three signals, each measured on the real textbook:
+
+    - **Withheld lines.** Legacy text the converter cannot decode, or text that
+      decodes to malformed Sinhala — ignoring stray fragments of a character or
+      two. 17 of its 168 pages; with the two below, 19 are recognised.
+    - **Repeated lines.** A hidden second copy of the page, read as well as the
+      visible one. Pages 3, 5, 7, 8 and 121.
+    - **No text at all on a page with images.** A scan.
+    """
+    if page.kind is PageKind.IMAGE:
+        return True
+    if any(_withholds_text(line) for line in page.lines):
+        return True
+    texts = [line.text.strip() for line in page.lines]
+    counts = Counter(text for text in texts if len(text) >= _REPEAT_MINIMUM)
+    return sum(count - 1 for count in counts.values()) >= DUPLICATED_LINES
+
+
+def apply_ocr(
+    extraction: DocumentExtraction,
+    source: bytes | str | Path,
+    adapter: OcrAdapter,
+    mode: OcrMode,
+    *,
+    dpi: int = DEFAULT_DPI,
+    render: Callable[..., bytes] = render_page,
+) -> DocumentExtraction:
+    """The document with the chosen pages read from their images.
+
+    A page recognition fails on keeps what extraction gave it, and the document
+    says how many pages that happened to. Failing the whole book because
+    Tesseract is missing would take away the pages that read perfectly well.
+    """
+    if mode is OcrMode.OFF:
+        return extraction
+
+    pages: list[PageExtraction] = []
+    failed: list[int] = []
+    reason = ""
+    for page in extraction.pages:
+        if mode is OcrMode.BROKEN and not text_layer_failed(page):
+            pages.append(page)
+            continue
+        try:
+            image = render(source, page.page_index, dpi=dpi)
+            pages.append(recognise_page(page, image, adapter, dpi=dpi))
+        except OcrUnavailable as error:
+            pages.append(page)
+            failed.append(page.page_index)
+            reason = str(error)
+
+    notes = list(extraction.notes)
+    if failed:
+        notes.append(
+            f"{len(failed)} page(s) could not be read by optical character recognition "
+            f"and keep their embedded text: {reason}"
+        )
+    return replace(extraction, pages=tuple(pages), notes=tuple(notes))

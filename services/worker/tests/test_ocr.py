@@ -10,13 +10,25 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from dataclasses import replace
 
 import pytest
+from pdf_fixtures import build_pdf, legacy_page, sinhala_page
 
-from sinhala_documents.model import ExtractionMethod, PageExtraction, PageKind, QualityState
+from sinhala_documents import prepare_document
+from sinhala_documents.model import (
+    BoundingBox,
+    ExtractionMethod,
+    PageExtraction,
+    PageKind,
+    QualityState,
+    TextLine,
+    TextSpan,
+)
 from sinhala_documents.ocr import (
     NOTE,
     OcrAdapter,
+    OcrMode,
     OcrUnavailable,
     OcrWord,
     TesseractOcr,
@@ -24,6 +36,7 @@ from sinhala_documents.ocr import (
     normalise,
     parse_tsv,
     recognise_page,
+    text_layer_failed,
 )
 
 HEADER = (
@@ -279,3 +292,151 @@ def test_the_real_engine_reports_its_version() -> None:
     """
     assert TesseractOcr().version.startswith("tesseract/")
     assert "unavailable" not in TesseractOcr().version
+
+
+# --------------------------------------------------------------------------
+# Which pages are read from their image
+# --------------------------------------------------------------------------
+
+
+def line_of(text: str) -> TextLine:
+    box = BoundingBox(0, 0, 10, 10)
+    return TextLine(spans=(TextSpan(text=text, font="", raw_font="", size=12, box=box),), box=box)
+
+
+def page_with(*texts: str, kind: PageKind = PageKind.TEXT, undecodable: bool = False):
+    lines = tuple(line_of(text) for text in texts)
+    if undecodable:
+        bad = replace(lines[0].spans[0], quality=QualityState.UNDECODABLE)
+        lines = (TextLine(spans=(bad,), box=lines[0].box), *lines[1:])
+    return broken_page(kind=kind, lines=lines, notes=())
+
+
+SENTENCE = "කීර්තිය හා ධනය වර්ධනය කර ගැනීමේ අරමුණෙන්"
+OTHER = "නව ප්‍රදේශ සොයා ජනාවාස පිහිටුවා ගැනීමට"
+
+
+def test_a_page_holding_a_hidden_copy_of_itself_has_a_failed_text_layer() -> None:
+    """Page 121: every line twice."""
+    assert text_layer_failed(page_with(SENTENCE, SENTENCE, OTHER, OTHER))
+
+
+def test_one_repeated_line_is_not_enough() -> None:
+    """A refrain or a repeated heading is ordinary."""
+    assert not text_layer_failed(page_with(SENTENCE, OTHER, SENTENCE))
+
+
+def test_short_repeats_do_not_count() -> None:
+    assert not text_layer_failed(page_with("1.", "1.", "2.", "2.", "3.", "3."))
+
+
+def test_a_withheld_line_means_the_text_layer_failed() -> None:
+    assert text_layer_failed(page_with(SENTENCE, undecodable=True))
+
+
+def test_a_withheld_stray_symbol_is_not_worth_recognising_the_page_for() -> None:
+    """Pages 53, 129, 155 and 168 withheld only "=", "a", "S" and "•"."""
+    assert not text_layer_failed(page_with("•  ", SENTENCE, OTHER, undecodable=True))
+
+
+def test_a_stray_symbol_inside_a_readable_line_does_not_count_the_line() -> None:
+    """How it really looked: "=" withheld in the middle of a line of good Sinhala."""
+    box = BoundingBox(0, 0, 10, 10)
+    good = TextSpan(text=SENTENCE, font="", raw_font="", size=12, box=box)
+    stray = replace(good, text="=", quality=QualityState.UNDECODABLE)
+    mixed = TextLine(spans=(good, stray, good), box=box)
+
+    assert not text_layer_failed(broken_page(lines=(mixed,), notes=(), kind=PageKind.TEXT))
+    # And a real withheld sentence in the same position still does.
+    sentence = replace(stray, text="m<d; a no Pkoa rdcH ks,Odßka")
+    real = TextLine(spans=(good, sentence), box=box)
+    assert text_layer_failed(broken_page(lines=(real,), notes=(), kind=PageKind.TEXT))
+
+
+def test_a_scan_has_a_failed_text_layer() -> None:
+    assert text_layer_failed(page_with(kind=PageKind.IMAGE))
+
+
+def test_a_clean_page_does_not() -> None:
+    assert not text_layer_failed(page_with(SENTENCE, OTHER))
+
+
+class CountingOcr(FakeOcr):
+    def __init__(self, words=None, error=None, version="fake/1"):
+        super().__init__(words if words is not None else (word("පිළිගත් පාඨය"),), error)
+        self.calls = 0
+        self._version = version
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    def recognise(self, image_png: bytes):
+        self.calls += 1
+        # A real render of the fixture page, not a placeholder.
+        assert image_png.startswith(b"\x89PNG")
+        return super().recognise(image_png)
+
+
+def test_broken_mode_reads_only_the_broken_page_from_its_image() -> None:
+    pdf = build_pdf([sinhala_page(), legacy_page("DL-Manel")])
+    ocr = CountingOcr()
+
+    document = prepare_document(pdf, ocr=ocr, ocr_mode=OcrMode.BROKEN)
+
+    assert ocr.calls == 1
+    good, broken = document.pages
+    # The clean page keeps its exact embedded text.
+    assert all("පිළිගත් පාඨය" not in s.display_text for s in good.segments)
+    # The page that had nothing to read now does.
+    assert [s.display_text for s in broken.segments] == ["පිළිගත් පාඨය"]
+    assert broken.quality is QualityState.NEEDS_REVIEW
+    assert NOTE in broken.notes
+
+
+def test_all_mode_reads_every_page_from_its_image() -> None:
+    pdf = build_pdf([sinhala_page(), legacy_page("DL-Manel")])
+    ocr = CountingOcr()
+
+    document = prepare_document(pdf, ocr=ocr, ocr_mode=OcrMode.ALL)
+
+    assert ocr.calls == 2
+    assert all(page.quality is QualityState.NEEDS_REVIEW for page in document.pages)
+
+
+def test_off_is_exactly_the_document_without_ocr() -> None:
+    """Including its version, so books prepared before OCR keep their audio."""
+    pdf = build_pdf([sinhala_page(), legacy_page("DL-Manel")])
+    ocr = CountingOcr()
+
+    with_off = prepare_document(pdf, ocr=ocr, ocr_mode=OcrMode.OFF)
+    without = prepare_document(pdf)
+
+    assert ocr.calls == 0
+    assert with_off.version == without.version
+    assert with_off.segments == without.segments
+
+
+def test_recognition_changes_the_version_and_so_the_audio_cache() -> None:
+    pdf = build_pdf([legacy_page("DL-Manel")])
+
+    plain = prepare_document(pdf).version
+    broken = prepare_document(pdf, ocr=CountingOcr(), ocr_mode=OcrMode.BROKEN).version
+    everything = prepare_document(pdf, ocr=CountingOcr(), ocr_mode=OcrMode.ALL).version
+    newer_engine = prepare_document(
+        pdf, ocr=CountingOcr(version="fake/2"), ocr_mode=OcrMode.BROKEN
+    ).version
+
+    assert len({plain, broken, everything, newer_engine}) == 4
+
+
+def test_without_an_engine_the_book_is_still_prepared_and_says_what_is_unread() -> None:
+    """Missing Tesseract must not take away the pages that read perfectly well."""
+    pdf = build_pdf([sinhala_page(), legacy_page("DL-Manel")])
+    ocr = CountingOcr(error=OcrUnavailable("Tesseract is not installed."))
+
+    document = prepare_document(pdf, ocr=ocr, ocr_mode=OcrMode.BROKEN)
+
+    assert [page.has_audio for page in document.pages] == [True, False]
+    assert any("could not be read by optical character recognition" in n for n in document.notes)
+    assert any("not installed" in n for n in document.notes)
