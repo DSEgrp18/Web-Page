@@ -1184,6 +1184,81 @@ textarea {
   margin-top: var(--s2);
 }
 
+/* -- contents sheet ------------------------------------------------------- */
+/* A sheet from the start edge: the design's left panel, as a modal. */
+.contents-sheet {
+  margin: 0;
+  margin-inline-end: auto;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  inline-size: min(26rem, 100vw);
+  border-radius: 0 var(--r-lg) var(--r-lg) 0;
+  overflow-y: auto;
+}
+
+.contents-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.contents-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s1);
+}
+
+.contents-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--s3);
+  align-items: baseline;
+  inline-size: 100%;
+  min-block-size: var(--tap);
+  padding: var(--s2) var(--s3);
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.contents-row:hover {
+  background: var(--panel-sunken);
+}
+
+.contents-row:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
+}
+
+/* Current is said by aria-current and shown by more than colour: a border and
+   weight, so it survives a high-contrast theme that flattens the wash. */
+.contents-row[aria-current="true"] {
+  background: var(--green-wash);
+  border-color: var(--green);
+  font-weight: 600;
+}
+
+.contents-number {
+  color: var(--green-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+.contents-title,
+.contents-page {
+  grid-column: 2;
+}
+
+.contents-page {
+  font-size: var(--text-sm);
+}
+
 /* -- dropzone ------------------------------------------------------------- */
 .dropzone {
   display: grid;
@@ -1275,11 +1350,23 @@ textarea {
   flex-wrap: wrap;
 }
 
-.workspace-title {
-  font-size: var(--text-lg);
-  margin-inline: var(--s2);
+.workspace-heading {
   flex: 1 1 12rem;
   min-inline-size: 0;
+  margin-inline: var(--s2);
+}
+
+.workspace-title {
+  font-size: var(--text-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-chapter {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

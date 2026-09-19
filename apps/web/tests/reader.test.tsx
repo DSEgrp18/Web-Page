@@ -365,6 +365,97 @@ describe("moving between pages", () => {
   });
 });
 
+const CHAPTERS = [
+  { title: "කාර්මික විප්ලවය", number: "01", page_index: 0 },
+  { title: "ජාතික පුනරුදය", number: "02", page_index: 1 },
+];
+
+function contentsSheet() {
+  return within(screen.getByRole("dialog", { name: strings.contentsHeading }));
+}
+
+describe("moving between chapters", () => {
+  it("lists the chapters in a named navigation region, marking the current one", async () => {
+    const user = userEvent.setup();
+    openReader(new FakeServer({ books: [book({ chapters: CHAPTERS })] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    await user.click(screen.getByRole("button", { name: strings.contentsOpen }));
+
+    const sheet = contentsSheet();
+    expect(sheet.getByRole("navigation", { name: strings.contentsHeading })).toBeTruthy();
+    const rows = sheet.getAllByRole("button", { name: /පිටුව/ });
+    expect(rows).toHaveLength(2);
+    // Current is announced, not only coloured.
+    expect(rows[0]?.getAttribute("aria-current")).toBe("true");
+    expect(rows[1]?.getAttribute("aria-current")).toBeNull();
+    // It opens on the chapter the reader is in.
+    expect(document.activeElement).toBe(rows[0]);
+  });
+
+  it("opens a chapter's first page and moves focus to the heading, without playing", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book({ chapters: CHAPTERS })] });
+    openReader(server);
+    await screen.findByRole("button", { name: FIRST });
+
+    await user.click(screen.getByRole("button", { name: strings.contentsOpen }));
+    await user.click(contentsSheet().getByRole("button", { name: /ජාතික පුනරුදය/ }));
+
+    await screen.findByRole("button", { name: ON_PAGE_TWO });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 })),
+    );
+    // Rule 1: nothing speaks unless a person asks.
+    expect(playCalls).toHaveLength(0);
+    expect(server.callsTo("GET", /\/audio$/)).toHaveLength(0);
+    // The header says which chapter this is, as the design shows it.
+    expect(screen.getByText("02 / ජාතික පුනරුදය")).toBeTruthy();
+  });
+
+  it("closes on Escape and gives focus back to the button that opened it", async () => {
+    const user = userEvent.setup();
+    openReader(new FakeServer({ books: [book({ chapters: CHAPTERS })] }));
+    await screen.findByRole("button", { name: FIRST });
+    const opener = screen.getByRole("button", { name: strings.contentsOpen });
+
+    await user.click(opener);
+    // jsdom does not turn Escape into the dialog's cancel event the way a
+    // browser does, so fire the event the platform would. See library tests.
+    await act(async () => {
+      document
+        .querySelector("dialog[open]")
+        ?.dispatchEvent(new Event("cancel", { cancelable: true }));
+    });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("says in words when the book has no chapters", async () => {
+    const user = userEvent.setup();
+    openReader(new FakeServer({ books: [book({ chapters: [] })] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    await user.click(screen.getByRole("button", { name: strings.contentsOpen }));
+
+    expect(contentsSheet().getByText(strings.contentsNone)).toBeTruthy();
+    expect(screen.queryByRole("navigation", { name: strings.contentsHeading })).toBeNull();
+  });
+
+  it("does not claim a book has no chapters when nobody looked", async () => {
+    const user = userEvent.setup();
+    openReader(new FakeServer({ books: [book({ chapters: null })] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    await user.click(screen.getByRole("button", { name: strings.contentsOpen }));
+
+    expect(contentsSheet().getByText(strings.contentsUnknown)).toBeTruthy();
+    expect(contentsSheet().queryByText(strings.contentsNone)).toBeNull();
+  });
+});
+
 describe("telling the reader what they are missing", () => {
   it("says a page could not be read", async () => {
     const unreadable = readablePage(0, []);

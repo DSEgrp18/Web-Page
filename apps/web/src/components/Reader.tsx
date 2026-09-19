@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
 import { AssistantDrawer } from "@/components/AssistantDrawer";
+import { ContentsSheet, chapterAt } from "@/components/ContentsSheet";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { PdfPanel } from "@/components/PdfPanel";
 import { PlayerBar } from "@/components/PlayerBar";
@@ -14,7 +15,7 @@ import { useReader } from "@/components/ReaderProvider";
 import { SplitView } from "@/components/SplitView";
 import { ApiError } from "@/lib/client";
 import { messageFor, strings } from "@/lib/strings";
-import type { Bookmark, DocumentDetail, Page, Progress } from "@/lib/types";
+import type { Bookmark, Chapter, DocumentDetail, Page, Progress } from "@/lib/types";
 import { usePlayer } from "@/lib/usePlayer";
 
 type Side = "original" | "reading";
@@ -73,8 +74,10 @@ export function Reader({
   const [collapsed, setCollapsed] = useState<"start" | "end" | null>(null);
   const [tab, setTab] = useState<Side>("reading");
   const [selection, setSelection] = useState("");
+  const [contentsOpen, setContentsOpen] = useState(false);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const contentsButtonRef = useRef<HTMLButtonElement>(null);
   /** Focus is moved on navigation, but never on arrival. */
   const navigated = useRef(false);
   const announcedPlaceholder = useRef(false);
@@ -273,6 +276,31 @@ export function Reader({
     [player, segments],
   );
 
+  // -- chapters ----------------------------------------------------------
+
+  /**
+   * Open a chapter's first page. Focus goes to the page heading rather than
+   * back to the contents button: the reader chose to go somewhere, and the
+   * heading is where "you are here" is heard. Never plays.
+   */
+  const chooseChapter = useCallback(
+    (chapter: Chapter) => {
+      setContentsOpen(false);
+      if (chapter.page_index === pageIndex) {
+        // No page change, so the page effect will not move focus. Do it here.
+        headingRef.current?.focus();
+        return;
+      }
+      goToPage(chapter.page_index);
+    },
+    [goToPage, pageIndex],
+  );
+
+  const closeContents = useCallback(() => {
+    setContentsOpen(false);
+    contentsButtonRef.current?.focus();
+  }, []);
+
   // -- bookmarks ---------------------------------------------------------
 
   const currentIndex = segments.findIndex((segment) => segment.segment_id === player.currentId);
@@ -334,6 +362,8 @@ export function Reader({
   }
 
   const title = book.title?.trim() || book.filename;
+  const chapterIndex = chapterAt(book.chapters, pageIndex);
+  const chapter = chapterIndex >= 0 ? book.chapters?.[chapterIndex] : undefined;
   const resumable =
     saved && segments.some((segment) => segment.segment_id === saved.segment_id) ? saved : null;
 
@@ -401,11 +431,32 @@ export function Reader({
           {strings.backToLibrary}
         </Link>
 
-        <h1 ref={headingRef} tabIndex={-1} className="workspace-title">
-          {title}
-        </h1>
+        <div className="workspace-heading">
+          <h1 ref={headingRef} tabIndex={-1} className="workspace-title">
+            {title}
+          </h1>
+          {chapter ? (
+            <p className="workspace-chapter">
+              {strings.currentChapter(
+                chapter.number,
+                chapter.title || `${strings.chapterWord} ${chapter.number ?? chapterIndex + 1}`,
+              )}
+            </p>
+          ) : null}
+        </div>
 
         <div className="workspace-tools">
+          <button
+            ref={contentsButtonRef}
+            type="button"
+            className="btn btn-quiet btn-sm"
+            aria-haspopup="dialog"
+            onClick={() => setContentsOpen(true)}
+          >
+            <ContentsIcon />
+            {strings.contentsOpen}
+          </button>
+
           <button
             type="button"
             className="btn btn-quiet btn-sm"
@@ -481,6 +532,15 @@ export function Reader({
         />
       </div>
 
+      {contentsOpen ? (
+        <ContentsSheet
+          chapters={book.chapters}
+          current={chapterIndex}
+          onChoose={chooseChapter}
+          onClose={closeContents}
+        />
+      ) : null}
+
       {undoBookmark ? (
         <div className="bookmark-toast" role="group" aria-label={strings.bookmarksHeading}>
           <p>{strings.bookmarkSaved}</p>
@@ -510,6 +570,19 @@ export function Reader({
         onGoToPage={goToPage}
       />
     </div>
+  );
+}
+
+function ContentsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
