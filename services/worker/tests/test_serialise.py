@@ -13,10 +13,12 @@ the real extraction pipeline rather than by hand.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 from pdf_fixtures import build_pdf, legacy_page, sinhala_page
 
+from sinhala_documents.chapters import Chapter
 from sinhala_documents.model import PageKind, QualityState
 from sinhala_documents.pipeline import prepare_document
 from sinhala_documents.serialise import (
@@ -72,6 +74,30 @@ class TestRoundTrip:
         raw = to_json(prepared)
 
         assert "\\u0d" not in raw.lower()
+
+
+class TestChapters:
+    def test_chapters_survive_with_their_numbers(self, prepared) -> None:
+        with_chapters = replace(
+            prepared,
+            chapters=(
+                Chapter(title="කාර්මික විප්ලවය", page_index=0, number="01"),
+                Chapter(title="පෙරවදන", page_index=2, number=None),
+            ),
+        )
+
+        assert from_json(to_json(with_chapters)) == with_chapters
+
+    def test_none_found_stays_distinct_from_never_looked(self, prepared) -> None:
+        """An empty list claims the book has no chapters; ``None`` claims nothing."""
+        assert from_json(to_json(replace(prepared, chapters=()))).chapters == ()
+        assert from_json(to_json(replace(prepared, chapters=None))).chapters is None
+
+    def test_a_row_written_before_chapters_existed_still_reads(self, prepared) -> None:
+        payload = json.loads(to_json(prepared))
+        del payload["chapters"]
+
+        assert from_json(json.dumps(payload)).chapters is None
 
 
 class TestRefusingWhatItCannotRead:

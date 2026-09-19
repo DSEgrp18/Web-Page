@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .chapters import CHAPTERS_VERSION, Chapter
 from .model import BoundingBox, PageKind, QualityState
 from .pipeline import ReadableDocument, ReadablePage, ReadableSegment
 
@@ -60,6 +61,10 @@ def from_json(raw: str | bytes) -> ReadableDocument:
         version=payload["version"],
         pages=tuple(_read_page(page) for page in payload["pages"]),
         notes=tuple(payload["notes"]),
+        # Absent in rows written before chapters were detected. Read as "not
+        # known" rather than as an empty list, which would claim the book has
+        # none. Adding the key is backward compatible, so the format is unchanged.
+        chapters=_read_chapters(payload.get("chapters")),
     )
 
 
@@ -73,7 +78,30 @@ def _document(document: ReadableDocument) -> dict[str, Any]:
         "version": document.version,
         "notes": list(document.notes),
         "pages": [_page(page) for page in document.pages],
+        "chapters": (
+            None
+            if document.chapters is None
+            else {
+                # Provenance only: which rule found them, for whoever has to work
+                # out why a book's chapter list is wrong.
+                "version": CHAPTERS_VERSION,
+                "items": [_chapter(chapter) for chapter in document.chapters],
+            }
+        ),
     }
+
+
+def _chapter(chapter: Chapter) -> dict[str, Any]:
+    return {"title": chapter.title, "page_index": chapter.page_index, "number": chapter.number}
+
+
+def _read_chapters(payload: dict[str, Any] | None) -> tuple[Chapter, ...] | None:
+    if payload is None:
+        return None
+    return tuple(
+        Chapter(title=item["title"], page_index=item["page_index"], number=item["number"])
+        for item in payload["items"]
+    )
 
 
 def _page(page: ReadablePage) -> dict[str, Any]:
