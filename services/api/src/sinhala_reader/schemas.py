@@ -17,6 +17,7 @@ Two things are shaped by accessibility rather than by convenience:
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
+from sinhala_documents.chapters import Chapter
 from sinhala_documents.pipeline import ReadablePage, ReadableSegment
 from sinhala_documents.structure import BlockRole
 
@@ -184,20 +185,48 @@ class DocumentSummary(BaseModel):
         )
 
 
+class ChapterDetail(BaseModel):
+    """Where a chapter opens, as the book prints it."""
+
+    title: str = Field(description="The book's own words. May be empty beside a number.")
+    number: str | None = Field(
+        default=None, description='As printed, so "02" stays "02". Null when none is printed.'
+    )
+    page_index: int = Field(description="Zero-based file position of the opening page.")
+
+    @classmethod
+    def of(cls, chapter: Chapter) -> ChapterDetail:
+        return cls(title=chapter.title, number=chapter.number, page_index=chapter.page_index)
+
+
 class DocumentDetail(DocumentSummary):
     notes: list[str] = Field(
         default_factory=list, description="What this document lost, across all pages."
     )
     job: JobStatus | None = None
+    chapters: list[ChapterDetail] | None = Field(
+        default=None,
+        description=(
+            "In reading order. An empty list means the book was examined and yields no "
+            "chapters. Null means it was not examined — not prepared yet, or prepared "
+            "before chapters were detected — and must not be announced as 'no chapters'."
+        ),
+    )
 
     @classmethod
     def of(
-        cls, document: Document, job: Job | None = None, *, progress: Progress | None = None
+        cls,
+        document: Document,
+        job: Job | None = None,
+        *,
+        progress: Progress | None = None,
+        chapters: tuple[Chapter, ...] | None = None,
     ) -> DocumentDetail:
         return cls(
             **DocumentSummary.of(document, progress=progress).model_dump(),
             notes=list(document.notes),
             job=JobStatus.of(job) if job else None,
+            chapters=None if chapters is None else [ChapterDetail.of(c) for c in chapters],
         )
 
 

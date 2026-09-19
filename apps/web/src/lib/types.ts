@@ -100,9 +100,24 @@ export interface DocumentSummary {
   reading: ReadingPosition | null;
 }
 
+/** Where a chapter opens, as the book prints it. */
+export interface Chapter {
+  /** The book's own words. May be empty when only a number is printed. */
+  title: string;
+  /** As printed, so "02" stays "02". */
+  number: string | null;
+  page_index: number;
+}
+
 export interface DocumentDetail extends DocumentSummary {
   notes: string[];
   job: Job | null;
+  /**
+   * `[]` means the book was examined and has none. `null` means nobody looked
+   * (not ready, or prepared before chapters existed). Never announce `null` as
+   * "no chapters".
+   */
+  chapters: Chapter[] | null;
 }
 
 export interface AudioManifest {

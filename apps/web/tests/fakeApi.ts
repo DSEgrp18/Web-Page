@@ -12,6 +12,7 @@
 
 import type {
   Bookmark,
+  Chapter,
   DocumentDetail,
   Page,
   Progress,
@@ -30,6 +31,8 @@ export interface FakeBook {
   version: string | null;
   pages: Page[];
   notes?: string[];
+  /** Absent reads as `[]` once prepared: examined, and none found. */
+  chapters?: Chapter[] | null;
   /** How far in this reader got, as `GET /documents` reports it. */
   reading?: {
     segment_id: string;
@@ -252,6 +255,7 @@ export class FakeServer {
       segment_count: segments,
       reading: book.reading ?? null,
       notes: book.notes ?? [],
+      chapters: book.version ? (book.chapters === undefined ? [] : book.chapters) : null,
       job: {
         job_id: `job-${book.document_id}`,
         kind: "prepare",

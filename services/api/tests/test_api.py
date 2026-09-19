@@ -10,13 +10,25 @@ silently.
 from __future__ import annotations
 
 import io
+import json
 import wave
 
-from conftest import OTHER_READER, READER, as_reader, build_pdf, legacy_page, sinhala_page, upload
+from conftest import (
+    OTHER_READER,
+    READER,
+    Page,
+    Text,
+    as_reader,
+    build_pdf,
+    legacy_page,
+    sinhala_page,
+    upload,
+)
 from fastapi.testclient import TestClient
 
 from sinhala_reader import Deps, create_app
 from sinhala_reader.app import REAL_MODEL_HEADER
+from sinhala_reader.preparation import forget_prepared
 from sinhala_reader.security import AUTH_MODE_ENV
 from sinhala_reader.storage import Document, InMemoryStore, Job, new_id
 
@@ -78,6 +90,46 @@ def test_a_prepared_document_reports_its_pages_and_segments(prepared_document) -
     assert prepared_document["page_count"] == 2
     assert prepared_document["segment_count"] > 0
     assert prepared_document["version"]
+
+
+def test_a_book_with_chapter_openers_lists_its_chapters(client: TestClient) -> None:
+    """Typeset like the Grade 11 textbook: a 27 pt chapter number over 12 pt body."""
+    body = tuple(Text("කාර්මික විප්ලවය ආරම්භ විය", y=600 - index * 16) for index in range(20))
+    book = build_pdf(
+        [
+            Page(blocks=(Text("01 කාර්මික විප්ලවය", size=27, y=740), *body)),
+            sinhala_page(),
+            Page(blocks=(Text("02 ජාතික පුනරුදය", size=27, y=740), *body)),
+        ]
+    )
+    document_id = upload(client, book).json()["document_id"]
+
+    detail = client.get(f"/documents/{document_id}", headers=as_reader(client)).json()
+
+    assert detail["chapters"] == [
+        {"title": "කාර්මික විප්ලවය", "number": "01", "page_index": 0},
+        {"title": "ජාතික පුනරුදය", "number": "02", "page_index": 2},
+    ]
+
+
+def test_a_book_without_chapters_says_so_with_an_empty_list(prepared_document) -> None:
+    """Empty is a finding. Null would mean nobody looked."""
+    assert prepared_document["chapters"] == []
+
+
+def test_a_book_prepared_before_chapters_existed_reports_them_unknown(
+    client: TestClient, deps: Deps, prepared_document
+) -> None:
+    """Announcing "this book has no chapters" about a book nobody examined is false."""
+    document_id = prepared_document["document_id"]
+    payload = json.loads(deps.store.get_prepared(document_id))
+    del payload["chapters"]
+    deps.store.put_prepared(document_id, json.dumps(payload))
+    forget_prepared(document_id)
+
+    detail = client.get(f"/documents/{document_id}", headers=as_reader(client)).json()
+
+    assert detail["chapters"] is None
 
 
 def test_a_file_that_is_not_a_pdf_is_refused_with_a_reason(client: TestClient) -> None:
