@@ -35,6 +35,7 @@ from sinhala_tts.normalize import MODEL_INPUT_CHAR_LIMIT, NORMALIZER_VERSION
 from sinhala_tts.segmentation import Segment, segment_text
 
 from .blocks import locate
+from .chapters import Chapter, find_chapters
 from .legacy_fm_abhaya import CONVERTER_VERSION
 from .model import (
     BoundingBox,
@@ -121,6 +122,13 @@ class ReadableDocument:
 
     pages: tuple[ReadablePage, ...]
     notes: tuple[str, ...]
+    chapters: tuple[Chapter, ...] | None = None
+    """Where the book's chapters open; see :mod:`.chapters`.
+
+    Empty when the book yields none. ``None`` when nobody looked: a document
+    prepared before chapters were detected. The two must stay distinct, because
+    "this book has no chapters" is a claim and "not known" is not.
+    """
 
     @property
     def segments(self) -> tuple[ReadableSegment, ...]:
@@ -318,4 +326,12 @@ def prepare_document(
         notes.append(
             f"{len(unreadable)} of {len(pages)} page(s) have nothing that can be read aloud."
         )
-    return ReadableDocument(version=version, pages=pages, notes=tuple(notes))
+    return ReadableDocument(
+        version=version,
+        pages=pages,
+        notes=tuple(notes),
+        # From the extraction after OCR: a recognised page's sizes are estimates,
+        # so it is skipped rather than measured, and its broken embedded text is
+        # not a title anyone should hear.
+        chapters=find_chapters(extraction),
+    )
