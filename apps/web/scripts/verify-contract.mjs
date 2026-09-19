@@ -39,6 +39,7 @@ const MAPPING = {
   JobStatus: "Job",
   DocumentSummary: "DocumentSummary",
   DocumentDetail: "DocumentDetail",
+  ChapterDetail: "Chapter",
   AudioManifest: "AudioManifest",
   ProgressDetail: "Progress",
   BookmarkDetail: "Bookmark",

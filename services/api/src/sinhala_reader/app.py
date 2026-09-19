@@ -797,7 +797,13 @@ def _document_detail(
     assert document is not None
     jobs = store.jobs_for(document_id, owner)
     latest = job or (jobs[-1] if jobs else None)
-    return DocumentDetail.of(document, latest, progress=store.get_progress(document_id, owner))
+    prepared = get_prepared(store, document_id) if document.version else None
+    return DocumentDetail.of(
+        document,
+        latest,
+        progress=store.get_progress(document_id, owner),
+        chapters=prepared.chapters if prepared else None,
+    )
 
 
 #: The app a server runs. Tests build their own with explicit dependencies.
