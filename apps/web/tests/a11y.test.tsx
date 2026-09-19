@@ -176,6 +176,37 @@ describe("no automatically detectable violations", () => {
     expect(await violationsIn(container)).toEqual([]);
   });
 
+  it("when the contents sheet is open", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({
+      books: [
+        {
+          document_id: "doc-1",
+          filename: "ඉතිහාසය.pdf",
+          version: "v1",
+          pages: [readablePage(0, ["පළමු වාක්‍යය."]), readablePage(1, ["දෙවන වාක්‍යය."])],
+          chapters: [
+            { title: "කාර්මික විප්ලවය", number: "01", page_index: 0 },
+            { title: "ජාතික පුනරුදය", number: "02", page_index: 1 },
+          ],
+        },
+      ],
+    });
+    const { container } = renderApp(
+      <AppFrame>
+        <Reader documentId="doc-1" />
+      </AppFrame>,
+      server,
+    );
+    await screen.findByRole("button", { name: "පළමු වාක්‍යය." });
+    // The header's current chapter and the contents button, closed.
+    expect(await violationsIn(container)).toEqual([]);
+
+    await user.click(screen.getByRole("button", { name: strings.contentsOpen }));
+    await screen.findByRole("navigation", { name: strings.contentsHeading });
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
   it("when the delete dialog is open", async () => {
     const user = userEvent.setup();
     const { container } = renderApp(

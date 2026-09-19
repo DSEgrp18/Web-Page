@@ -132,6 +132,21 @@ export const strings = {
   previousPage: "පෙර පිටුව",
   nextPage: "ඊළඟ පිටුව",
   goToPage: "පිටුවට යන්න",
+
+  // -- contents (chapters) -------------------------------------------------
+  // The heading is the design's. The two empty states are not in the design
+  // and are the ones most in need of a native speaker's review: they are the
+  // whole answer a reader gets when there is no list.
+  contentsHeading: "අන්තර්ගතය",
+  contentsOpen: "අන්තර්ගතය",
+  chapterWord: "පරිච්ඡේදය",
+  /** The book was examined and its layout shows no chapters. */
+  contentsNone: "මෙම පොතේ පරිච්ඡේද හඳුනාගත නොහැකි විය. පිටුවෙන් පිටුවට හෝ පිටු අංකයෙන් ගමන් කරන්න.",
+  /** Nobody looked: the book was prepared before chapters were detected. */
+  contentsUnknown: "මෙම පොතේ පරිච්ඡේද ලැයිස්තුව තවම සකසා නැත.",
+  /** In the header: "02 / title", as the design shows it. */
+  currentChapter: (number: string | null, title: string) =>
+    number ? `${number} / ${title}` : title,
   goToPageSubmit: "යන්න",
   pageLoading: "පිටුව ලබා ගනිමින්…",
   sentencesHeading: "වාක්‍ය",
