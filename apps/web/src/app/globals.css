@@ -1731,6 +1731,47 @@ textarea {
   position: relative;
 }
 
+.sentence-words {
+  padding: var(--s3) var(--s5);
+  border-block-end: 1px solid var(--hair);
+  background: var(--panel-sunken);
+  max-block-size: 13rem;
+  overflow: auto;
+}
+
+.sentence-words-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.sentence-words-head h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.sentence-words-source {
+  margin: var(--s1) 0 var(--s2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+.sentence-words-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sentence-words-list li {
+  padding: 0 var(--s2);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  line-height: var(--leading-normal);
+}
+
 .return-to-sentence .btn {
   background: var(--green);
   color: var(--ink-on-green);

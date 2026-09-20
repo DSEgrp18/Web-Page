@@ -151,6 +151,10 @@ export const strings = {
   pageLoading: "පිටුව ලබා ගනිමින්…",
   sentencesHeading: "වාක්‍ය",
   sentenceCount: (count: number) => `වාක්‍ය ${count} ක්`,
+  showWords: "වචන බලන්න",
+  hideWords: "වචන සඟවන්න",
+  sentenceWords: "වාක්‍යයේ වචන",
+  wordCount: (count: number) => `වචන ${count} ක්`,
   noSentences: "මෙම පිටුවේ කියවිය හැකි වාක්‍ය නැත.",
 
   // What kind of thing a sentence belongs to. These are announced, not just

@@ -59,8 +59,11 @@ export function ReadingPanel({
   const { preferences } = usePreferences();
   const scroller = useRef<HTMLDivElement>(null);
   const [followingLost, setFollowingLost] = useState(false);
+  const [wordsOpen, setWordsOpen] = useState(false);
   /** Set while we are the ones scrolling, so our own scroll is not "the reader". */
   const selfScrolling = useRef(0);
+  const wordSegment = segments.find((segment) => segment.segment_id === currentId) ?? segments[0];
+  const words = wordSegment ? splitWords(wordSegment.display_text) : [];
 
   const scrollToCurrent = (smooth: boolean) => {
     const element = scroller.current?.querySelector<HTMLElement>('[data-current="true"]');
@@ -103,7 +106,32 @@ export function ReadingPanel({
           {page ? strings.sentenceCount(segments.length) : null}
           {page?.page_label ? ` · ${strings.printedPage} ${page.page_label}` : null}
         </p>
+        <button
+          type="button"
+          className="btn btn-quiet btn-sm"
+          aria-expanded={wordsOpen}
+          aria-controls="sentence-words"
+          disabled={loading || !wordSegment}
+          onClick={() => setWordsOpen((open) => !open)}
+        >
+          {wordsOpen ? strings.hideWords : strings.showWords}
+        </button>
       </div>
+
+      {wordsOpen && wordSegment ? (
+        <section id="sentence-words" className="sentence-words" aria-label={strings.sentenceWords}>
+          <div className="sentence-words-head">
+            <h3>{strings.sentenceWords}</h3>
+            <span className="hint">{strings.wordCount(words.length)}</span>
+          </div>
+          <p className="sentence-words-source">{wordSegment.display_text}</p>
+          <ol className="sentence-words-list">
+            {words.map((word, index) => (
+              <li key={`${index}-${word}`}>{word}</li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       <div
         className="reading-body"
@@ -174,6 +202,16 @@ export function ReadingPanel({
       ) : null}
     </section>
   );
+}
+
+/** Visual word boundaries only: the original sentence remains the speech text. */
+function splitWords(text: string): string[] {
+  if (typeof Intl.Segmenter === "function") {
+    return Array.from(new Intl.Segmenter("si", { granularity: "word" }).segment(text))
+      .filter((part) => part.isWordLike)
+      .map((part) => part.segment);
+  }
+  return text.match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
 }
 
 /**
