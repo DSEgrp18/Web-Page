@@ -59,6 +59,30 @@ describe("arriving at a page", () => {
     expect(screen.getByRole("button", { name: SECOND })).toBeTruthy();
   });
 
+  it("shows word boundaries for the selected sentence without starting audio", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    openReader(server);
+
+    const toggle = await screen.findByRole("button", { name: strings.showWords });
+    await user.click(toggle);
+    const panel = screen.getByRole("region", { name: strings.sentenceWords });
+    expect(
+      within(panel)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["පළමු", "වාක්‍යය"]);
+    expect(playCalls).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: SECOND }));
+    await waitFor(() => expect(panel.textContent).toContain(SECOND));
+    expect(
+      within(panel)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["දෙවන", "වාක්‍යය"]);
+  });
+
   it("announces the page politely, with how much is on it", async () => {
     const server = new FakeServer({ books: [book()] });
     openReader(server);
