@@ -58,3 +58,19 @@ for scanned PDF pages and standalone images. Original PDF and image previews sta
 accessible extracted text; DOCX keeps a download of the original and clearly states that its
 page layout is not reproduced in the browser.
 
+## Phase 4 — Reading workspace redesign
+
+16. **Polish the responsive split view.** Improve resizing, panel collapse, persisted width,
+    mobile tabs, and keyboard control at 200–400% zoom.
+17. **Upgrade PDF viewing controls.** Add fit-width, fit-page, zoom, rotate, and clear page
+    navigation while retaining extracted text as the accessible reading surface.
+18. **Add thumbnail and chapter navigation.** Provide optional thumbnails and contents in a
+    labelled side sheet with current-page and current-chapter state.
+19. **Upgrade sentence and word inspection.** Add current-word selection, copy, pronunciation
+    feedback, and return-to-current controls without requiring word timestamps for playback.
+20. **Add document search.** Search extracted text, list results with page context, and navigate
+    without autoplay or losing the current reading position.
+
+**Phase gate:** sighted, low-vision, keyboard, and screen-reader users can navigate the same
+document state through controls suited to them.
+
