@@ -44,3 +44,60 @@ test("reader shows the current sentence as words without autoplay", async ({ pag
   await expect(page.getByRole("button", { name: "වචන සඟවන්න" })).toHaveAttribute("aria-expanded", "true");
   expect(audioRequests).toBe(0);
 });
+
+test("library uploads PDF and DOCX files together", async ({ page }) => {
+  let uploads = 0;
+  const documents = [];
+  await page.addInitScript(() => localStorage.setItem("sinhala-reader.identity", "browser-tester"));
+  await page.route("http://127.0.0.1:8000/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const headers = {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "*",
+      "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+      "content-type": "application/json",
+    };
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers });
+      return;
+    }
+    if (request.method() === "GET" && url.pathname === "/documents") {
+      await route.fulfill({ status: 200, headers, body: JSON.stringify(documents) });
+      return;
+    }
+    if (request.method() === "POST" && url.pathname === "/documents") {
+      uploads += 1;
+      const filename = uploads === 1 ? "පොත.pdf" : "සටහන්.docx";
+      const mediaType = uploads === 1
+        ? "application/pdf"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      const document = {
+        document_id: `doc-${uploads}`, filename, media_type: mediaType, title: null,
+        size_bytes: 100, created_at: "2026-09-21T00:00:00Z", version: null,
+        page_count: 0, segment_count: 0, reading: null, notes: [], chapters: null,
+        job: { job_id: `job-${uploads}`, kind: "prepare", state: "queued", stage: "queued", detail: null, updated_at: "2026-09-21T00:00:00Z" },
+      };
+      documents.push(document);
+      await route.fulfill({
+        status: 202,
+        headers,
+        body: JSON.stringify(document),
+      });
+      return;
+    }
+    await route.fulfill({ status: 404, headers, body: JSON.stringify({ detail: "not found" }) });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /පොතක් එක් කරන්න/ }).click();
+  await page.getByLabel("ගොනුවක් තෝරන්න").setInputFiles([
+    { name: "පොත.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-") },
+    { name: "සටහන්.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: Buffer.from("docx") },
+  ]);
+  await page.getByRole("button", { name: "එක් කරන්න", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "පොත.pdf" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "සටහන්.docx" })).toBeVisible();
+  expect(uploads).toBe(2);
+});
