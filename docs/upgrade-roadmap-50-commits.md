@@ -74,3 +74,19 @@ page layout is not reproduced in the browser.
 **Phase gate:** sighted, low-vision, keyboard, and screen-reader users can navigate the same
 document state through controls suited to them.
 
+## Phase 5 — Player, voice, and offline listening
+
+21. **Complete the player control design.** Implement issue #33 with native controls, clear
+    labels, honest position, and scoped keyboard help.
+22. **Expose voice warm-up state.** Implement issue #28 with readiness, queue position, retry,
+    and cached-audio availability.
+23. **Improve continuous playback.** Add bounded prefetch, deduplicate synthesis, recover from
+    one failed segment, and prevent overlapping audio.
+24. **Add evaluated voice selection.** Put XTTS and the adapted female VITS model behind the
+    same adapter, label model provenance, and expose only voices that pass smoke tests.
+25. **Add chapter download and offline playback.** Implement issue #32 with manifests,
+    authorised files, progress, cancellation, storage limits, and removal controls.
+
+**Phase gate:** listening remains responsive under cold, cached, interrupted, and offline
+conditions, and the selected voice is never silently substituted.
+
