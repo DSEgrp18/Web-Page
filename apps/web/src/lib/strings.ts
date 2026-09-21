@@ -36,7 +36,7 @@ export const strings = {
   libraryEmpty: "තවම පොත් නැත. පහතින් පොතක් එක් කරන්න.",
   uploadHeading: "පොතක් එක් කරන්න",
   uploadLabel: "PDF ගොනුවක් තෝරන්න",
-  uploadHelp: "සිංහල PDF ලේඛන පමණි. ඔබගේ ලේඛන පෞද්ගලිකයි.",
+  uploadHelp: "PDF, Word හෝ පින්තූර ගොනු එකක් හෝ කිහිපයක් එක් කරන්න. ඔබගේ ලේඛන පෞද්ගලිකයි.",
   uploadSubmit: "එක් කරන්න",
   uploadInProgress: "උඩුගත වෙමින්…",
   uploadNoFile: "පළමුව ගොනුවක් තෝරන්න.",
@@ -243,7 +243,7 @@ export const strings = {
   // -- landing -----------------------------------------------------------
   welcomeHeading: "සිංහල පොත් කියවන්න, අසන්න",
   welcomeBody:
-    "PDF පොතක් එක් කරන්න. මුල් පිටුව එක් පසෙකත්, කියවිය හැකි සිංහල අකුර අනෙක් පසෙකත් පෙනේ. ඕනෑම වාක්‍යයක් තෝරා ඇහුම්කන් දෙන්න.",
+    "PDF, Word හෝ පින්තූර ගොනුවක් එක් කරන්න. මුල් පිටුව එක් පසෙකත්, කියවිය හැකි සිංහල අකුර අනෙක් පසෙකත් පෙනේ. ඕනෑම වාක්‍යයක් තෝරා ඇහුම්කන් දෙන්න.",
   welcomeSecondary: "ඔබේ පොත් ඔබට පමණක් පෙනේ.",
 
   // -- library -----------------------------------------------------------
@@ -281,11 +281,14 @@ export const strings = {
   uploadDrop: "ගොනුව මෙහි අදින්න",
   uploadOr: "නැතහොත්",
   uploadChoose: "ගොනුවක් තෝරන්න",
-  uploadOnlyPdf: "PDF ගොනු පමණි.",
+  uploadFormats: "PDF, DOCX, PNG සහ JPEG — එක් වරකදී ගොනු කිහිපයක් තෝරාගත හැක.",
   uploadTooBig: "ගොනුව විශාල වැඩියි.",
   uploadNotPdf: "මෙය PDF ගොනුවක් නොවේ.",
+  uploadUnsupported: "PDF, DOCX, PNG හෝ JPEG ගොනු පමණක් තෝරන්න.",
+  uploadSelectedCount: (count: number) => `ගොනු ${count} ක් තෝරා ඇත.`,
   uploadTitleLabel: "පොතේ නම (අත්‍යවශ්‍ය නොවේ)",
   uploadTitleHelp: "හිස් තැබුවහොත් ගොනුවේ නම භාවිත වේ.",
+  uploadTitleSingleOnly: "නමක් දිය හැක්කේ එක් ගොනුවක් තෝරා ඇති විට පමණි.",
   fileSize: (bytes: number) => {
     const mb = bytes / (1024 * 1024);
     return mb >= 1
@@ -293,6 +296,7 @@ export const strings = {
       : `කිලෝබයිට් ${Math.max(1, Math.round(bytes / 1024))}`;
   },
   removeFile: "ගොනුව ඉවත් කරන්න",
+  removeFiles: "ගොනු ඉවත් කරන්න",
   uploadFailed: "උඩුගත කිරීම අසාර්ථක විය.",
 
   // -- workspace ---------------------------------------------------------
@@ -312,6 +316,10 @@ export const strings = {
   zoomLevel: (percent: number) => `විශාලනය සියයට ${percent}`,
   pdfLoading: "මුල් පිටුව සකසමින්…",
   pdfFailed: "මුල් ගොනුව පෙන්විය නොහැක.",
+  originalFailed: "මුල් ගොනුව ලබාගත නොහැක.",
+  uploadedImageAlt: (filename: string) => `උඩුගත කළ පින්තූරය: ${filename}`,
+  docxPreviewUnavailable: "Word ගොනුවේ කියවිය හැකි අකුරු දකුණු පස ඇත. මුල් ගොනුව මෙතැනින් බාගන්න.",
+  downloadOriginal: "මුල් ගොනුව බාගන්න",
   pdfPageOf: (page: number, total: number) => `පිටු ${total} න් ${page}`,
   thumbnails: "පිටු කුඩා රූප",
   showThumbnails: "පිටු ලැයිස්තුව",
