@@ -21,3 +21,18 @@ results that were not measured.
 **Phase gate:** CI is quiet, the core journey is covered in Chromium, and visual changes are
 reviewable rather than subjective.
 
+## Phase 2 — Application shell and navigation
+
+6. **Refine the desktop shell.** Standardise header height, content measure, spacing, active
+   navigation, and page titles using existing design tokens.
+7. **Refine mobile navigation.** Add a compact navigation pattern with correct focus order,
+   current-page state, and 44-pixel touch targets.
+8. **Add consistent breadcrumbs and back navigation.** Preserve the reader's last page and
+   sentence when moving between reading, bookmarks, and study views.
+9. **Build shared loading patterns.** Replace layout jumps with labelled skeletons and stable
+   panel dimensions without announcing every loading tick.
+10. **Complete designed error and empty states.** Implement issue #38 with recovery actions,
+    useful Sinhala copy, and browser tests for offline, rejected, and not-ready responses.
+
+**Phase gate:** every route has a coherent loading, success, empty, and recoverable error state.
+
