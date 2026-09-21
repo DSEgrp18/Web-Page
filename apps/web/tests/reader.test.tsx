@@ -83,6 +83,30 @@ describe("arriving at a page", () => {
     ).toEqual(["දෙවන", "වාක්‍යය"]);
   });
 
+  it("points the word toggle at the panel only while the panel is there", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    openReader(server);
+
+    const toggle = await screen.findByRole("button", { name: strings.showWords });
+
+    // aria-controls naming an element that does not exist is invalid ARIA, and
+    // a closed disclosure has no element to name.
+    expect(toggle.getAttribute("aria-controls")).toBeNull();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    await user.click(toggle);
+    const panel = screen.getByRole("region", { name: strings.sentenceWords });
+    const controls = screen
+      .getByRole("button", { name: strings.hideWords })
+      .getAttribute("aria-controls");
+
+    expect(controls).toBeTruthy();
+    expect(controls).toBe(panel.id);
+    // Generated rather than fixed, so two readers on one screen cannot collide.
+    expect(panel.id).not.toBe("sentence-words");
+  });
+
   it("announces the page politely, with how much is on it", async () => {
     const server = new FakeServer({ books: [book()] });
     openReader(server);
