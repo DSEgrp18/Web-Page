@@ -37,7 +37,7 @@ describe("the welcome", () => {
 
   it("shrinks out of the way once there are books", async () => {
     renderApp(<Library />, new FakeServer({ books: [book()] }));
-    await screen.findByRole("heading", { name: strings.libraryHeading });
+    await screen.findByRole("heading", { name: strings.browseBooks });
     // The pitch is for somebody who has not started. A returning reader should
     // not scroll past it every time.
     expect(screen.queryByText(strings.welcomeBody)).toBeNull();
@@ -211,7 +211,7 @@ describe("adding a book", () => {
     expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(1);
   });
 
-  it("refuses a dropped file that is not a PDF, before sending anything", async () => {
+  it("refuses an unsupported dropped file before sending anything", async () => {
     const user = userEvent.setup();
     const server = new FakeServer();
     renderApp(<Library />, server);
@@ -229,8 +229,24 @@ describe("adding a book", () => {
     const file = new File(["not a pdf"], "notes.txt", { type: "text/plain" });
     fireEvent.drop(dropzone, { dataTransfer: { files: [file], types: ["Files"] } });
 
-    await waitFor(() => expect(assertiveText()).toBe(strings.uploadNotPdf));
+    await waitFor(() => expect(assertiveText()).toBe(strings.uploadUnsupported));
     expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(0);
+  });
+
+  it("uploads multiple supported files as separate documents", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer();
+    renderApp(<Library />, server);
+
+    await openUpload(user);
+    const docx = new File(["word"], "සටහන්.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    await user.upload(screen.getByLabelText(strings.uploadChoose), [pdf(), docx]);
+    await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
+
+    await screen.findByRole("link", { name: /සටහන්\.docx/ });
+    expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(2);
   });
 
   it("cannot be submitted with nothing chosen", async () => {
