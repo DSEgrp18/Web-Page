@@ -21,8 +21,14 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Versions pinned to what the packages declare, installed before the source is
-# copied so that editing code does not reinstall the world.
+# Installed before the source is copied, so that editing code does not reinstall
+# the world.
+#
+# These are floors, not pins: `>=` resolves to whatever is newest on PyPI at
+# build time, so two builds of the same commit can produce different images.
+# That is at odds with the reproducible releases CLAUDE.md asks for — the web
+# image gets this right with `npm ci` — and it should become exact pins with a
+# build to prove them. Tracked; do not read `>=` here as "pinned".
 RUN pip install --no-cache-dir \
       "fastapi>=0.115" \
       "python-multipart>=0.0.9" \
