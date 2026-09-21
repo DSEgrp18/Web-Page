@@ -138,3 +138,19 @@ without changing the words silently.
 **Phase gate:** study mode has published evaluation numbers and a traceable reason for its
 retrieval and answer configuration.
 
+## Phase 9 — Accounts, privacy, and resilience
+
+41. **Replace the trusted identity header.** Add real authenticated sessions, logout, expiry,
+    account recovery, and route-level ownership tests.
+42. **Formalise database migrations.** Version schema changes, seed only non-sensitive demo
+    content, and test migration and rollback against PostgreSQL.
+43. **Move document and audio blobs to private object storage.** Use expiring authorised access,
+    encryption, content hashes, and lifecycle rules.
+44. **Implement complete deletion and retention.** Remove originals, text, embeddings, audio,
+    jobs, cache entries, and backups according to a documented policy.
+45. **Add quotas and abuse controls.** Limit upload size, pages, synthesis, questions, retries,
+    and request rate with accessible explanations and operator visibility.
+
+**Phase gate:** two real accounts cannot cross-access data, and deletion, expiration, quota,
+and recovery behaviour is demonstrated with integration tests.
+
