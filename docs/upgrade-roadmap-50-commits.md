@@ -154,3 +154,21 @@ retrieval and answer configuration.
 **Phase gate:** two real accounts cannot cross-access data, and deletion, expiration, quota,
 and recovery behaviour is demonstrated with integration tests.
 
+## Phase 10 — Deployment, measurement, and release
+
+46. **Package model serving for staging.** Produce pinned GPU/CPU images, mount authorised model
+    artifacts, verify both XTTS and VITS adapters, and record checksums and licences.
+47. **Deploy a complete staging environment.** Host the Next.js app, HTTPS API, PostgreSQL,
+    Redis/Celery, private storage, and model worker with explicit CORS and secrets management.
+48. **Add observability.** Emit structured logs, request and job IDs, readiness, latency,
+    failures, queue depth, model version, cache rate, and privacy-safe dashboards.
+49. **Run load, failure, backup, and rollback tests.** Define thresholds, exercise concurrent
+    uploads/listening, restart dependencies, restore backups, and rehearse application/model
+    rollback.
+50. **Cut the release candidate.** Run the full CI, browser matrix, assistive-technology tests,
+    model regression set, security review, user acceptance, documentation review, and produce
+    a signed release plus final evaluation report.
+
+**Phase gate:** staging evidence meets the written release targets, rollback works, and every
+remaining limitation is explicit in the release notes.
+
