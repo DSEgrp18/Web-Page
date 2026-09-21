@@ -122,3 +122,19 @@ device evidence rather than automated claims standing in for assistive technolog
 **Phase gate:** document errors can be measured, found, corrected, versioned, and regenerated
 without changing the words silently.
 
+## Phase 8 — Study assistant quality
+
+36. **Create a fixed Sinhala question set.** Include answerable, ambiguous, and unanswerable
+    questions with page-level supporting passages and book-separated splits.
+37. **Measure and tune lexical retrieval.** Report Recall@5, latency, failure examples, and
+    parameter choices without tuning on the test set.
+38. **Add dense retrieval.** Introduce a versioned Sinhala-capable embedding adapter, pgvector
+    storage, authorised filtering, and reproducible indexing.
+39. **Evaluate hybrid retrieval and reranking.** Compare lexical, dense, and hybrid paths and
+    select the simplest method that produces a measured improvement.
+40. **Evaluate answer generation.** Score citation support, correctness, abstention, Sinhala
+    quality, prompt-injection resistance, and source navigation.
+
+**Phase gate:** study mode has published evaluation numbers and a traceable reason for its
+retrieval and answer configuration.
+
