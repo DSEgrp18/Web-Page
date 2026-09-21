@@ -245,7 +245,7 @@ def verify() -> None:
     which are predictions.
     """
     from sinhala_tts.audio_checks import check_audio
-    from sinhala_tts.regression_sentences import REGRESSION_SENTENCES
+    from sinhala_tts.regression_sentences import CASES
 
     voice = Voice()
 
@@ -256,7 +256,7 @@ def verify() -> None:
     print(f"readiness: {state}\n")
 
     failures = 0
-    for case in REGRESSION_SENTENCES:
+    for case in CASES:
         out = voice.synthesize.remote(case.text)
         audio, gen = out["duration_seconds"], out["generate_seconds"]
 
@@ -265,9 +265,11 @@ def verify() -> None:
         if report.problems:
             failures += 1
 
-        print(f"{case.name:22} {audio:5.2f}s audio in {gen:6.2f}s  RTF {gen / audio:5.2f}x{note}")
+        print(
+            f"{case.case_id:22} {audio:5.2f}s audio in {gen:6.2f}s  RTF {gen / audio:5.2f}x{note}"
+        )
 
-    print(f"\n{len(REGRESSION_SENTENCES) - failures}/{len(REGRESSION_SENTENCES)} pass")
+    print(f"\n{len(CASES) - failures}/{len(CASES)} pass")
 
 
 def _check(out: dict[str, Any], check_audio: Any) -> Any:
