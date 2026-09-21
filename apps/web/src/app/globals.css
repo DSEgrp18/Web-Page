@@ -2176,3 +2176,93 @@ textarea {
     max-inline-size: 8rem;
   }
 }
+
+/* ==========================================================================
+   16. 2026 visual refinement — quiet editorial shell
+
+   The reference direction is dark, sparse and voice-led. Swara keeps that
+   character in both colour schemes: deep green-black at night, mineral paper
+   by day, mint as the single interaction colour, and thin outlines instead of
+   stacked shadows. Existing semantics and minimum target sizes stay intact.
+   ========================================================================== */
+
+:root {
+  --green: #167565;
+  --green-deep: #0b5146;
+  --green-wash: #d9f3eb;
+  --gold: #b88432;
+  --paper: #f3f8f5;
+  --panel: #fbfdfb;
+  --panel-sunken: #eaf2ee;
+  --ink: #102721;
+  --ink-muted: #536b64;
+  --ink-on-green: #ffffff;
+  --hair: #cbdad4;
+  --edge: #66847b;
+  --r-sm: 10px;
+  --r: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --shell-max: 92rem;
+  --header-h: 5rem;
+  --shadow-1: 0 1px 2px rgba(7, 35, 29, 0.04);
+  --shadow-2: 0 16px 40px rgba(7, 35, 29, 0.08);
+  --shadow-3: 0 24px 70px rgba(7, 35, 29, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --green: #59d6c0;
+    --green-deep: #8be7d7;
+    --green-wash: #153b33;
+    --gold: #d5ac62;
+    --paper: #071813;
+    --panel: #0b211b;
+    --panel-sunken: #081b16;
+    --ink: #edf7f3;
+    --ink-muted: #9eb8b0;
+    --ink-on-green: #062019;
+    --hair: #23423a;
+    --edge: #718f86;
+    --shadow-1: none;
+    --shadow-2: 0 18px 46px rgba(0, 0, 0, 0.25);
+    --shadow-3: 0 28px 80px rgba(0, 0, 0, 0.46);
+  }
+}
+
+:root[data-theme="dark"] {
+  --green: #59d6c0;
+  --green-deep: #8be7d7;
+  --green-wash: #153b33;
+  --gold: #d5ac62;
+  --paper: #071813;
+  --panel: #0b211b;
+  --panel-sunken: #081b16;
+  --ink: #edf7f3;
+  --ink-muted: #9eb8b0;
+  --ink-on-green: #062019;
+  --hair: #23423a;
+  --edge: #718f86;
+  --shadow-1: none;
+  --shadow-2: 0 18px 46px rgba(0, 0, 0, 0.25);
+  --shadow-3: 0 28px 80px rgba(0, 0, 0, 0.46);
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at 16% -12%,
+      color-mix(in srgb, var(--green) 9%, transparent),
+      transparent 34rem
+    ),
+    var(--paper);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--ink);
+  letter-spacing: -0.025em;
+}
+
