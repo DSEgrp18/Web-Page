@@ -90,3 +90,19 @@ document state through controls suited to them.
 **Phase gate:** listening remains responsive under cold, cached, interrupted, and offline
 conditions, and the selected voice is never silently substituted.
 
+## Phase 6 — Accessibility acceptance
+
+26. **Complete native-speaker review.** Resolve issue #27 and record reviewer, date, changed
+    strings, and terminology decisions.
+27. **Run and fix the NVDA journey.** Resolve issue #25 for identity, upload, preparation,
+    opening, navigation, playback, bookmarks, settings, and study mode.
+28. **Run and fix the TalkBack journey.** Resolve issue #26 on a small Android device with
+    touch exploration, virtual keyboard, and interrupted connectivity.
+29. **Validate reflow and visual accessibility.** Test 400% zoom, high contrast, dark mode,
+    reduced motion, focus visibility, and text scaling across every core route.
+30. **Turn acceptance findings into regression tests.** Add focused tests for every fixed
+    semantic, focus, announcement, target-size, and reflow defect.
+
+**Phase gate:** no critical blocker remains in core tasks; the report contains real tester and
+device evidence rather than automated claims standing in for assistive technology.
+
