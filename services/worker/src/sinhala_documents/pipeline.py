@@ -36,6 +36,7 @@ from sinhala_tts.segmentation import Segment, segment_text
 
 from .blocks import locate
 from .chapters import Chapter, find_chapters
+from .file_extract import extract_docx, extract_image
 from .legacy_fm_abhaya import CONVERTER_VERSION
 from .model import (
     BoundingBox,
@@ -291,6 +292,7 @@ def prepare_pages(
 def prepare_document(
     source: bytes | str | Path,
     *,
+    filename: str = "document.pdf",
     page_indexes: Iterable[int] | None = None,
     limit: int = MODEL_INPUT_CHAR_LIMIT,
     password: str = "",
@@ -310,9 +312,19 @@ def prepare_document(
     :class:`~.ocr.OcrMode`. Without an ``ocr`` adapter nothing is recognised,
     whatever the mode.
     """
-    extraction = extract_document(source, page_indexes=page_indexes, password=password)
+    suffix = Path(filename).suffix.lower()
+    if suffix == ".docx":
+        if not isinstance(source, bytes):
+            source = Path(source).read_bytes()
+        extraction = extract_docx(source)
+    elif suffix in {".png", ".jpg", ".jpeg"}:
+        if not isinstance(source, bytes):
+            source = Path(source).read_bytes()
+        extraction = extract_image(source, ocr)
+    else:
+        extraction = extract_document(source, page_indexes=page_indexes, password=password)
     recognising = ocr is not None and ocr_mode is not OcrMode.OFF
-    if recognising:
+    if recognising and suffix == ".pdf":
         assert ocr is not None
         extraction = apply_ocr(extraction, source, ocr, ocr_mode)
     version = _document_version(
@@ -333,5 +345,5 @@ def prepare_document(
         # From the extraction after OCR: a recognised page's sizes are estimates,
         # so it is skipped rather than measured, and its broken embedded text is
         # not a title anyone should hear.
-        chapters=find_chapters(extraction),
+        chapters=find_chapters(extraction) if suffix == ".pdf" else (),
     )
