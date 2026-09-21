@@ -172,3 +172,11 @@ and recovery behaviour is demonstrated with integration tests.
 **Phase gate:** staging evidence meets the written release targets, rollback works, and every
 remaining limitation is explicit in the release notes.
 
+## Suggested delivery rhythm
+
+- Use one branch and pull request per numbered commit unless two commits are inseparable.
+- Require the aggregate `ci` check and the Chromium check before merge.
+- Demonstrate the end-to-end flow at commits 10, 20, 25, 30, 35, 40, 45, and 50.
+- Re-estimate after commits 10, 25, and 40 using actual defect and evaluation data.
+- Keep model weights, uploaded documents, generated audio, secrets, and private evaluation
+  material outside Git.
