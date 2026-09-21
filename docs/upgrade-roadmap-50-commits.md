@@ -106,3 +106,19 @@ conditions, and the selected voice is never silently substituted.
 **Phase gate:** no critical blocker remains in core tasks; the report contains real tester and
 device evidence rather than automated claims standing in for assistive technology.
 
+## Phase 7 — Document quality and correction
+
+31. **Implement the FM-Abhaya converter.** Use the supplied ordered mapping, span-level font
+    detection, provenance, and all supplied character-for-character cases.
+32. **Create an OCR evaluation set.** Add permission-cleared scanned pages, human transcripts,
+    CER/WER measurement, and error groups for letters, marks, numbers, and layout.
+33. **Add extraction review UI.** Show native, legacy, and OCR provenance with page warnings and
+    side-by-side source comparison.
+34. **Add correction workflow.** Let authorised reviewers correct display/spoken text, create a
+    new document version, invalidate derived audio/indexes, and retain an audit trail.
+35. **Improve structure and reading order.** Handle columns, headings, captions, lists, tables,
+    running furniture, and uncertain blocks with deterministic fallback.
+
+**Phase gate:** document errors can be measured, found, corrected, versioned, and regenerated
+without changing the words silently.
+
