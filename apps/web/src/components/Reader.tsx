@@ -370,6 +370,15 @@ export function Reader({
   const pdfPanel = (
     <PdfPanel
       documentId={documentId}
+      mediaType={
+        book.media_type ??
+        (/\.(png|jpe?g)$/i.test(book.filename)
+          ? `image/${book.filename.toLowerCase().endsWith(".png") ? "png" : "jpeg"}`
+          : book.filename.toLowerCase().endsWith(".pdf")
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+      }
+      filename={book.filename}
       pageIndex={pdfPageIndex}
       pageCount={book.page_count}
       onPageChange={goToPdfPage}
