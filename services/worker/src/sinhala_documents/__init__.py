@@ -26,8 +26,10 @@ from .validation import (
     MAX_PAGES,
     MAX_UPLOAD_BYTES,
     DocumentRejected,
+    check_document_bytes,
     check_pdf_bytes,
     check_pdf_file,
+    media_type_for,
 )
 
 __all__ = [
@@ -46,8 +48,10 @@ __all__ = [
     "TextLine",
     "TextSpan",
     "check_pdf_bytes",
+    "check_document_bytes",
     "check_pdf_file",
     "extract_document",
     "extract_page",
     "prepare_document",
+    "media_type_for",
 ]
