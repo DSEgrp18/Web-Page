@@ -89,6 +89,8 @@ export interface ReadingPosition {
 export interface DocumentSummary {
   document_id: string;
   filename: string;
+  /** The original upload's media type. */
+  media_type?: string;
   /** What the reader named it. Null means they have not; show the filename. */
   title: string | null;
   size_bytes: number;
