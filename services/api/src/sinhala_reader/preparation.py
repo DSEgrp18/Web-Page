@@ -199,7 +199,11 @@ class PreparationService:
 
         try:
             prepared = prepare_document(
-                source, structure=self._structure, ocr=self._ocr, ocr_mode=self._ocr_mode
+                source,
+                filename=document.filename,
+                structure=self._structure,
+                ocr=self._ocr,
+                ocr_mode=self._ocr_mode,
             )
         except DocumentRejected as error:
             # The one case where the message is about the reader's file rather
