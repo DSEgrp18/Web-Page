@@ -36,3 +36,25 @@ reviewable rather than subjective.
 
 **Phase gate:** every route has a coherent loading, success, empty, and recoverable error state.
 
+## Phase 3 — Library and upload experience
+
+11. **Add library search and sorting.** Search by title or filename and sort by recent,
+    alphabetical, progress, and preparation status.
+12. **Improve book cards.** Show meaningful title, page count, progress, last read time, and
+    status while keeping actions unambiguous to screen readers.
+13. **Add multi-format, multi-file upload.** Keep the native file control, add a visible drop
+    target, accept PDF, DOCX, PNG, and JPEG files, validate type and size before upload, and
+    report the result of each file without hiding partial failures.
+14. **Create detailed preparation progress.** Present upload, extraction, OCR, segmentation,
+    indexing, and audio readiness as honest server states with retry and cancellation.
+15. **Add bulk library management.** Support selection, deletion confirmation, and accessible
+    batch status without weakening ownership checks.
+
+**Phase gate:** a new user can add, understand, find, rename, resume, and delete books without
+guessing what the system is doing.
+
+The document pipeline for this phase includes native PDF text, DOCX paragraphs, and Sinhala OCR
+for scanned PDF pages and standalone images. Original PDF and image previews stay beside the
+accessible extracted text; DOCX keeps a download of the original and clearly states that its
+page layout is not reproduced in the browser.
+
