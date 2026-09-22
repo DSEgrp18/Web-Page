@@ -30,24 +30,24 @@
   color-scheme: light;
 
   /* -- brand ------------------------------------------------------------ */
-  --green: #17695c; /* primary. 6.05:1 on paper, 6.54:1 on panel */
-  --green-deep: #103f37; /* pressed, and display headings. 10.86:1 on paper */
-  --green-wash: #e4f1e9; /* the current sentence, selected rows */
-  --gold: #c08a2e; /* the ribbon. Accent only, never text on paper */
+  --green: #167565; /* primary action colour */
+  --green-deep: #0b5146; /* pressed controls and display headings */
+  --green-wash: #d9f3eb; /* the current sentence, selected rows */
+  --gold: #b88432; /* the ribbon. Accent only, never text on paper */
 
   /* -- surfaces --------------------------------------------------------- */
-  --paper: #f7f6f2; /* the page */
-  --panel: #ffffff; /* anything raised off it */
-  --panel-sunken: #f2f1ec; /* inputs, wells */
+  --paper: #f3f8f5; /* the page */
+  --panel: #fbfdfb; /* anything raised off it */
+  --panel-sunken: #eaf2ee; /* inputs, wells */
 
   /* -- ink -------------------------------------------------------------- */
-  --ink: #172e2c; /* 13.27:1 on paper, 14.35:1 on panel */
-  --ink-muted: #5a6b68; /* 5.20:1 on paper, 5.62:1 on panel — still AA */
-  --ink-on-green: #ffffff; /* 6.54:1 on green */
+  --ink: #102721;
+  --ink-muted: #536b64;
+  --ink-on-green: #ffffff;
 
   /* -- lines ------------------------------------------------------------ */
-  --hair: #e2e8e5; /* decorative: card edges, dividers. Not for controls */
-  --edge: #748781; /* control boundaries. 3.51 paper / 3.80 panel / 3.27 wash */
+  --hair: #cbdad4; /* decorative: card edges, dividers. Not for controls */
+  --edge: #66847b; /* control boundaries; never body text */
 
   /* -- status ----------------------------------------------------------- */
   --ok-ink: #155c3a;
@@ -86,17 +86,17 @@
   --s8: 4rem;
 
   /* -- shape ------------------------------------------------------------ */
-  --r-sm: 8px;
-  --r: 12px;
-  --r-lg: 16px;
-  --r-xl: 24px;
+  --r-sm: 10px;
+  --r: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
   --r-pill: 999px;
 
   /* Restrained on purpose: a reading surface should sit on the page, not
      float above it. Depth comes from the hairline, not the shadow. */
-  --shadow-1: 0 1px 2px rgba(16, 63, 55, 0.06);
-  --shadow-2: 0 2px 8px rgba(16, 63, 55, 0.08);
-  --shadow-3: 0 8px 28px rgba(16, 63, 55, 0.12);
+  --shadow-1: 0 1px 2px rgba(7, 35, 29, 0.04);
+  --shadow-2: 0 16px 40px rgba(7, 35, 29, 0.08);
+  --shadow-3: 0 24px 70px rgba(7, 35, 29, 0.16);
 
   /* -- motion ----------------------------------------------------------- */
   --ease: cubic-bezier(0.2, 0, 0, 1);
@@ -104,8 +104,8 @@
   --medium: 220ms;
 
   /* -- layout ----------------------------------------------------------- */
-  --shell-max: 76rem;
-  --header-h: 4rem;
+  --shell-max: 92rem;
+  --header-h: 5rem;
   --tap: 48px; /* every control is at least this tall */
 }
 
@@ -113,21 +113,21 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --green: #6fc4ae; /* 8.62:1 on paper, 7.80:1 on panel */
-    --green-deep: #a8dccc;
-    --green-wash: #1e3a31;
-    --gold: #e0b25f;
+    --green: #59d6c0;
+    --green-deep: #8be7d7;
+    --green-wash: #153b33;
+    --gold: #d5ac62;
 
-    --paper: #0f1a18;
-    --panel: #16241f;
-    --panel-sunken: #101b18;
+    --paper: #071813;
+    --panel: #0b211b;
+    --panel-sunken: #081b16;
 
-    --ink: #e6efea; /* 15.15:1 on paper */
-    --ink-muted: #9fb3ac; /* 8.06:1 on paper */
-    --ink-on-green: #0f1a18; /* 8.62:1 on green */
+    --ink: #edf7f3;
+    --ink-muted: #9eb8b0;
+    --ink-on-green: #062019;
 
-    --hair: #2a3b35;
-    --edge: #8aa39b; /* 6.60:1 on paper, 5.97:1 on panel */
+    --hair: #23423a;
+    --edge: #718f86;
 
     --ok-ink: #7fd6a2;
     --ok-wash: #14301f;
@@ -136,35 +136,35 @@
     --bad-ink: #f09a90;
     --bad-wash: #3a1f1c;
 
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.45);
-    --shadow-3: 0 8px 28px rgba(0, 0, 0, 0.55);
+    --shadow-1: none;
+    --shadow-2: 0 18px 46px rgba(0, 0, 0, 0.25);
+    --shadow-3: 0 28px 80px rgba(0, 0, 0, 0.46);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --green: #6fc4ae;
-  --green-deep: #a8dccc;
-  --green-wash: #1e3a31;
-  --gold: #e0b25f;
-  --paper: #0f1a18;
-  --panel: #16241f;
-  --panel-sunken: #101b18;
-  --ink: #e6efea;
-  --ink-muted: #9fb3ac;
-  --ink-on-green: #0f1a18;
-  --hair: #2a3b35;
-  --edge: #8aa39b;
+  --green: #59d6c0;
+  --green-deep: #8be7d7;
+  --green-wash: #153b33;
+  --gold: #d5ac62;
+  --paper: #071813;
+  --panel: #0b211b;
+  --panel-sunken: #081b16;
+  --ink: #edf7f3;
+  --ink-muted: #9eb8b0;
+  --ink-on-green: #062019;
+  --hair: #23423a;
+  --edge: #718f86;
   --ok-ink: #7fd6a2;
   --ok-wash: #14301f;
   --warn-ink: #e8c558;
   --warn-wash: #332a12;
   --bad-ink: #f09a90;
   --bad-wash: #3a1f1c;
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.45);
-  --shadow-3: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --shadow-1: none;
+  --shadow-2: 0 18px 46px rgba(0, 0, 0, 0.25);
+  --shadow-3: 0 28px 80px rgba(0, 0, 0, 0.46);
 }
 
 /* ==========================================================================
@@ -2185,68 +2185,6 @@ textarea {
    by day, mint as the single interaction colour, and thin outlines instead of
    stacked shadows. Existing semantics and minimum target sizes stay intact.
    ========================================================================== */
-
-:root {
-  --green: #167565;
-  --green-deep: #0b5146;
-  --green-wash: #d9f3eb;
-  --gold: #b88432;
-  --paper: #f3f8f5;
-  --panel: #fbfdfb;
-  --panel-sunken: #eaf2ee;
-  --ink: #102721;
-  --ink-muted: #536b64;
-  --ink-on-green: #ffffff;
-  --hair: #cbdad4;
-  --edge: #66847b;
-  --r-sm: 10px;
-  --r: 14px;
-  --r-lg: 20px;
-  --r-xl: 28px;
-  --shell-max: 92rem;
-  --header-h: 5rem;
-  --shadow-1: 0 1px 2px rgba(7, 35, 29, 0.04);
-  --shadow-2: 0 16px 40px rgba(7, 35, 29, 0.08);
-  --shadow-3: 0 24px 70px rgba(7, 35, 29, 0.16);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --green: #59d6c0;
-    --green-deep: #8be7d7;
-    --green-wash: #153b33;
-    --gold: #d5ac62;
-    --paper: #071813;
-    --panel: #0b211b;
-    --panel-sunken: #081b16;
-    --ink: #edf7f3;
-    --ink-muted: #9eb8b0;
-    --ink-on-green: #062019;
-    --hair: #23423a;
-    --edge: #718f86;
-    --shadow-1: none;
-    --shadow-2: 0 18px 46px rgba(0, 0, 0, 0.25);
-    --shadow-3: 0 28px 80px rgba(0, 0, 0, 0.46);
-  }
-}
-
-:root[data-theme="dark"] {
-  --green: #59d6c0;
-  --green-deep: #8be7d7;
-  --green-wash: #153b33;
-  --gold: #d5ac62;
-  --paper: #071813;
-  --panel: #0b211b;
-  --panel-sunken: #081b16;
-  --ink: #edf7f3;
-  --ink-muted: #9eb8b0;
-  --ink-on-green: #062019;
-  --hair: #23423a;
-  --edge: #718f86;
-  --shadow-1: none;
-  --shadow-2: 0 18px 46px rgba(0, 0, 0, 0.25);
-  --shadow-3: 0 28px 80px rgba(0, 0, 0, 0.46);
-}
 
 body {
   background:
