@@ -50,6 +50,7 @@ from .ocr import OcrAdapter, OcrMode, apply_ocr
 from .pdf_extract import extract_document
 from .structure import BlockRole, is_narrated, number_style_for
 from .structuring import DeterministicStructure, StructureAdapter, structure_page
+from .validation import media_type_for
 
 #: Bumped when this module changes how pages become segments.
 PIPELINE_VERSION = "1"
@@ -312,19 +313,20 @@ def prepare_document(
     :class:`~.ocr.OcrMode`. Without an ``ocr`` adapter nothing is recognised,
     whatever the mode.
     """
-    suffix = Path(filename).suffix.lower()
-    if suffix == ".docx":
+    source_bytes = source if isinstance(source, bytes) else None
+    media_type = media_type_for(filename, source_bytes)
+    recognising = ocr is not None and ocr_mode is not OcrMode.OFF
+    if media_type and media_type.endswith("wordprocessingml.document"):
         if not isinstance(source, bytes):
             source = Path(source).read_bytes()
         extraction = extract_docx(source)
-    elif suffix in {".png", ".jpg", ".jpeg"}:
+    elif media_type in {"image/png", "image/jpeg"}:
         if not isinstance(source, bytes):
             source = Path(source).read_bytes()
-        extraction = extract_image(source, ocr)
+        extraction = extract_image(source, ocr if recognising else None)
     else:
         extraction = extract_document(source, page_indexes=page_indexes, password=password)
-    recognising = ocr is not None and ocr_mode is not OcrMode.OFF
-    if recognising and suffix == ".pdf":
+    if recognising and media_type == "application/pdf":
         assert ocr is not None
         extraction = apply_ocr(extraction, source, ocr, ocr_mode)
     version = _document_version(
@@ -345,5 +347,5 @@ def prepare_document(
         # From the extraction after OCR: a recognised page's sizes are estimates,
         # so it is skipped rather than measured, and its broken embedded text is
         # not a title anyone should hear.
-        chapters=find_chapters(extraction) if suffix == ".pdf" else (),
+        chapters=find_chapters(extraction) if media_type == "application/pdf" else (),
     )

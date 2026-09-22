@@ -161,11 +161,19 @@ class DocumentSummary(BaseModel):
     )
 
     @classmethod
-    def of(cls, document: Document, *, progress: Progress | None = None) -> DocumentSummary:
+    def of(
+        cls,
+        document: Document,
+        *,
+        progress: Progress | None = None,
+        media_type: str | None = None,
+    ) -> DocumentSummary:
         return cls(
             document_id=document.document_id,
             filename=document.filename,
-            media_type=media_type_for(document.filename) or "application/octet-stream",
+            media_type=(
+                media_type or media_type_for(document.filename) or "application/octet-stream"
+            ),
             title=document.title,
             size_bytes=document.size_bytes,
             created_at=document.created_at,
@@ -224,9 +232,10 @@ class DocumentDetail(DocumentSummary):
         *,
         progress: Progress | None = None,
         chapters: tuple[Chapter, ...] | None = None,
+        media_type: str | None = None,
     ) -> DocumentDetail:
         return cls(
-            **DocumentSummary.of(document, progress=progress).model_dump(),
+            **DocumentSummary.of(document, progress=progress, media_type=media_type).model_dump(),
             notes=list(document.notes),
             job=JobStatus.of(job) if job else None,
             chapters=None if chapters is None else [ChapterDetail.of(c) for c in chapters],
