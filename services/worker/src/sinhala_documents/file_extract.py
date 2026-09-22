@@ -3,24 +3,54 @@
 from __future__ import annotations
 
 from io import BytesIO
-from xml.etree import ElementTree
+from xml.etree.ElementTree import Element
 from zipfile import ZipFile
 
 from .model import BoundingBox, DocumentExtraction, PageExtraction, PageKind, TextLine, TextSpan
 from .ocr import NOTE, OcrAdapter, OcrUnavailable, lines_from_words
+from .validation import parse_docx_document
 
 _WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_TEXT = f"{_WORD_NS}t"
+_PARAGRAPH = f"{_WORD_NS}p"
+_TAB = f"{_WORD_NS}tab"
+_BREAKS = {f"{_WORD_NS}br", f"{_WORD_NS}cr"}
+_TEXT_BOX = f"{_WORD_NS}txbxContent"
+
+
+def _paragraph_text(paragraph: Element) -> str:
+    """Preserve Word text separators without visiting nested paragraphs twice."""
+    parts: list[str] = []
+
+    def visit(node: Element) -> None:
+        for child in node:
+            tag = child.tag
+            if tag in {_TEXT_BOX, _PARAGRAPH}:
+                # ``root.iter(w:p)`` visits nested text-box paragraphs in their
+                # own turn. Descending here would fuse and duplicate their text.
+                continue
+            if tag == _TEXT:
+                parts.append(child.text or "")
+            elif tag == _TAB:
+                parts.append("\t")
+            elif tag in _BREAKS:
+                parts.append("\n")
+            else:
+                visit(child)
+
+    visit(paragraph)
+    return "".join(parts).strip()
 
 
 def extract_docx(source: bytes) -> DocumentExtraction:
     """Read paragraph text from a DOCX without executing or rendering its contents."""
+    root = parse_docx_document(source)
     with ZipFile(BytesIO(source)) as archive:
-        root = ElementTree.fromstring(archive.read("word/document.xml"))
         image_count = sum(name.startswith("word/media/") for name in archive.namelist())
 
     lines: list[TextLine] = []
-    for paragraph in root.iter(f"{_WORD_NS}p"):
-        text = "".join(node.text or "" for node in paragraph.iter(f"{_WORD_NS}t")).strip()
+    for paragraph in root.iter(_PARAGRAPH):
+        text = _paragraph_text(paragraph)
         if not text:
             continue
         top = 36.0 + len(lines) * 18.0

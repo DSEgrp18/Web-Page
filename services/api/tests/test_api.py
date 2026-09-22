@@ -159,6 +159,32 @@ def test_a_docx_is_prepared_and_reports_its_original_media_type(client: TestClie
     assert page["segments"][0]["display_text"] == "සිංහල ලේඛනයකි."
 
 
+def test_an_extensionless_pdf_keeps_its_detected_media_type(
+    client: TestClient, book: bytes
+) -> None:
+    response = upload(client, book, name="scanner-share")
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["media_type"] == "application/pdf"
+    listed = client.get("/documents", headers=as_reader(client)).json()
+    assert listed[0]["media_type"] == "application/pdf"
+    source = client.get(f"/documents/{body['document_id']}/file", headers=as_reader(client))
+    assert source.headers["content-type"] == "application/pdf"
+
+
+def test_malformed_docx_is_rejected_before_a_job_is_created(client: TestClient) -> None:
+    source = io.BytesIO()
+    with ZipFile(source, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types />")
+        archive.writestr("word/document.xml", "<broken")
+
+    response = upload(client, source.getvalue(), name="broken.docx")
+
+    assert response.status_code == 400
+    assert "damaged" in response.json()["detail"]
+
+
 def test_a_document_that_cannot_be_read_fails_its_job_without_leaking_text(
     client: TestClient,
 ) -> None:

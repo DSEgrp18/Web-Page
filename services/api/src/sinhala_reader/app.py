@@ -379,7 +379,11 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         """
         positions = deps.store.list_progress(owner)
         return [
-            DocumentSummary.of(d, progress=positions.get(d.document_id))
+            DocumentSummary.of(
+                d,
+                progress=positions.get(d.document_id),
+                media_type=media_type_for(d.filename, deps.store.get_source(d.document_id)),
+            )
             for d in deps.store.list_documents(owner)
         ]
 
@@ -444,7 +448,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         if span is None:
             return Response(
                 content=data,
-                media_type=media_type_for(document.filename) or "application/octet-stream",
+                media_type=media_type_for(document.filename, data) or "application/octet-stream",
                 headers=headers,
             )
 
@@ -453,7 +457,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         return Response(
             content=data[start : end + 1],
             status_code=status.HTTP_206_PARTIAL_CONTENT,
-            media_type=media_type_for(document.filename) or "application/octet-stream",
+            media_type=media_type_for(document.filename, data) or "application/octet-stream",
             headers=headers,
         )
 
@@ -808,6 +812,7 @@ def _document_detail(
         latest,
         progress=store.get_progress(document_id, owner),
         chapters=prepared.chapters if prepared else None,
+        media_type=media_type_for(document.filename, store.get_source(document_id)),
     )
 
 
