@@ -34,12 +34,10 @@ export function UploadDialog({
   open,
   onClose,
   onUploaded,
-  returnFocusTo,
 }: {
   open: boolean;
   onClose: () => void;
-  onUploaded: (created: DocumentDetail) => void;
-  returnFocusTo: React.RefObject<HTMLElement | null>;
+  onUploaded: (created: DocumentDetail) => void | Promise<void>;
 }) {
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
@@ -76,15 +74,16 @@ export function UploadDialog({
     setProblem(null);
     setDragging(false);
     onClose();
-    returnFocusTo.current?.focus();
-  }, [busy, onClose, returnFocusTo]);
+  }, [busy, onClose]);
 
   /** Validate here so the reader hears the reason before a round trip. */
   const accept = useCallback(
     (chosen: FileList | File[] | null | undefined) => {
       const selected = Array.from(chosen ?? []);
       if (!selected.length) return;
-      const allowed = selected.every((item) => /\.(pdf|docx|png|jpe?g)$/i.test(item.name));
+      const allowed = selected.every(
+        (item) => /\.(pdf|docx|png|jpe?g)$/i.test(item.name) || !/\.[^./\\]+$/.test(item.name),
+      );
       if (!allowed) {
         setProblem(strings.uploadUnsupported);
         alert(strings.uploadUnsupported);
@@ -97,7 +96,11 @@ export function UploadDialog({
       }
       setProblem(null);
       setFiles(selected);
-      say(strings.uploadSelectedCount(selected.length));
+      say(
+        selected.length === 1
+          ? strings.uploadSelectedFile(selected[0]?.name ?? "")
+          : strings.uploadSelectedCount(selected.length),
+      );
     },
     [alert, say],
   );
@@ -121,8 +124,11 @@ export function UploadDialog({
     setBusy(true);
     setProblem(null);
     say(strings.uploadInProgress);
+    const remaining = [...files];
     try {
-      for (const file of files) {
+      while (remaining.length) {
+        const file = remaining[0];
+        if (!file) break;
         let created = await api.upload(file);
         const chosen = title.trim();
         if (chosen && files.length === 1) {
@@ -132,21 +138,22 @@ export function UploadDialog({
             // The document is in. Its optional display name can be set again.
           }
         }
-        onUploaded(created);
+        remaining.shift();
+        await onUploaded(created);
       }
       setFiles([]);
       setTitle("");
       setBusy(false);
       onClose();
-      returnFocusTo.current?.focus();
       say(strings.preparing);
     } catch (cause) {
+      setFiles(remaining);
       const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.uploadFailed;
       setProblem(message);
       alert(message);
       setBusy(false);
     }
-  }, [alert, api, files, onClose, onUploaded, returnFocusTo, say, title]);
+  }, [alert, api, files, onClose, onUploaded, say, title]);
 
   return (
     /* The backdrop click below is a pointer affordance on an element that is

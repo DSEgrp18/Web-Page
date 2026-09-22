@@ -286,6 +286,7 @@ export const strings = {
   uploadNotPdf: "මෙය PDF ගොනුවක් නොවේ.",
   uploadUnsupported: "PDF, DOCX, PNG හෝ JPEG ගොනු පමණක් තෝරන්න.",
   uploadSelectedCount: (count: number) => `ගොනු ${count} ක් තෝරා ඇත.`,
+  uploadSelectedFile: (filename: string) => `තෝරාගත් ගොනුව: ${filename}.`,
   uploadTitleLabel: "පොතේ නම (අත්‍යවශ්‍ය නොවේ)",
   uploadTitleHelp: "හිස් තැබුවහොත් ගොනුවේ නම භාවිත වේ.",
   uploadTitleSingleOnly: "නමක් දිය හැක්කේ එක් ගොනුවක් තෝරා ඇති විට පමණි.",
