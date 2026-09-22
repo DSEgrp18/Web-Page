@@ -99,5 +99,6 @@ test("library uploads PDF and DOCX files together", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "පොත.pdf" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "සටහන්.docx" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "පොතක් එක් කරන්න", exact: true })).toBeFocused();
   expect(uploads).toBe(2);
 });

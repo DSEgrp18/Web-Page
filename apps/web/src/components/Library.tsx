@@ -71,6 +71,7 @@ export function Library() {
 
   const addButton = useRef<HTMLButtonElement>(null);
   const cardTrigger = useRef<HTMLElement | null>(null);
+  const restoreAddFocus = useRef(false);
   const searchId = useId();
   const sortId = useId();
 
@@ -178,6 +179,16 @@ export function Library() {
   );
 
   const openUpload = () => setUploading(true);
+  const closeUpload = useCallback(() => {
+    restoreAddFocus.current = true;
+    setUploading(false);
+  }, []);
+
+  useEffect(() => {
+    if (uploading || !restoreAddFocus.current || !addButton.current) return;
+    addButton.current.focus();
+    restoreAddFocus.current = false;
+  }, [all.length, uploading]);
 
   return (
     <div className="library">
@@ -298,12 +309,11 @@ export function Library() {
 
       <UploadDialog
         open={uploading}
-        onClose={() => setUploading(false)}
-        onUploaded={(created) => {
+        onClose={closeUpload}
+        onUploaded={async (created) => {
           pending.current.add(created.document_id);
-          void refresh();
+          await refresh();
         }}
-        returnFocusTo={addButton}
       />
 
       {/* Mounted only while open, and keyed by book: that is what lets the
