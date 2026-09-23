@@ -396,7 +396,7 @@ python -m pip install "celery>=5.4" "redis>=5"
 SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_AUTH=development SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m uvicorn sinhala_reader.serve:app
 
 # and a worker, in another terminal
-SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m celery -A sinhala_reader.worker worker --loglevel=info
+SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m celery -A sinhala_reader.celery_worker worker --loglevel=info
 ```
 
 Measured with the API in one process and a worker in another, sharing only

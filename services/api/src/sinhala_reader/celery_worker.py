@@ -10,6 +10,14 @@ that Celery stays an extra. Importing :mod:`.queue` must not import Celery — a
 contributor working on the reader interface should not need a broker library to
 run the API's tests — and importing *this* module obviously does, which is fine
 because the only thing that imports it is a worker.
+
+The worker needs the **same database as the API**. It has no request and no
+caller to inherit a store from, so it builds its own from configuration — and a
+worker pointed at a different database will extract books that nobody can read.
+
+This is the only entry point. A second module, ``worker``, did the same thing
+under another name; two entry points are two things to keep in step, and the
+README was already pointing at the one compose did not use.
 """
 
 from __future__ import annotations
