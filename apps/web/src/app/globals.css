@@ -2356,7 +2356,7 @@ h4 {
     background:
       linear-gradient(105deg, rgba(7, 24, 19, 0.98) 0 42%, rgba(7, 24, 19, 0.35) 75%),
       radial-gradient(circle at 82% 38%, rgba(89, 214, 192, 0.24), transparent 30%),
-      linear-gradient(135deg, #0b211b, #071813);
+      linear-gradient(135deg, var(--panel), var(--paper));
   }
 }
 
@@ -2364,7 +2364,7 @@ h4 {
   background:
     linear-gradient(105deg, rgba(7, 24, 19, 0.98) 0 42%, rgba(7, 24, 19, 0.35) 75%),
     radial-gradient(circle at 82% 38%, rgba(89, 214, 192, 0.24), transparent 30%),
-    linear-gradient(135deg, #0b211b, #071813);
+    linear-gradient(135deg, var(--panel), var(--paper));
 }
 
 .welcome::after {

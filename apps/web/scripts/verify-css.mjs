@@ -181,6 +181,13 @@ for (const [name, allowed] of KNOWN_UNSTYLED) {
 
 // -- 3. colours are tokens, and 4. defined once per block -------------------
 
+/**
+ * A token block is `:root` itself, qualified only by attributes or `:not()`:
+ * `:root[data-theme="dark"]`, not `:root[data-theme="dark"] .welcome`, which
+ * is an ordinary rule that happens to start at the root.
+ */
+const isTokenBlock = (selector) => /^:root(\[[^\]]*\]|:not\([^)]*\))*$/.test(selector);
+
 for (const [file, text] of css) {
   // Track the selector of every open block, so a declaration knows whether
   // any enclosing block is a `:root` (the light, dark and media variants),
@@ -201,7 +208,7 @@ for (const [file, text] of css) {
     } else if (ch === ";") {
       const where = `${rel(file)}:${lineOf(text, i)}`;
       const hex = buffer.match(/#[0-9a-fA-F]{3,8}\b/);
-      if (hex && !open.some((s) => s.includes(":root"))) {
+      if (hex && !open.some(isTokenBlock)) {
         problems.push(`${where}  ${hex[0]} outside a :root block: make it a token`);
       }
       const prop = buffer.match(/^\s*(--[\w-]+)\s*:/);
