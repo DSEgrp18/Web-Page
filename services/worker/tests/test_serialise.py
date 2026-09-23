@@ -20,18 +20,51 @@ from pdf_fixtures import build_pdf, legacy_page, sinhala_page
 
 from sinhala_documents.chapters import Chapter
 from sinhala_documents.model import PageKind, QualityState
-from sinhala_documents.pipeline import prepare_document
+from sinhala_documents.passages import build_passages
+from sinhala_documents.pipeline import ReadableDocument, prepare_document
 from sinhala_documents.serialise import (
     FORMAT_VERSION,
     UnreadableFormat,
     from_json,
     to_json,
 )
+from sinhala_documents.structure import BlockRole
 
 
 @pytest.fixture
 def prepared():
     return prepare_document(build_pdf([sinhala_page(), legacy_page(), sinhala_page()]))
+
+
+def _structured(document: ReadableDocument) -> ReadableDocument:
+    """The same document as if structure inference had found its layout.
+
+    Deterministic structure marks every segment ``UNKNOWN``, which is the
+    default, so a document prepared without a provider has no roles to lose.
+    That is why the round trip above never noticed them being dropped. These
+    roles are the ones a provider assigns, and the ones that change what a
+    reader gets.
+    """
+    segments = document.segments
+    assert len(segments) >= 3, "the fixture should produce at least three segments"
+    roles = {
+        segments[0].segment_id: (BlockRole.HEADING, 1),
+        segments[1].segment_id: (BlockRole.RUNNING_HEAD, None),
+        segments[-1].segment_id: (BlockRole.CAPTION, None),
+    }
+    pages = tuple(
+        replace(
+            page,
+            segments=tuple(
+                replace(s, role=roles[s.segment_id][0], level=roles[s.segment_id][1])
+                if s.segment_id in roles
+                else s
+                for s in page.segments
+            ),
+        )
+        for page in document.pages
+    )
+    return replace(document, pages=pages)
 
 
 class TestRoundTrip:
@@ -98,6 +131,72 @@ class TestChapters:
         del payload["chapters"]
 
         assert from_json(json.dumps(payload)).chapters is None
+
+
+class TestStructure:
+    """What structure inference found has to survive being stored.
+
+    Under Celery the worker prepares a book and the API reads it back from the
+    database, so a role that is not stored is a role the reader never gets: a
+    heading comes back as ``unknown``, the passages lose their sections, and a
+    running head is cited as evidence for an answer.
+    """
+
+    def test_segment_roles_and_levels_survive(self, prepared) -> None:
+        structured = _structured(prepared)
+
+        assert from_json(to_json(structured)) == structured
+
+    def test_passages_rebuilt_after_a_reload_keep_their_sections(self, prepared) -> None:
+        structured = _structured(prepared)
+        heading = " ".join(structured.segments[0].display_text.split())
+        before = build_passages(structured)
+        assert any(p.section_path == (heading,) for p in before), "precondition"
+
+        after = build_passages(from_json(to_json(structured)))
+
+        assert after == before
+
+    def test_a_running_head_is_not_cited_after_a_reload(self, prepared) -> None:
+        """It repeats on every page, so it would match every question."""
+        structured = _structured(prepared)
+        running_head = structured.segments[1].segment_id
+
+        reloaded = from_json(to_json(structured))
+        cited = {sid for passage in build_passages(reloaded) for sid in passage.segment_ids}
+
+        assert running_head not in cited
+
+    def test_roles_are_stored_as_values(self, prepared) -> None:
+        """The same rule as page kinds: a renamed member must not change data."""
+        payload = json.loads(to_json(_structured(prepared)))
+        stored = [s["role"] for p in payload["pages"] for s in p["segments"] if "role" in s]
+
+        assert stored
+        assert set(stored) <= {role.value for role in BlockRole}
+
+    def test_a_document_without_structure_stores_no_roles(self, prepared) -> None:
+        """Most books are prepared without a provider, and should not pay for one.
+
+        ``UNKNOWN`` and no level are the defaults, so they are not written.
+        """
+        raw = to_json(prepared)
+
+        assert '"role"' not in raw
+        assert '"level"' not in raw
+
+    def test_a_row_written_before_roles_were_stored_reads_as_unknown(self, prepared) -> None:
+        """Older rows never had roles, so ``UNKNOWN`` is what they always were."""
+        payload = json.loads(to_json(_structured(prepared)))
+        for page in payload["pages"]:
+            for segment in page["segments"]:
+                segment.pop("role", None)
+                segment.pop("level", None)
+
+        back = from_json(json.dumps(payload))
+
+        assert {s.role for s in back.segments} == {BlockRole.UNKNOWN}
+        assert {s.level for s in back.segments} == {None}
 
 
 class TestRefusingWhatItCannotRead:
