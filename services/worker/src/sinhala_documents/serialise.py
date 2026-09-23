@@ -29,6 +29,7 @@ from typing import Any
 from .chapters import CHAPTERS_VERSION, Chapter
 from .model import BoundingBox, PageKind, QualityState
 from .pipeline import ReadableDocument, ReadablePage, ReadableSegment
+from .structure import BlockRole
 
 #: Bumped when this format changes in a way old rows cannot be read in.
 #: :func:`from_json` refuses a version it does not know rather than guessing,
@@ -118,7 +119,7 @@ def _page(page: ReadablePage) -> dict[str, Any]:
 
 
 def _segment(segment: ReadableSegment) -> dict[str, Any]:
-    return {
+    payload = {
         "segment_id": segment.segment_id,
         "index": segment.index,
         "page_index": segment.page_index,
@@ -131,6 +132,18 @@ def _segment(segment: ReadableSegment) -> dict[str, Any]:
         "model_text": segment.model_text,
         "boxes": [_box(box) for box in segment.boxes],
     }
+    # Written only when structure found something. These were once not stored
+    # at all, so under Celery - the worker prepares, the API reads back - every
+    # heading returned as "unknown": passages lost their sections and a running
+    # head was cited as evidence. The defaults are left out because most books
+    # are prepared without a provider and have none to store; an absent key reads
+    # back as exactly those defaults, which is also what older rows always were.
+    # Adding optional keys is backward compatible, so the format is unchanged.
+    if segment.role is not BlockRole.UNKNOWN:
+        payload["role"] = str(segment.role)
+    if segment.level is not None:
+        payload["level"] = segment.level
+    return payload
 
 
 def _box(box: BoundingBox) -> list[float]:
@@ -160,6 +173,8 @@ def _read_segment(payload: dict[str, Any]) -> ReadableSegment:
         spoken_text=payload["spoken_text"],
         model_text=payload["model_text"],
         boxes=tuple(_read_box(box) for box in payload["boxes"]),
+        role=BlockRole(payload.get("role", BlockRole.UNKNOWN)),
+        level=payload.get("level"),
     )
 
 
