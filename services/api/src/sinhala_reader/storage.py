@@ -95,6 +95,16 @@ class Job:
     created_at: str = field(default_factory=_now)
     updated_at: str = field(default_factory=_now)
 
+    lease_expires_at: str | None = None
+    """Until when a running job's process has promised it is still alive.
+
+    Renewed by a heartbeat while the work runs. A process that dies stops
+    renewing, and once the lease has passed the job is failed as stalled rather
+    than left saying "running" for ever - which one did, for eight days, after
+    the process preparing it went away. ``None`` for a job that is not running,
+    and for one started before leases existed.
+    """
+
 
 @dataclass(frozen=True)
 class Document:
@@ -279,6 +289,29 @@ class Store(ABC):
         whose document it belongs to. Kept explicit and separately named so that
         an unscoped read is always a deliberate choice, never a forgotten
         argument.
+        """
+
+    @abstractmethod
+    def renew_lease(self, job_id: str, until: str) -> bool:
+        """Extend a running job's lease: the worker's heartbeat.
+
+        Unscoped for the same reason as :meth:`get_job_for_worker`. Returns
+        ``False`` if the job is no longer running, and changes nothing then, so
+        a heartbeat that arrives after the reaper has given up on a job can
+        never bring it back to life.
+        """
+
+    @abstractmethod
+    def fail_stalled_jobs(self, now: str, stale_before: str, detail: str) -> list[str]:
+        """Fail every running job whose process has stopped renewing it.
+
+        A job is stalled when its lease ended before ``now``. A running job with
+        no lease was started before leases existed; it is stalled when it was
+        last updated before ``stale_before``, which gives it the same grace a
+        leased job gets rather than failing it the moment new code starts.
+
+        Marks each one failed at stage ``stalled`` with ``detail``, and returns
+        their ids. Idempotent, so several processes may reap at once.
         """
 
     @abstractmethod
@@ -482,6 +515,36 @@ class InMemoryStore(Store):
     def get_job_for_worker(self, job_id: str) -> Job | None:
         with self._lock:
             return self._jobs.get(job_id)
+
+    def renew_lease(self, job_id: str, until: str) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job.state is not JobState.RUNNING:
+                return False
+            self._jobs[job_id] = replace(job, lease_expires_at=until)
+            return True
+
+    def fail_stalled_jobs(self, now: str, stale_before: str, detail: str) -> list[str]:
+        failed: list[str] = []
+        with self._lock:
+            for job_id, job in list(self._jobs.items()):
+                if job.state is not JobState.RUNNING:
+                    continue
+                if job.lease_expires_at is not None:
+                    stalled = job.lease_expires_at < now
+                else:
+                    stalled = job.updated_at < stale_before
+                if stalled:
+                    self._jobs[job_id] = replace(
+                        job,
+                        state=JobState.FAILED,
+                        stage="stalled",
+                        detail=detail,
+                        lease_expires_at=None,
+                        updated_at=now,
+                    )
+                    failed.append(job_id)
+        return failed
 
     def jobs_for(self, document_id: str, owner: str) -> list[Job]:
         with self._lock:

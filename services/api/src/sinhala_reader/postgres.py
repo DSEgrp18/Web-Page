@@ -241,6 +241,19 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
         ALTER TABLE audio ADD PRIMARY KEY (document_id, cache_key);
         """,
     ),
+    (
+        "0007_job_leases",
+        """
+        -- Until when a running job's process has promised it is still alive.
+        -- Renewed by a heartbeat; a process that dies stops renewing, and the
+        -- job is then failed as stalled instead of saying "running" for ever.
+        -- NULL for jobs that are not running, and for any started before this.
+        ALTER TABLE jobs ADD COLUMN lease_expires_at text;
+
+        -- The reaper only ever looks at running jobs, which are few.
+        CREATE INDEX jobs_running ON jobs (lease_expires_at) WHERE state = 'running';
+        """,
+    ),
 )
 
 
@@ -420,14 +433,15 @@ class PostgresStore(Store):
             connection.execute(
                 """
                 INSERT INTO jobs (job_id, document_id, owner, kind, state, stage, detail,
-                                  created_at, updated_at)
+                                  created_at, updated_at, lease_expires_at)
                 VALUES (%(job_id)s, %(document_id)s, %(owner)s, %(kind)s, %(state)s, %(stage)s,
-                        %(detail)s, %(created_at)s, %(updated_at)s)
+                        %(detail)s, %(created_at)s, %(updated_at)s, %(lease_expires_at)s)
                 ON CONFLICT (job_id) DO UPDATE SET
-                    state      = EXCLUDED.state,
-                    stage      = EXCLUDED.stage,
-                    detail     = EXCLUDED.detail,
-                    updated_at = EXCLUDED.updated_at
+                    state            = EXCLUDED.state,
+                    stage            = EXCLUDED.stage,
+                    detail           = EXCLUDED.detail,
+                    updated_at       = EXCLUDED.updated_at,
+                    lease_expires_at = EXCLUDED.lease_expires_at
                 """,
                 {
                     "job_id": job.job_id,
@@ -439,6 +453,7 @@ class PostgresStore(Store):
                     "detail": job.detail,
                     "created_at": job.created_at,
                     "updated_at": job.updated_at,
+                    "lease_expires_at": job.lease_expires_at,
                 },
             )
         return job
@@ -455,6 +470,36 @@ class PostgresStore(Store):
         with self._pool.connection() as connection:
             row = connection.execute("SELECT * FROM jobs WHERE job_id = %s", (job_id,)).fetchone()
         return _job(row) if row else None
+
+    def renew_lease(self, job_id: str, until: str) -> bool:
+        """The heartbeat. See ``Store.renew_lease``.
+
+        The state is in the WHERE clause rather than checked first, so a
+        heartbeat racing the reaper can never revive a job it has just failed.
+        """
+        with self._pool.connection() as connection:
+            renewed = connection.execute(
+                "UPDATE jobs SET lease_expires_at = %s WHERE job_id = %s AND state = 'running'",
+                (until, job_id),
+            ).rowcount
+        return renewed == 1
+
+    def fail_stalled_jobs(self, now: str, stale_before: str, detail: str) -> list[str]:
+        """See ``Store.fail_stalled_jobs``. One statement, so it is idempotent."""
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """
+                UPDATE jobs
+                   SET state = 'failed', stage = 'stalled', detail = %(detail)s,
+                       lease_expires_at = NULL, updated_at = %(now)s
+                 WHERE state = 'running'
+                   AND (   (lease_expires_at IS NOT NULL AND lease_expires_at < %(now)s)
+                        OR (lease_expires_at IS NULL AND updated_at < %(stale_before)s))
+                RETURNING job_id
+                """,
+                {"now": now, "stale_before": stale_before, "detail": detail},
+            ).fetchall()
+        return [row["job_id"] for row in rows]
 
     def jobs_for(self, document_id: str, owner: str) -> list[Job]:
         with self._pool.connection() as connection:
@@ -736,6 +781,7 @@ def _job(row: dict[str, Any]) -> Job:
         detail=row["detail"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        lease_expires_at=row["lease_expires_at"],
     )
 
 

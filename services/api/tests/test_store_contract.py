@@ -294,6 +294,97 @@ class TestJobs:
         assert store.jobs_for(document.document_id, BOB) == []
 
 
+# --- job leases ------------------------------------------------------------
+
+#: Far enough either side of any real clock that the tests do not depend on it.
+LONG_AGO = "2000-01-01T00:00:00+00:00"
+FAR_AHEAD = "2999-01-01T00:00:00+00:00"
+
+
+class TestJobLeases:
+    """A running job whose process has died must not say "running" for ever.
+
+    One did, for eight days: the process preparing it went away, and a reader
+    was told their book was still being prepared the whole time.
+    """
+
+    def _running(self, store: Store, lease: str | None) -> Job:
+        document = a_document()
+        store.put_document(document)
+        return store.put_job(a_job(document, state=JobState.RUNNING, lease_expires_at=lease))
+
+    def test_the_lease_survives_a_round_trip(self, store: Store) -> None:
+        job = self._running(store, FAR_AHEAD)
+
+        got = store.get_job(job.job_id, ALICE)
+
+        assert got is not None and got.lease_expires_at == FAR_AHEAD
+
+    def test_a_job_past_its_lease_is_failed_as_stalled(self, store: Store) -> None:
+        job = self._running(store, LONG_AGO)
+
+        failed = store.fail_stalled_jobs(FAR_AHEAD, LONG_AGO, "it stopped")
+
+        assert failed == [job.job_id]
+        got = store.get_job(job.job_id, ALICE)
+        assert got is not None
+        assert (got.state, got.stage, got.detail) == (JobState.FAILED, "stalled", "it stopped")
+        assert got.lease_expires_at is None
+
+    def test_a_job_with_a_live_lease_is_left_running(self, store: Store) -> None:
+        job = self._running(store, FAR_AHEAD)
+
+        assert store.fail_stalled_jobs(LONG_AGO, LONG_AGO, "it stopped") == []
+        got = store.get_job(job.job_id, ALICE)
+        assert got is not None and got.state is JobState.RUNNING
+
+    def test_only_running_jobs_are_reaped(self, store: Store) -> None:
+        """A queued or finished job has no process to have died."""
+        document = a_document()
+        store.put_document(document)
+        for state in (JobState.QUEUED, JobState.SUCCEEDED, JobState.FAILED, JobState.CANCELLED):
+            store.put_job(a_job(document, state=state, lease_expires_at=LONG_AGO))
+
+        assert store.fail_stalled_jobs(FAR_AHEAD, FAR_AHEAD, "it stopped") == []
+
+    def test_reaping_twice_fails_a_job_once(self, store: Store) -> None:
+        """Several processes may reap at the same moment."""
+        self._running(store, LONG_AGO)
+
+        store.fail_stalled_jobs(FAR_AHEAD, LONG_AGO, "it stopped")
+
+        assert store.fail_stalled_jobs(FAR_AHEAD, LONG_AGO, "it stopped") == []
+
+    def test_a_heartbeat_extends_the_lease(self, store: Store) -> None:
+        job = self._running(store, LONG_AGO)
+
+        assert store.renew_lease(job.job_id, FAR_AHEAD) is True
+        assert store.fail_stalled_jobs("2500-01-01T00:00:00+00:00", LONG_AGO, "x") == []
+
+    def test_a_heartbeat_after_the_reaper_cannot_revive_the_job(self, store: Store) -> None:
+        """Otherwise a failed job could go back to "running" with nothing behind it."""
+        job = self._running(store, LONG_AGO)
+        store.fail_stalled_jobs(FAR_AHEAD, LONG_AGO, "it stopped")
+
+        assert store.renew_lease(job.job_id, FAR_AHEAD) is False
+        got = store.get_job(job.job_id, ALICE)
+        assert got is not None and got.state is JobState.FAILED
+
+    def test_a_job_started_before_leases_gets_the_same_grace(self, store: Store) -> None:
+        """No lease at all: judged by when it was last updated.
+
+        It is failed only once that is older than the grace period, not the
+        moment new code starts, which would fail work still in progress.
+        """
+        job = self._running(store, None)
+
+        assert store.fail_stalled_jobs(FAR_AHEAD, LONG_AGO, "x") == []
+        assert store.fail_stalled_jobs(FAR_AHEAD, FAR_AHEAD, "x") == [job.job_id]
+
+    def test_a_missing_job_has_no_lease_to_renew(self, store: Store) -> None:
+        assert store.renew_lease("job_nothing", FAR_AHEAD) is False
+
+
 # --- audio -----------------------------------------------------------------
 
 
