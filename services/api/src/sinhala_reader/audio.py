@@ -113,13 +113,13 @@ class SynthesisService:
         """Return cached audio for this segment, generating it if needed."""
         key = self.cache_key_for(text, document_version, settings, prepared=prepared)
 
-        cached = self._store.get_audio(key, owner)
+        cached = self._store.get_audio(key, document_id, owner)
         if cached is not None:
             return cached
 
         with self._lock_for(key):
             # Another caller may have finished while this one waited.
-            cached = self._store.get_audio(key, owner)
+            cached = self._store.get_audio(key, document_id, owner)
             if cached is not None:
                 return cached
 

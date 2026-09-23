@@ -225,6 +225,22 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
         ALTER TABLE progress ADD COLUMN segment_index integer NOT NULL DEFAULT 0;
         """,
     ),
+    (
+        "0006_document_scoped_audio",
+        """
+        -- A cache key is derived from the text and its settings, not from the
+        -- reader, so two readers who upload the same PDF produce the same key
+        -- for the same sentence. Keyed on that alone, the second reader's clip
+        -- was dropped by ON CONFLICT DO NOTHING and synthesised again on every
+        -- play - and once the first reader deleted their copy, the second had
+        -- no audio at all.
+        --
+        -- Each document keeps its own. Existing keys are already unique, so
+        -- every existing row satisfies the new key and none is touched.
+        ALTER TABLE audio DROP CONSTRAINT audio_pkey;
+        ALTER TABLE audio ADD PRIMARY KEY (document_id, cache_key);
+        """,
+    ),
 )
 
 
@@ -458,7 +474,7 @@ class PostgresStore(Store):
                                    duration_seconds, is_real_model, voice_id, model_version)
                 VALUES (%(cache_key)s, %(document_id)s, %(owner)s, %(segment_id)s, %(wav)s,
                         %(duration_seconds)s, %(is_real_model)s, %(voice_id)s, %(model_version)s)
-                ON CONFLICT (cache_key) DO NOTHING
+                ON CONFLICT (document_id, cache_key) DO NOTHING
                 """,
                 {
                     "cache_key": record.cache_key,
@@ -474,16 +490,18 @@ class PostgresStore(Store):
             )
         return record
 
-    def get_audio(self, cache_key: str, owner: str) -> AudioRecord | None:
+    def get_audio(self, cache_key: str, document_id: str, owner: str) -> AudioRecord | None:
         """Cached audio is still private content, so the owner is in the query.
 
         The cache key is derived from text and settings, so two readers with the
-        same book produce the same key; without the owner clause one would be
-        served the other's audio because it happened to be generated first.
+        same book produce the same key. Each document keeps its own row, and the
+        owner clause means one reader is never served another's audio because it
+        happened to be generated first.
         """
         with self._pool.connection() as connection:
             row = connection.execute(
-                "SELECT * FROM audio WHERE cache_key = %s AND owner = %s", (cache_key, owner)
+                "SELECT * FROM audio WHERE document_id = %s AND cache_key = %s AND owner = %s",
+                (document_id, cache_key, owner),
             ).fetchone()
         return _audio(row) if row else None
 

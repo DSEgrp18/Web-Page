@@ -243,7 +243,7 @@ stay unique.
 process doing it had died and nothing notices that. The interface kept saying "being
 prepared" for eight days. Pre-render and quiz jobs are longer, so this gets worse.
 
-**Fix** (`0006`).
+**Fix** (`0007`).
 - Add `jobs.heartbeat_at`, `lease_expires_at`, `attempt`, `progress_done` and `progress_total`.
 - Preparation reports progress per page, which also gives the reader "page 12 of 168".
 - A reaper marks stale jobs `failed` with the reason `stalled` (and retryable). It runs at API start-up, every 60 s, and on Celery's `worker_ready`. The update is idempotent, so running it in several processes is harmless.
@@ -360,7 +360,7 @@ The handler:
 
 ### 6.3 Roles: nobody can make themselves a teacher
 
-- Migration `0007` adds `users.role`: `student` (the default), `teacher` or `admin`.
+- Migration `0008` adds `users.role`: `student` (the default), `teacher` or `admin`.
 - **Registration always creates a student.** Teachers are made in one of two ways:
   - the admin command line, `python -m sinhala_reader.admin grant-role`;
   - a single-use teacher invitation code issued by an admin.
@@ -413,7 +413,7 @@ like `strings.ts`.
 
 ## 7. Phase 2 — Class library
 
-### 7.1 Data model (migration `0008`)
+### 7.1 Data model (migration `0009`)
 
 - **`classes`**: an 8-digit join code (easiest on a phone keypad and with a screen reader), rotatable. Joining creates a *pending* membership that the teacher approves, which is the real defence against guessing codes.
 - **`class_members`**: the membership state (`pending`, `active`, `removed`), `share_progress` (off by default) and `consented_at`.
@@ -463,7 +463,7 @@ stays quality-track item 34.
 - **Progress.** The teacher sees "412 of 3,120 sentences". It is announced politely at start, finish and failure only.
 - **Workers.** Compose gets a separate `voice-worker` (the tts image, `-Q audio --concurrency=1`), because two prefork processes would each load the 5.6 GB checkpoint.
 - **Cost.** On CPU the manifest measures 3.3–3.8× real time, which is **about 28 hours for one 168-page textbook**. That is workable overnight for one book, and not beyond. `SINHALA_READER_TTS=modal` adds a `ModalAdapter` that sends only spoken text, as `modal_app.py` already requires. It is blocked until the model upload to Modal succeeds.
-- **Storage** (`0009`): Opus at about 24 kbps. That is about 11 MB per hour against WAV's 173 MB, which matters for downloads on Tharindu's phone. Object storage (quality-track item 43) must land before production pre-render: one book stored as WAV in the database is about 1.7 GB.
+- **Storage** (`0010`): Opus at about 24 kbps. That is about 11 MB per hour against WAV's 173 MB, which matters for downloads on Tharindu's phone. Object storage (quality-track item 43) must land before production pre-render: one book stored as WAV in the database is about 1.7 GB.
 
 ---
 
@@ -589,7 +589,7 @@ LangGraph's interrupt feature was rejected for this, for five reasons:
 labelled either "fill-in-the-blank from the book" or "written by a model, checked by rules,
 not by a teacher". **A class quiz needs a teacher's approval.**
 
-### 8.6 Data and routes (migration `0010`)
+### 8.6 Data and routes (migration `0011`)
 
 - **Tables:**
   - `quizzes`: scope, generator, generator version, status, reason-code counts only, and approval fields.
@@ -619,7 +619,7 @@ not by a teacher". **A class quiz needs a teacher's approval.**
 
 ## 9. Phase 4 — Track
 
-- **What has been heard** (`0011`): a bitmap of heard segments per reader and book, reported by `usePlayer` together with the existing progress saves. A book of about 5,000 sentences needs about 625 bytes. A chapter counts as heard when its whole page range has been.
+- **What has been heard** (`0012`): a bitmap of heard segments per reader and book, reported by `usePlayer` together with the existing progress saves. A book of about 5,000 sentences needs about 625 bytes. A chapter counts as heard when its whole page range has been.
 - **Spaced review:** Leitner boxes 1–5, reviewed after 1, 2, 4, 8 and 16 days, counted in `Asia/Colombo` time.
   - A correct answer moves a question up one box. A wrong answer sends it back to box 1.
   - It uses the quiz screen.
@@ -637,7 +637,7 @@ not by a teacher". **A class quiz needs a teacher's approval.**
   - `POST /documents/text` takes up to 200,000 characters and splits them into parts of about 3,000 characters at paragraph breaks. The interface calls them **"sections", never pages**.
   - Pasted text arrives without font information, so text in a legacy encoding is flagged `needs_review` and never converted.
 - **5b In-book search.** `GET /documents/{id}/search` returns two lists: exact matches in book order, and BM25 matches over the memoised passages. Results cue without playing, and the reading position is kept. This merges quality-track item 20.
-- **5c Report a problem** (`0012`). Available from any sentence, any quiz question and the accessibility statement. The report kinds are pronunciation, extraction, question, accessibility and other. A teacher sees reports on their own books.
+- **5c Report a problem** (`0013`). Available from any sentence, any quiz question and the accessibility statement. The report kinds are pronunciation, extraction, question, accessibility and other. A teacher sees reports on their own books.
 - **5d Offline chapter download** (#32).
   - A download manifest lists a chapter's pre-rendered Opus clips.
   - A hand-written `sw.js` caches only explicit downloads.
@@ -702,13 +702,17 @@ as the hardening track. Each phase gate also checks the quality-track items it c
 
 | Migration | Adds |
 | --- | --- |
-| `0006_job_leases_and_document_scoped_audio` | Job leases and progress; audio primary key `(document_id, cache_key)` |
-| `0007_roles_recovery_audit` | User roles, recovery codes, teacher invitations, audit events |
-| `0008_classes_and_publishing` | Classes, members, published books, pinned versions, page reviews, reset codes |
-| `0009_compact_audio` | Opus audio |
-| `0010_quizzes` | Quizzes, questions, attempts, responses |
-| `0011_tracking` | Heard segments, review cards |
-| `0012_feedback` | Problem reports |
+| `0006_document_scoped_audio` | Audio primary key `(document_id, cache_key)` (landed) |
+| `0007_job_leases` | Job heartbeat, lease and progress |
+| `0008_roles_recovery_audit` | User roles, recovery codes, teacher invitations, audit events |
+| `0009_classes_and_publishing` | Classes, members, published books, pinned versions, page reviews, reset codes |
+| `0010_compact_audio` | Opus audio |
+| `0011_quizzes` | Quizzes, questions, attempts, responses |
+| `0012_tracking` | Heard segments, review cards |
+| `0013_feedback` | Problem reports |
+
+Numbers are fixed when a migration merges. Those for later phases are the order we expect,
+and may shift if work lands in a different order.
 
 All of them follow the conventions in `postgres.py`: never edit an applied migration;
 ownership in the `WHERE` clause; `ON DELETE CASCADE` from `documents`; ISO text timestamps;

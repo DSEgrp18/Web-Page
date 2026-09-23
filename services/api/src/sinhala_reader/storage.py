@@ -288,7 +288,13 @@ class Store(ABC):
     def put_audio(self, record: AudioRecord) -> AudioRecord: ...
 
     @abstractmethod
-    def get_audio(self, cache_key: str, owner: str) -> AudioRecord | None: ...
+    def get_audio(self, cache_key: str, document_id: str, owner: str) -> AudioRecord | None:
+        """Audio is kept per document, because a cache key is not per reader.
+
+        The key is derived from text and settings, so two readers who upload the
+        same PDF produce the same key for the same sentence. Each document must
+        keep its own clip, or one reader's evicts the other's.
+        """
 
     @abstractmethod
     def put_progress(self, progress: Progress) -> Progress: ...
@@ -384,7 +390,8 @@ class InMemoryStore(Store):
         self._sources: dict[str, bytes] = {}
         self._prepared: dict[str, str] = {}
         self._jobs: dict[str, Job] = {}
-        self._audio: dict[str, AudioRecord] = {}
+        #: Keyed by (document_id, cache_key), as the Postgres primary key is.
+        self._audio: dict[tuple[str, str], AudioRecord] = {}
         self._progress: dict[str, Progress] = {}
         self._bookmarks: dict[str, Bookmark] = {}
         #: (owner, document, segment) -> bookmark id, so a second bookmark
@@ -487,12 +494,14 @@ class InMemoryStore(Store):
 
     def put_audio(self, record: AudioRecord) -> AudioRecord:
         with self._lock:
-            self._audio[record.cache_key] = record
+            # The first clip for a document wins, as ON CONFLICT DO NOTHING does
+            # in Postgres, so the two stores agree on which one is kept.
+            self._audio.setdefault((record.document_id, record.cache_key), record)
         return record
 
-    def get_audio(self, cache_key: str, owner: str) -> AudioRecord | None:
+    def get_audio(self, cache_key: str, document_id: str, owner: str) -> AudioRecord | None:
         with self._lock:
-            record = self._audio.get(cache_key)
+            record = self._audio.get((document_id, cache_key))
         # Cached audio is still private content. CLAUDE.md: keep private audio
         # access-controlled even when it is cached.
         return record if record and record.owner == owner else None

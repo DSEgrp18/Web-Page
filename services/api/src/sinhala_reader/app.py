@@ -572,7 +572,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             document.version,
             prepared=(segment.spoken_text, segment.model_text),
         )
-        record = deps.store.get_audio(key, owner)
+        record = deps.store.get_audio(key, document_id, owner)
         return AudioManifest(
             segment_id=segment_id,
             cache_key=key,
