@@ -500,6 +500,14 @@ class Store(ABC):
         """
 
     @abstractmethod
+    def set_recovery_hash(self, user_id: str, recovery_hash: str | None) -> bool:
+        """Replace an account's recovery code. The only way it changes.
+
+        ``None`` leaves the account with no code. Returns ``False`` if there
+        is no such account.
+        """
+
+    @abstractmethod
     def put_invite(self, invite: TeacherInvite) -> TeacherInvite: ...
 
     @abstractmethod
@@ -810,6 +818,14 @@ class InMemoryStore(Store):
             if user is None:
                 return False
             self._users[user_id] = replace(user, role=role)
+            return True
+
+    def set_recovery_hash(self, user_id: str, recovery_hash: str | None) -> bool:
+        with self._lock:
+            user = self._users.get(user_id)
+            if user is None:
+                return False
+            self._users[user_id] = replace(user, recovery_hash=recovery_hash)
             return True
 
     def put_invite(self, invite: TeacherInvite) -> TeacherInvite:

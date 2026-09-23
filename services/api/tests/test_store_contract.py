@@ -953,6 +953,18 @@ class TestRoles:
     def test_a_missing_account_has_no_role_to_set(self, store: Store) -> None:
         assert store.set_role("usr_nobody", Role.ADMIN) is False
 
+    def test_a_recovery_code_is_set_and_cleared_by_its_own_method(self, store: Store) -> None:
+        user = store.put_user(a_user())
+
+        assert store.set_recovery_hash(user.user_id, "hash-one") is True
+        got = store.get_user(user.user_id)
+        assert got is not None and got.recovery_hash == "hash-one"
+
+        store.set_recovery_hash(user.user_id, None)
+        got = store.get_user(user.user_id)
+        assert got is not None and got.recovery_hash is None
+        assert store.set_recovery_hash("usr_nobody", "x") is False
+
 
 class TestTeacherInvites:
     NOW = "2026-09-01T00:00:00+00:00"
