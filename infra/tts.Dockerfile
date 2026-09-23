@@ -30,6 +30,12 @@ RUN apt-get update \
  && apt-get install --no-install-recommends -y libsndfile1 \
  && rm -rf /var/lib/apt/lists/*
 
+# Every package below is pinned by this file, which is the pip freeze of a
+# known-good build of this image. The version ranges in the install lines say
+# what the code needs; the constraints decide what is actually installed, so two
+# builds of the same commit produce the same image. See the file's header.
+COPY infra/constraints/python.txt /tmp/constraints.txt
+
 # torch FIRST and separately, from the CPU index.
 #
 # Both halves of that are load-bearing, and both are recorded in
@@ -47,7 +53,7 @@ RUN apt-get update \
 # either, which the manifest records as a deliberate decision. This used to say
 # `torch>=2.5`: a rebuild on 23 September 2026 resolved it to 2.9, and the voice
 # stopped loading - the same commit, a different and broken image.
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       --index-url https://download.pytorch.org/whl/cpu \
       "torch==2.8.0" "torchaudio==2.8.0"
 
@@ -56,7 +62,7 @@ RUN pip install --no-cache-dir \
 # deliberately too: transformers 5 removed isin_mps_friendly, which coqui-tts
 # still imports; an unpinned install resolves to 5.x and synthesis dies on the
 # first request rather than at install time.
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       "coqui-tts==0.27.5" \
       "transformers>=4.57,<5" \
       "soundfile>=0.12"
@@ -67,7 +73,7 @@ RUN pip install --no-cache-dir \
 # including CI.
 RUN python -c "from TTS.tts.configs.xtts_config import XttsConfig; from TTS.tts.models.xtts import Xtts; import torch; print('voice runtime imports, torch', torch.__version__)"
 
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       "fastapi>=0.115" \
       "python-multipart>=0.0.9" \
       "uvicorn>=0.27" \

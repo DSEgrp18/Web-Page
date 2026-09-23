@@ -155,6 +155,21 @@ and the document version changes with the mode, which regenerates their audio.
 Measured on the 168-page Grade 11 history textbook: 19 pages were recognised,
 and preparation took about 89 seconds instead of 19.
 
+## Changing a Python dependency
+
+Every Python package in the `api` and voice images is pinned by
+[`constraints/python.txt`](constraints/python.txt), the `pip freeze` of a build
+that is known to work. Two builds of the same commit therefore produce the same
+image, which they did not before: on 23 September 2026 an unchanged commit
+pulled torch 2.9 and the voice stopped loading.
+
+So a dependency is not changed by editing one pin. Change the version in the
+Dockerfile, let the **Python images** workflow build both images on the pull
+request, and replace the pins with the `pip freeze` it records. The workflow
+fails if either image installs a package the file does not pin, or pins it at
+a different version, so a pin that does not match a real build cannot merge
+quietly.
+
 ## What this is not
 
 Not a deployment. There is no TLS, no secret management, no backups, no resource

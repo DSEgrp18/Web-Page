@@ -1,0 +1,78 @@
+# Builds the two Python images and proves both are reproducible.
+#
+# Why this exists: on 23 September 2026 a rebuild of infra/tts.Dockerfile, from
+# the same commit as a working image, produced a broken one. `torch>=2.5`
+# resolved to 2.9, coqui-tts then refused to import without torchcodec, and the
+# voice stopped loading. Nothing caught it, because no job ever built that image.
+#
+# Each job builds one image and then checks it against
+# infra/constraints/python.txt: every package the image actually installed must
+# be pinned there, at that version. A package that slipped in unpinned would
+# resolve to whatever is newest at build time, which is the failure above. The
+# voice image additionally imports the voice runtime while it builds, so a
+# resolve that would stop it loading fails the build. Neither needs model
+# weights; .dockerignore keeps them out of the build context regardless.
+#
+# Why a separate workflow and not jobs in ci.yml: these builds download several
+# hundred megabytes and take minutes, and they only need to run when what
+# decides the images' dependencies changes. ci.yml's aggregate `ci` check
+# requires every one of its jobs to *succeed*, so jobs there that skipped on
+# unrelated pull requests would turn every one of them red. As its own workflow
+# it runs, and reports, on the pull requests that touch these files, and is
+# advisory rather than a required check. It can also be run by hand.
+name: Python images
+
+on:
+  pull_request:
+    paths:
+      - infra/api.Dockerfile
+      - infra/tts.Dockerfile
+      - infra/constraints/**
+      - scripts/check_constraints.py
+      - .github/workflows/python-images.yml
+  push:
+    branches: [main]
+    paths:
+      - infra/api.Dockerfile
+      - infra/tts.Dockerfile
+      - infra/constraints/**
+      - scripts/check_constraints.py
+      - .github/workflows/python-images.yml
+  workflow_dispatch:
+
+concurrency:
+  group: python-images-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: ${{ matrix.image }} image builds and is fully pinned
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # One image failing must not hide whether the other is sound.
+      fail-fast: false
+      matrix:
+        image: [voice, api]
+        include:
+          - image: voice
+            dockerfile: infra/tts.Dockerfile
+          - image: api
+            dockerfile: infra/api.Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The build context is the repository root, as compose uses.
+      - name: Build ${{ matrix.dockerfile }}
+        run: docker build --file "${{ matrix.dockerfile }}" --tag image-check .
+      # Everything the image resolved, not what the Dockerfile asked for. Kept
+      # in the log as the record of what a build contained, and the source to
+      # regenerate the constraints file from.
+      - name: Record what was actually installed
+        run: docker run --rm image-check python -m pip freeze | tee installed.txt
+      - name: Every installed package is pinned by the constraints file
+        run: python3 scripts/check_constraints.py installed.txt infra/constraints/python.txt
