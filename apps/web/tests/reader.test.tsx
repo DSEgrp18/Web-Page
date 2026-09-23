@@ -26,6 +26,24 @@ function openReader(server: FakeServer) {
   return renderApp(<Reader documentId="doc-1" />, server);
 }
 
+describe("the tab title", () => {
+  it("names the book once it has loaded", async () => {
+    openReader(new FakeServer({ books: [book()] }));
+
+    await screen.findByRole("button", { name: FIRST });
+
+    expect(document.title).toBe(`ඉතිහාසය.pdf — ${strings.appName}`);
+  });
+
+  it("uses the name the reader gave the book, not its filename", async () => {
+    openReader(new FakeServer({ books: [book({ title: "ඉතිහාසය 11 ශ්‍රේණිය" })] }));
+
+    await screen.findByRole("button", { name: FIRST });
+
+    expect(document.title).toBe(`ඉතිහාසය 11 ශ්‍රේණිය — ${strings.appName}`);
+  });
+});
+
 /**
  * The reading panel's own pager.
  *

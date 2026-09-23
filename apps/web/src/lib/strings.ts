@@ -148,6 +148,12 @@ export const strings = {
   currentChapter: (number: string | null, title: string) =>
     number ? `${number} / ${title}` : title,
   goToPageSubmit: "යන්න",
+  /**
+   * The reader's tab title until the book has loaded; then the tab is named
+   * after the book itself. Distinct from every other page's title, so a
+   * screen-reader user knows they are in the reader before the book arrives.
+   */
+  readingTitle: "පොත කියවීම",
   pageLoading: "පිටුව ලබා ගනිමින්…",
   sentencesHeading: "වාක්‍ය",
   sentenceCount: (count: number) => `වාක්‍ය ${count} ක්`,

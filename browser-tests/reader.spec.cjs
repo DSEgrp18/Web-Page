@@ -43,6 +43,8 @@ test("reader shows the current sentence as words without autoplay", async ({ pag
   await expect(words.locator("li")).toHaveText(["සිංහල", "පොත", "කියවන්න"]);
   await expect(page.getByRole("button", { name: "වචන සඟවන්න" })).toHaveAttribute("aria-expanded", "true");
   expect(audioRequests).toBe(0);
+  // The tab is named after the book once it has loaded (WCAG 2.4.2).
+  await expect(page).toHaveTitle("පොත.pdf — ස්වර");
 });
 
 test("library uploads PDF and DOCX files together", async ({ page }) => {
@@ -90,6 +92,10 @@ test("library uploads PDF and DOCX files together", async ({ page }) => {
   });
 
   await page.goto("/");
+  // A real browser, not the metadata object: the root page shares the root
+  // layout's segment, where its title template does not apply, and a unit
+  // test that reads the metadata cannot see that.
+  await expect(page).toHaveTitle("මගේ පොත් — ස්වර");
   await page.getByRole("button", { name: /පොතක් එක් කරන්න/ }).click();
   await page.getByLabel("ගොනුවක් තෝරන්න").setInputFiles([
     { name: "පොත.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-") },

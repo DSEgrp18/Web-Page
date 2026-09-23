@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
+
 import { Reader } from "@/components/Reader";
+import { strings } from "@/lib/strings";
+
+/**
+ * Until the book has loaded. The book's own name is private and fetched in the
+ * browser, so the reader renames the tab once it has it.
+ */
+export const metadata: Metadata = { title: strings.readingTitle };
 
 /**
  * Route params arrive as a promise in Next 16. Nothing here renders on the
