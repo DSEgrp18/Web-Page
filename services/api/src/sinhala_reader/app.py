@@ -54,6 +54,7 @@ from .preparation import (
     get_prepared,
     in_thread,
     inline,
+    reap_periodically,
 )
 from .queue import QUEUE_ENV, REDIS_URL_ENV, build_app, queue_mode, send_prepare, uses_celery
 from .recognition import ocr_limitations, ocr_mode
@@ -122,6 +123,7 @@ class Deps:
         answerer: AnswerAdapter | None = None,
         run_in_background: bool = True,
         warm_on_start: bool = True,
+        reap_stalled: bool | None = None,
     ) -> None:
         self.store = store or build_store()
         # Chosen from configuration, defaulting to the labelled placeholder.
@@ -134,6 +136,10 @@ class Deps:
         #: Load the checkpoint at start-up rather than in the first request.
         #: Tests turn it off to hold an adapter in a chosen state.
         self.warm_on_start = warm_on_start
+        #: Look for stalled jobs, now and every minute. Follows where work runs:
+        #: a job run inline cannot outlive the request that ran it, so a test
+        #: running work inline has nothing to reap and no thread to leave behind.
+        self.reap_stalled = run_in_background if reap_stalled is None else reap_stalled
         #: Where preparation runs. ``run_in_background=False`` wins over
         #: configuration: a test asking for inline work must get inline work,
         #: not whatever a stray environment variable selects.
@@ -170,6 +176,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
     # request. It takes over a minute on this hardware; a reader who presses
     # play and waits that long has been failed whatever happens next.
     app.state.warm_up = warm(deps.adapter) if deps.warm_on_start else None
+    app.state.reaper = reap_periodically(deps.store) if deps.reap_stalled else None
 
     # Register, sign in, sign out, change a password. Mounted whatever the auth
     # mode is: in development the routes answer 503 and say which setting turns

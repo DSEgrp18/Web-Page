@@ -4,12 +4,16 @@ Extraction of a whole book takes tens of seconds; the Grade 11 textbook takes
 about 24. Holding an HTTP connection open for that is the thing CLAUDE.md warns
 against, so upload returns immediately with a job to poll.
 
-The work runs in a thread rather than on Celery. Celery and Redis are the
-intended shape and neither exists yet; a thread has the same job states, the same
-progress reporting and the same failure handling, and moving to a queue changes
-this file and nothing that depends on it. What a thread does **not** give is
-durability — a restart loses in-flight work — and that is said in the health
-report rather than left to be discovered.
+The work runs on a Celery queue, or in a thread when none is configured; both
+have the same job states and the same failure handling. What a thread does
+**not** give is durability — a restart loses in-flight work — and that is said
+in the health report rather than left to be discovered.
+
+Losing the work is honest; leaving the job saying "running" is not. So a
+running job holds a **lease** its process keeps renewing, and a job whose
+process has stopped renewing it is failed as stalled. One job sat at "running"
+for eight days, with a reader told it was still being prepared, because the
+process preparing it had died and nothing noticed.
 
 The *result* is durable, though, which it was not before: a prepared document is
 written to the store and only cached in memory. That is what makes a restarted
@@ -23,9 +27,12 @@ a failure message is a log line that also reaches a screen.
 
 from __future__ import annotations
 
+import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 from sinhala_documents import DocumentRejected
 from sinhala_documents.ocr import OcrAdapter, OcrMode
@@ -56,6 +63,101 @@ _PREPARED_LOCK = threading.RLock()
 #: and an unbounded dictionary of whole textbooks is a slow memory leak in a
 #: process that is meant to stay up.
 MAX_CACHED = 8
+
+log = logging.getLogger(__name__)
+
+#: How long a running job's process promises to stay alive without renewing.
+#: Renewed every :data:`HEARTBEAT_SECONDS`, so a job is failed only after four
+#: missed heartbeats, never over one slow database write.
+LEASE_SECONDS = 120
+
+#: How often a running job renews its lease.
+HEARTBEAT_SECONDS = 30
+
+#: How often a running API process looks for stalled jobs.
+REAP_EVERY_SECONDS = 60
+
+#: What a reader is told about a job whose process stopped. Honest about the
+#: likely cause and about what to do next, and, like every detail, no text from
+#: the document.
+STALLED_DETAIL = (
+    "The work stopped before it finished, most likely because the server restarted. "
+    "Upload the book again to try once more."
+)
+
+
+def _in(seconds: float) -> str:
+    """A moment from now, written the way every stored timestamp is.
+
+    Stored timestamps are UTC ISO text and are compared as strings, which is
+    correct only while every one of them is produced the same way.
+    """
+    return (datetime.now(UTC) + timedelta(seconds=seconds)).isoformat()
+
+
+@contextmanager
+def _heartbeat(store: Store, job_id: str, *, every: float = HEARTBEAT_SECONDS) -> Iterator[None]:
+    """Keep renewing a running job's lease until the work inside finishes.
+
+    A thread rather than a callback from the pipeline, for the reason the lease
+    exists: what has to be detected is a process that has died, and a thread in
+    that process dies with it. The pipeline stays unaware that jobs exist.
+    """
+    stop = threading.Event()
+
+    def beat() -> None:
+        while not stop.wait(every):
+            try:
+                if not store.renew_lease(job_id, _in(LEASE_SECONDS)):
+                    return  # no longer running: finished, cancelled, or reaped
+            except Exception:  # noqa: BLE001 - one failed renewal must not end the job
+                log.warning("could not renew the lease on job %s", job_id, exc_info=True)
+
+    thread = threading.Thread(target=beat, daemon=True, name=f"heartbeat-{job_id}")
+    thread.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        thread.join(timeout=every)
+
+
+def reap_stalled_jobs(store: Store) -> list[str]:
+    """Fail every running job whose process has stopped renewing its lease.
+
+    Safe to call from any number of processes at once: the store does it in one
+    idempotent step.
+    """
+    now = datetime.now(UTC)
+    return store.fail_stalled_jobs(
+        now=now.isoformat(),
+        stale_before=(now - timedelta(seconds=LEASE_SECONDS)).isoformat(),
+        detail=STALLED_DETAIL,
+    )
+
+
+def reap_periodically(store: Store, *, every: float = REAP_EVERY_SECONDS) -> threading.Thread:
+    """Look for stalled jobs now, then every ``every`` seconds, on a daemon thread.
+
+    Runs in the API because the API is the process that is always up, in thread
+    and queue mode alike. Several API processes may each run one; reaping is
+    idempotent. A failure to reap is logged and tried again on the next round,
+    never allowed to end the loop.
+    """
+
+    def loop() -> None:
+        while True:
+            try:
+                failed = reap_stalled_jobs(store)
+                if failed:
+                    log.warning("failed %d stalled job(s)", len(failed))
+            except Exception:  # noqa: BLE001 - the next round tries again
+                log.warning("could not look for stalled jobs", exc_info=True)
+            threading.Event().wait(every)
+
+    thread = threading.Thread(target=loop, daemon=True, name="reap-stalled-jobs")
+    thread.start()
+    return thread
 
 
 def cache_prepared(document_id: str, prepared: ReadableDocument) -> None:
@@ -166,7 +268,9 @@ class PreparationService:
         job = self._store.get_job_for_worker(job_id)
         if job is None or job.state.is_final:
             return
-        self._store.put_job(replace(job, state=JobState.FAILED, stage=stage, detail=detail))
+        self._store.put_job(
+            replace(job, state=JobState.FAILED, stage=stage, detail=detail, lease_expires_at=None)
+        )
 
     def run_once(self, document_id: str, job_id: str) -> None:
         """Extract one document. Safe to call more than once for the same job.
@@ -187,24 +291,41 @@ class PreparationService:
         if job is None or job.state.is_final:
             return
 
-        job = self._store.put_job(replace(job, state=JobState.RUNNING, stage="extracting"))
+        # The lease is this process promising it is still at work. The heartbeat
+        # below keeps the promise; if the process dies, the promise lapses and
+        # the job is failed as stalled instead of saying "running" for ever.
+        job = self._store.put_job(
+            replace(
+                job,
+                state=JobState.RUNNING,
+                stage="extracting",
+                lease_expires_at=_in(LEASE_SECONDS),
+            )
+        )
         source = self._store.get_source(document_id)
         document = self._store.get_document(document_id, job.owner)
         if source is None or document is None:
             # Deleted while queued. Not a failure: the reader asked for this.
             self._store.put_job(
-                replace(job, state=JobState.CANCELLED, stage="cancelled", detail=None)
+                replace(
+                    job,
+                    state=JobState.CANCELLED,
+                    stage="cancelled",
+                    detail=None,
+                    lease_expires_at=None,
+                )
             )
             return
 
         try:
-            prepared = prepare_document(
-                source,
-                filename=document.filename,
-                structure=self._structure,
-                ocr=self._ocr,
-                ocr_mode=self._ocr_mode,
-            )
+            with _heartbeat(self._store, job.job_id):
+                prepared = prepare_document(
+                    source,
+                    filename=document.filename,
+                    structure=self._structure,
+                    ocr=self._ocr,
+                    ocr_mode=self._ocr_mode,
+                )
         except DocumentRejected as error:
             # The one case where the message is about the reader's file rather
             # than about the server, and is safe to show them. Never retried:
@@ -213,6 +334,10 @@ class PreparationService:
             self._fail(job, "extracting", str(error))
             return
         except Exception as error:  # noqa: BLE001 - recorded without document text
+            # The job stays running while the queue waits to retry it. A full
+            # lease covers that wait, so a slow broker cannot let the reaper fail
+            # a job that is only between attempts.
+            self._store.renew_lease(job.job_id, _in(LEASE_SECONDS))
             raise TransientFailure(
                 stage="extracting",
                 detail=f"{type(error).__name__} while reading the document",
@@ -221,7 +346,9 @@ class PreparationService:
         # The reader may have deleted it while extraction ran.
         if self._store.get_document(document_id, job.owner) is None:
             forget_prepared(document_id)
-            self._store.put_job(replace(job, state=JobState.CANCELLED, stage="cancelled"))
+            self._store.put_job(
+                replace(job, state=JobState.CANCELLED, stage="cancelled", lease_expires_at=None)
+            )
             return
 
         # Written down before the document is marked ready. The other order
@@ -237,10 +364,20 @@ class PreparationService:
                 notes=prepared.notes,
             )
         )
-        self._store.put_job(replace(job, state=JobState.SUCCEEDED, stage="ready", detail=None))
+        self._store.put_job(
+            replace(
+                job,
+                state=JobState.SUCCEEDED,
+                stage="ready",
+                detail=None,
+                lease_expires_at=None,
+            )
+        )
 
     def _fail(self, job: Job, stage: str, detail: str) -> None:
-        self._store.put_job(replace(job, state=JobState.FAILED, stage=stage, detail=detail))
+        self._store.put_job(
+            replace(job, state=JobState.FAILED, stage=stage, detail=detail, lease_expires_at=None)
+        )
 
 
 def in_thread(service: PreparationService, document_id: str, job_id: str) -> None:
