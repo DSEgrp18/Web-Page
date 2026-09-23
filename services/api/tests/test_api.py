@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import json
 import wave
+from zipfile import ZipFile
 
 from conftest import (
     OTHER_READER,
@@ -136,6 +137,52 @@ def test_a_file_that_is_not_a_pdf_is_refused_with_a_reason(client: TestClient) -
     response = upload(client, b"this is not a pdf" + b"\x00" * 2000)
     assert response.status_code == 400
     assert "PDF" in response.json()["detail"]
+
+
+def test_a_docx_is_prepared_and_reports_its_original_media_type(client: TestClient) -> None:
+    source = io.BytesIO()
+    with ZipFile(source, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types />")
+        archive.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:body><w:p><w:r><w:t>සිංහල ලේඛනයකි.</w:t></w:r></w:p></w:body>"
+            "</w:document>",
+        )
+
+    response = upload(client, source.getvalue(), name="notes.docx")
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["media_type"].endswith("wordprocessingml.document")
+    page = client.get(f"/documents/{body['document_id']}/pages/0", headers=as_reader(client)).json()
+    assert page["segments"][0]["display_text"] == "සිංහල ලේඛනයකි."
+
+
+def test_an_extensionless_pdf_keeps_its_detected_media_type(
+    client: TestClient, book: bytes
+) -> None:
+    response = upload(client, book, name="scanner-share")
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["media_type"] == "application/pdf"
+    listed = client.get("/documents", headers=as_reader(client)).json()
+    assert listed[0]["media_type"] == "application/pdf"
+    source = client.get(f"/documents/{body['document_id']}/file", headers=as_reader(client))
+    assert source.headers["content-type"] == "application/pdf"
+
+
+def test_malformed_docx_is_rejected_before_a_job_is_created(client: TestClient) -> None:
+    source = io.BytesIO()
+    with ZipFile(source, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types />")
+        archive.writestr("word/document.xml", "<broken")
+
+    response = upload(client, source.getvalue(), name="broken.docx")
+
+    assert response.status_code == 400
+    assert "damaged" in response.json()["detail"]
 
 
 def test_a_document_that_cannot_be_read_fails_its_job_without_leaking_text(

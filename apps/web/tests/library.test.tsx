@@ -37,7 +37,7 @@ describe("the welcome", () => {
 
   it("shrinks out of the way once there are books", async () => {
     renderApp(<Library />, new FakeServer({ books: [book()] }));
-    await screen.findByRole("heading", { name: strings.libraryHeading });
+    await screen.findByRole("heading", { name: strings.browseBooks });
     // The pitch is for somebody who has not started. A returning reader should
     // not scroll past it every time.
     expect(screen.queryByText(strings.welcomeBody)).toBeNull();
@@ -211,7 +211,29 @@ describe("adding a book", () => {
     expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(1);
   });
 
-  it("refuses a dropped file that is not a PDF, before sending anything", async () => {
+  it("returns focus to the live add button after the first upload", async () => {
+    const user = userEvent.setup();
+    renderApp(<Library />, new FakeServer());
+
+    await openUpload(user);
+    await user.upload(screen.getByLabelText(strings.uploadChoose), pdf());
+    await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
+
+    const add = await screen.findByRole("button", { name: strings.addBook });
+    await waitFor(() => expect(document.activeElement).toBe(add));
+  });
+
+  it("announces the selected filename for one file", async () => {
+    const user = userEvent.setup();
+    renderApp(<Library />, new FakeServer());
+
+    await openUpload(user);
+    await user.upload(screen.getByLabelText(strings.uploadChoose), pdf("පාඩම.pdf"));
+
+    await waitFor(() => expect(politeText()).toContain("පාඩම.pdf"));
+  });
+
+  it("refuses an unsupported dropped file before sending anything", async () => {
     const user = userEvent.setup();
     const server = new FakeServer();
     renderApp(<Library />, server);
@@ -229,8 +251,61 @@ describe("adding a book", () => {
     const file = new File(["not a pdf"], "notes.txt", { type: "text/plain" });
     fireEvent.drop(dropzone, { dataTransfer: { files: [file], types: ["Files"] } });
 
-    await waitFor(() => expect(assertiveText()).toBe(strings.uploadNotPdf));
+    await waitFor(() => expect(assertiveText()).toBe(strings.uploadUnsupported));
     expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(0);
+  });
+
+  it("uploads multiple supported files as separate documents", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer();
+    renderApp(<Library />, server);
+
+    await openUpload(user);
+    const docx = new File(["word"], "සටහන්.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    await user.upload(screen.getByLabelText(strings.uploadChoose), [pdf(), docx]);
+    await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
+
+    await screen.findByRole("link", { name: /සටහන්\.docx/ });
+    expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(2);
+  });
+
+  it("retries only files that did not upload", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer();
+    const flaky = new FakeServer();
+    let postAttempts = 0;
+    Object.defineProperty(flaky, "fetch", {
+      value: async (url: string, init: RequestInit = {}) => {
+        if ((init.method ?? "GET") === "POST") {
+          postAttempts += 1;
+          if (postAttempts === 2) {
+            return new Response(JSON.stringify({ detail: "retry" }), { status: 500 });
+          }
+        }
+        return server.fetch(url, init);
+      },
+    });
+    renderApp(<Library />, flaky);
+
+    await openUpload(user);
+    const docx = new File(["word"], "සටහන්.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    await user.upload(screen.getByLabelText(strings.uploadChoose), [pdf(), docx]);
+    await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
+    await waitFor(() => expect(assertiveText()).toBe(strings.errorServer));
+
+    const retryList = document.querySelector(".upload-file-list")?.textContent ?? "";
+    expect(retryList).not.toContain("ඉතිහාසය.pdf");
+    expect(retryList).toContain("සටහන්.docx");
+    await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
+
+    await screen.findByRole("link", { name: /සටහන්\.docx/ });
+    expect(postAttempts).toBe(3);
+    expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(2);
+    expect(screen.getAllByRole("heading", { name: "ඉතිහාසය.pdf" })).toHaveLength(1);
   });
 
   it("cannot be submitted with nothing chosen", async () => {

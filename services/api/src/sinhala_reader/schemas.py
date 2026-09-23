@@ -17,6 +17,7 @@ Two things are shaped by accessibility rather than by convenience:
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
+from sinhala_documents import media_type_for
 from sinhala_documents.chapters import Chapter
 from sinhala_documents.pipeline import ReadablePage, ReadableSegment
 from sinhala_documents.structure import BlockRole
@@ -145,6 +146,7 @@ class ReadingPosition(BaseModel):
 class DocumentSummary(BaseModel):
     document_id: str
     filename: str
+    media_type: str = Field(description="The original file's media type.")
     title: str | None = Field(
         default=None,
         description="What the reader named it. Null means they have not; show the filename.",
@@ -159,10 +161,19 @@ class DocumentSummary(BaseModel):
     )
 
     @classmethod
-    def of(cls, document: Document, *, progress: Progress | None = None) -> DocumentSummary:
+    def of(
+        cls,
+        document: Document,
+        *,
+        progress: Progress | None = None,
+        media_type: str | None = None,
+    ) -> DocumentSummary:
         return cls(
             document_id=document.document_id,
             filename=document.filename,
+            media_type=(
+                media_type or media_type_for(document.filename) or "application/octet-stream"
+            ),
             title=document.title,
             size_bytes=document.size_bytes,
             created_at=document.created_at,
@@ -221,9 +232,10 @@ class DocumentDetail(DocumentSummary):
         *,
         progress: Progress | None = None,
         chapters: tuple[Chapter, ...] | None = None,
+        media_type: str | None = None,
     ) -> DocumentDetail:
         return cls(
-            **DocumentSummary.of(document, progress=progress).model_dump(),
+            **DocumentSummary.of(document, progress=progress, media_type=media_type).model_dump(),
             notes=list(document.notes),
             job=JobStatus.of(job) if job else None,
             chapters=None if chapters is None else [ChapterDetail.of(c) for c in chapters],

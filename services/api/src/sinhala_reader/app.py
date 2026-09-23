@@ -32,7 +32,7 @@ from dataclasses import replace
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from sinhala_documents import DocumentRejected, check_pdf_bytes
+from sinhala_documents import DocumentRejected, check_document_bytes, media_type_for
 from sinhala_documents.answering import (
     AnswerAdapter,
     Exchange,
@@ -162,7 +162,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
     app = FastAPI(
         title="Sinhala Accessible Reader",
         version="0.0.1",
-        summary="Upload a Sinhala PDF, read it, and listen to it.",
+        summary="Upload Sinhala PDFs, Word documents and images, then read and listen.",
     )
     app.state.deps = deps
 
@@ -334,7 +334,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         "/documents",
         status_code=status.HTTP_202_ACCEPTED,
         tags=["documents"],
-        summary="Upload a PDF and start preparing it",
+        summary="Upload a PDF, DOCX or image and start preparing it",
     )
     async def upload(file: UploadFile, owner: str = Depends(require_owner)) -> DocumentDetail:
         """Accept a book and return immediately with a job to watch.
@@ -344,7 +344,8 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         """
         data = await file.read()
         try:
-            check_pdf_bytes(data)
+            filename = file.filename or "document.pdf"
+            check_document_bytes(data, filename)
         except DocumentRejected as error:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from error
 
@@ -352,7 +353,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             Document(
                 document_id=new_id("doc"),
                 owner=owner,
-                filename=file.filename or "document.pdf",
+                filename=filename,
                 size_bytes=len(data),
             )
         )
@@ -378,7 +379,11 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         """
         positions = deps.store.list_progress(owner)
         return [
-            DocumentSummary.of(d, progress=positions.get(d.document_id))
+            DocumentSummary.of(
+                d,
+                progress=positions.get(d.document_id),
+                media_type=media_type_for(d.filename, deps.store.get_source(d.document_id)),
+            )
             for d in deps.store.list_documents(owner)
         ]
 
@@ -427,7 +432,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         the page, not downloaded. And ``private, no-store`` because a shared
         machine's disk cache is not a place for somebody's private textbook.
         """
-        owned(document_id, owner)
+        document = owned(document_id, owner)
         data = deps.store.get_source(document_id)
         if data is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document.")
@@ -441,14 +446,18 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         }
         span = _byte_range(request.headers.get("range"), len(data))
         if span is None:
-            return Response(content=data, media_type="application/pdf", headers=headers)
+            return Response(
+                content=data,
+                media_type=media_type_for(document.filename, data) or "application/octet-stream",
+                headers=headers,
+            )
 
         start, end = span
         headers["Content-Range"] = f"bytes {start}-{end}/{len(data)}"
         return Response(
             content=data[start : end + 1],
             status_code=status.HTTP_206_PARTIAL_CONTENT,
-            media_type="application/pdf",
+            media_type=media_type_for(document.filename, data) or "application/octet-stream",
             headers=headers,
         )
 
@@ -803,6 +812,7 @@ def _document_detail(
         latest,
         progress=store.get_progress(document_id, owner),
         chapters=prepared.chapters if prepared else None,
+        media_type=media_type_for(document.filename, store.get_source(document_id)),
     )
 
 

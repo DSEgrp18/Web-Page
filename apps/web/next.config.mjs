@@ -7,10 +7,6 @@
  */
 const nextConfig = {
   reactStrictMode: true,
-  // Type and lint errors fail `npm run typecheck` and `npm run lint` in CI as
-  // their own jobs. Letting the build fail on them too would report the same
-  // problem three times with the least useful message of the three first.
-  eslint: { ignoreDuringBuilds: true },
 };
 
 export default nextConfig;

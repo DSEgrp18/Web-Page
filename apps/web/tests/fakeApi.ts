@@ -25,6 +25,7 @@ export const OWNER = "reader-one";
 export interface FakeBook {
   document_id: string;
   filename: string;
+  media_type?: string;
   /** The reader's own name for it. Null means they never gave one. */
   title?: string | null;
   /** Null while it is still being prepared. */
@@ -247,6 +248,13 @@ export class FakeServer {
     return {
       document_id: book.document_id,
       filename: book.filename,
+      media_type:
+        book.media_type ??
+        (/\.(png|jpe?g)$/i.test(book.filename)
+          ? `image/${book.filename.toLowerCase().endsWith(".png") ? "png" : "jpeg"}`
+          : book.filename.toLowerCase().endsWith(".docx")
+            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            : "application/pdf"),
       title: book.title ?? null,
       size_bytes: 1024,
       created_at: book.created_at ?? "2026-09-09T00:00:00Z",
@@ -286,6 +294,7 @@ export class FakeServer {
     const book: FakeBook = {
       document_id: `doc-${this.counter}`,
       filename: file?.name ?? "book.pdf",
+      media_type: file?.type || "application/pdf",
       version: "v1",
       pages: [readablePage(0, ["පළමු වාක්‍යය.", "දෙවන වාක්‍යය."])],
     };

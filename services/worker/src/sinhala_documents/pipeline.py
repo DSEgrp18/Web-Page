@@ -36,6 +36,7 @@ from sinhala_tts.segmentation import Segment, segment_text
 
 from .blocks import locate
 from .chapters import Chapter, find_chapters
+from .file_extract import extract_docx, extract_image
 from .legacy_fm_abhaya import CONVERTER_VERSION
 from .model import (
     BoundingBox,
@@ -49,6 +50,7 @@ from .ocr import OcrAdapter, OcrMode, apply_ocr
 from .pdf_extract import extract_document
 from .structure import BlockRole, is_narrated, number_style_for
 from .structuring import DeterministicStructure, StructureAdapter, structure_page
+from .validation import media_type_for
 
 #: Bumped when this module changes how pages become segments.
 PIPELINE_VERSION = "1"
@@ -291,6 +293,7 @@ def prepare_pages(
 def prepare_document(
     source: bytes | str | Path,
     *,
+    filename: str = "document.pdf",
     page_indexes: Iterable[int] | None = None,
     limit: int = MODEL_INPUT_CHAR_LIMIT,
     password: str = "",
@@ -310,9 +313,20 @@ def prepare_document(
     :class:`~.ocr.OcrMode`. Without an ``ocr`` adapter nothing is recognised,
     whatever the mode.
     """
-    extraction = extract_document(source, page_indexes=page_indexes, password=password)
+    source_bytes = source if isinstance(source, bytes) else None
+    media_type = media_type_for(filename, source_bytes)
     recognising = ocr is not None and ocr_mode is not OcrMode.OFF
-    if recognising:
+    if media_type and media_type.endswith("wordprocessingml.document"):
+        if not isinstance(source, bytes):
+            source = Path(source).read_bytes()
+        extraction = extract_docx(source)
+    elif media_type in {"image/png", "image/jpeg"}:
+        if not isinstance(source, bytes):
+            source = Path(source).read_bytes()
+        extraction = extract_image(source, ocr if recognising else None)
+    else:
+        extraction = extract_document(source, page_indexes=page_indexes, password=password)
+    if recognising and media_type == "application/pdf":
         assert ocr is not None
         extraction = apply_ocr(extraction, source, ocr, ocr_mode)
     version = _document_version(
@@ -333,5 +347,5 @@ def prepare_document(
         # From the extraction after OCR: a recognised page's sizes are estimates,
         # so it is skipped rather than measured, and its broken embedded text is
         # not a title anyone should hear.
-        chapters=find_chapters(extraction),
+        chapters=find_chapters(extraction) if media_type == "application/pdf" else (),
     )
