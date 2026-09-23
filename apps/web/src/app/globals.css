@@ -2616,6 +2616,14 @@ h4 {
   backdrop-filter: blur(8px);
 }
 
+/* Anything that floats over text is opaque. A translucent popover lets the
+   page's own words show through its words, which no contrast ratio covers;
+   browser-tests/a11y.spec.cjs asserts this for every overlay. */
+.settings-panel,
+.dialog {
+  background: var(--panel);
+}
+
 .dropzone {
   border: 1px dashed var(--edge);
   border-radius: var(--r-lg);

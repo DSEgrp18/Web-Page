@@ -85,9 +85,37 @@ const FLAT = "*, *::before, *::after { background-image: none !important; }";
  */
 const UNDECIDABLE = new Set(["nonBmp"]);
 
-async function contrastAudit(page) {
+/**
+ * An overlay must be opaque: a translucent one lets the page's words show
+ * through its own, which no contrast ratio covers. Once that is asserted,
+ * what lies underneath cannot change what the overlay shows, so it is hidden
+ * before measuring. Otherwise axe finds the page text in the stack under the
+ * overlay and reports the overlay's text as undecided.
+ */
+async function isolate(page, overlay) {
+  const background = await page
+    .locator(overlay)
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(background, `${overlay} must have an opaque background`).toMatch(
+    /^rgb\(|^color\(srgb [\d.]+ [\d.]+ [\d.]+\)$/,
+  );
+  await page.locator(overlay).evaluate((target) => {
+    for (const element of document.body.querySelectorAll("*")) {
+      if (!target.contains(element) && !element.contains(target)) {
+        element.style.visibility = "hidden";
+      }
+    }
+  });
+}
+
+async function contrastAudit(page, overlay) {
   await page.addStyleTag({ content: FLAT });
-  const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+  let axe = new AxeBuilder({ page }).withTags(TAGS);
+  if (overlay) {
+    await isolate(page, overlay);
+    axe = axe.include(overlay);
+  }
+  const results = await axe.analyze();
   const undecided = results.incomplete
     .filter((rule) => rule.id === "color-contrast")
     .flatMap((rule) => rule.nodes)
@@ -101,12 +129,51 @@ async function contrastAudit(page) {
   return { violations, undecided, measured };
 }
 
+const LIBRARY = { path: "/", ready: (page) => page.getByRole("heading", { name: "පොත.pdf" }) };
+const READER = {
+  path: "/documents/doc-1",
+  ready: (page) => page.getByRole("button", { name: "සිංහල පොත කියවන්න." }),
+};
+
+/** Each screen, and each dialog or panel opened over one, as its own state. */
 const SCREENS = [
-  { name: "the library", path: "/", ready: (page) => page.getByRole("heading", { name: "පොත.pdf" }) },
+  { name: "the library", ...LIBRARY },
   {
-    name: "the reader",
-    path: "/documents/doc-1",
-    ready: (page) => page.getByRole("button", { name: "සිංහල පොත කියවන්න." }),
+    name: "the delete dialog",
+    ...LIBRARY,
+    open: async (page) => {
+      await page.getByRole("button", { name: /මකන්න.*පොත\.pdf/ }).click();
+      await expect(page.getByRole("dialog", { name: "මෙම පොත මකන්න ද?" })).toBeVisible();
+    },
+    overlay: "dialog[open]",
+  },
+  {
+    name: "the rename dialog",
+    ...LIBRARY,
+    open: async (page) => {
+      await page.getByRole("button", { name: /නම වෙනස් කරන්න/ }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+    },
+    overlay: "dialog[open]",
+  },
+  {
+    name: "settings",
+    ...LIBRARY,
+    open: async (page) => {
+      await page.getByRole("button", { name: "කියවීමේ සැකසුම්" }).click();
+      await expect(page.getByRole("radio").first()).toBeVisible();
+    },
+    overlay: ".settings-panel",
+  },
+  { name: "the reader", ...READER },
+  {
+    name: "the assistant",
+    ...READER,
+    open: async (page) => {
+      await page.getByRole("button", { name: "පොත ගැන අසන්න" }).click();
+      await expect(page.getByRole("complementary", { name: "පොත ගැන අසන්න" })).toBeVisible();
+    },
+    overlay: ".assistant",
   },
   { name: "bookmarks", path: "/bookmarks", ready: (page) => page.getByText("පාඩම") },
 ];
@@ -118,8 +185,9 @@ for (const scheme of ["light", "dark"]) {
       await withOneBook(page);
       await page.goto(screen.path);
       await expect(screen.ready(page)).toBeVisible();
+      if (screen.open) await screen.open(page);
 
-      const { violations, undecided, measured } = await contrastAudit(page);
+      const { violations, undecided, measured } = await contrastAudit(page, screen.overlay);
       expect(violations).toEqual([]);
       expect(undecided).toEqual([]);
       expect(measured).toBeGreaterThan(0);
@@ -130,7 +198,7 @@ for (const scheme of ["light", "dark"]) {
 test("the contrast check fails on text a reader could not see", async ({ page }) => {
   await withOneBook(page);
   await page.goto("/");
-  await expect(SCREENS[0].ready(page)).toBeVisible();
+  await expect(LIBRARY.ready(page)).toBeVisible();
   await page.evaluate(() => {
     const faint = document.createElement("p");
     faint.id = "faint";
