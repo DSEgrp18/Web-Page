@@ -296,6 +296,8 @@ admins have no screens and no access to anyone's books:
 # needs SINHALA_READER_DATABASE_URL; it refuses to act on the in-memory store
 python -m sinhala_reader.admin grant-role --email t@school.lk --role teacher --reason verified-teacher
 python -m sinhala_reader.admin invite-teacher --days 7   # prints a code, once
+python -m sinhala_reader.admin issue-reset --email s@school.lk --reason lost-code   # last resort
+python -m sinhala_reader.admin list-audit --email s@school.lk
 ```
 
 An invitation code is single use, expires in at most 30 days, and is stored

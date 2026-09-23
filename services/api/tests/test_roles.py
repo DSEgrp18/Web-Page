@@ -287,6 +287,61 @@ class TestTheCommandLine:
         assert "No database" in said[0]
 
 
+class TestResetsAndTheLog:
+    def test_issue_reset_prints_a_code_that_recovers_the_account(
+        self, client: TestClient, store: InMemoryStore
+    ) -> None:
+        _, user_id = _signed_in(client)
+        said: list[str] = []
+
+        status = admin.main(
+            ["issue-reset", "--email", "nimali@example.lk", "--reason", "lost-code"],
+            store=store,
+            out=said.append,
+        )
+
+        assert status == 0
+        code = said[0].rsplit(": ", 1)[1]
+        recovered = client.post(
+            "/auth/recover",
+            json={
+                "email": "nimali@example.lk",
+                "recovery_code": code,
+                "new_password": "a-brand-new-password",
+            },
+        )
+        assert recovered.status_code == 200
+        kinds = [e.kind for e in store.audit_for(user_id)]
+        assert kinds == ["recovery_code_issued", "password_recovered"]
+
+    def test_list_audit_shows_what_changed_an_account(
+        self, client: TestClient, store: InMemoryStore
+    ) -> None:
+        _signed_in(client)
+        admin.main(
+            [
+                "grant-role",
+                "--email",
+                "nimali@example.lk",
+                "--role",
+                "teacher",
+                "--reason",
+                "school-staff",
+            ],
+            store=store,
+            out=lambda _: None,
+        )
+        said: list[str] = []
+
+        assert (
+            admin.main(["list-audit", "--email", "nimali@example.lk"], store=store, out=said.append)
+            == 0
+        )
+
+        (line,) = said
+        assert "role_granted" in line and "student->teacher:school-staff" in line
+
+
 class TestCodes:
     def test_have_no_look_alike_characters(self) -> None:
         for _ in range(200):

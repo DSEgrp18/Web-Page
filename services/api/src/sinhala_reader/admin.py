@@ -7,6 +7,8 @@ deployment and its database, and every action is written to the audit log::
     python -m sinhala_reader.admin grant-role --email t@school.lk --role teacher \\
         --reason verified-teacher
     python -m sinhala_reader.admin invite-teacher --days 7
+    python -m sinhala_reader.admin issue-reset --email s@school.lk --reason lost-code
+    python -m sinhala_reader.admin list-audit --email s@school.lk
 
 Reasons are codes from a fixed list, never free text, so the log can be read
 and counted without anyone having typed something private into it.
@@ -23,6 +25,7 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 
 from . import codes
+from .accounts import RECOVERY_GROUPS
 from .storage import (
     AuditEvent,
     Role,
@@ -36,6 +39,9 @@ from .storage import (
 #: Why a role was granted or taken away. Extend the list rather than typing
 #: something else: the log is only useful if it can be counted.
 REASONS = ("verified-teacher", "school-staff", "correction", "revoked")
+
+#: Why an admin gave someone a new recovery code.
+RESET_REASONS = ("lost-code", "lost-password-and-code", "identity-checked-in-person")
 
 #: Longest an invitation may live. A code in a message thread is a code
 #: anyone who later reads the thread can use.
@@ -57,6 +63,17 @@ def _parser() -> argparse.ArgumentParser:
         "invite-teacher", help="Print a single-use code that makes a student a teacher."
     )
     invite.add_argument("--days", type=int, default=7)
+
+    reset = commands.add_parser(
+        "issue-reset",
+        help="Print a new recovery code for an account. The last resort, after the "
+        "reader's own code and their teacher.",
+    )
+    reset.add_argument("--email", required=True)
+    reset.add_argument("--reason", required=True, choices=RESET_REASONS)
+
+    audit = commands.add_parser("list-audit", help="What has changed an account's access.")
+    audit.add_argument("--email", required=True)
     return parser
 
 
@@ -78,6 +95,10 @@ def main(
 
     if args.command == "grant-role":
         return _grant_role(store, args.email, Role(args.role), args.reason, out)
+    if args.command == "issue-reset":
+        return _issue_reset(store, args.email, args.reason, out)
+    if args.command == "list-audit":
+        return _list_audit(store, args.email, out)
     return _invite_teacher(store, args.days, out)
 
 
@@ -103,6 +124,46 @@ def _grant_role(
         )
     )
     out(f"{user.email} is now a {role}.")
+    return 0
+
+
+def _issue_reset(store: Store, email: str, reason: str, out: Callable[[str], None]) -> int:
+    """A new recovery code, printed once, replacing the account's old one.
+
+    It changes no password and ends no session by itself: the reader spends it
+    at "recover", which does both. So a code read out to the wrong person on
+    the phone still needs them to know the account's address.
+    """
+    user = store.get_user_by_email(email.strip().lower())
+    if user is None:
+        out("No account has that email address.")
+        return 1
+    code = codes.new_code(RECOVERY_GROUPS)
+    store.set_recovery_hash(user.user_id, codes.code_hash(code))
+    store.record(
+        AuditEvent(
+            event_id=new_id("aud"),
+            kind="recovery_code_issued",
+            actor=ACTOR,
+            subject=user.user_id,
+            reason=reason,
+        )
+    )
+    out(f"Recovery code for {user.email}: {code}")
+    out("It replaces their old code. They use it on the recovery page to set a new password.")
+    return 0
+
+
+def _list_audit(store: Store, email: str, out: Callable[[str], None]) -> int:
+    user = store.get_user_by_email(email.strip().lower())
+    if user is None:
+        out("No account has that email address.")
+        return 1
+    events = store.audit_for(user.user_id)
+    if not events:
+        out(f"Nothing recorded for {user.email}.")
+    for event in events:
+        out(f"{event.at}  {event.kind}  by {event.actor}  {event.reason}")
     return 0
 
 
