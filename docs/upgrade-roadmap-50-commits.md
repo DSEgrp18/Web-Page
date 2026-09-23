@@ -1,5 +1,13 @@
 # Swara: 50-commit product upgrade roadmap
 
+> **Status (September 2026): this is now the quality track.** The phase order and the
+> new features (portal and accounts, class library, practice questions, progress) are in
+> [`product-plan.md`](product-plan.md). This roadmap runs alongside those phases as the
+> hardening work, and each phase gate checks the items here that fall inside it. The
+> mapping from these items to phases is in
+> [product plan §12](product-plan.md#12-the-quality-track). Items marked **Update**
+> below have changed since this was written.
+
 This roadmap takes the current working reader to a credible release candidate. Each numbered
 item is intended to be one reviewable commit with its own tests. A phase is complete only when
 its end-to-end flow passes CI and a browser check; commits must not claim manual or model
@@ -26,7 +34,9 @@ reviewable rather than subjective.
 6. **Refine the desktop shell.** Standardise header height, content measure, spacing, active
    navigation, and page titles using existing design tokens.
 7. **Refine mobile navigation.** Add a compact navigation pattern with correct focus order,
-   current-page state, and 44-pixel touch targets.
+   current-page state, and 48-pixel touch targets.
+   *Update: 48, not 44. The binding token is `--tap: 48px`; 44 is WCAG's minimum, not our
+   target.*
 8. **Add consistent breadcrumbs and back navigation.** Preserve the reader's last page and
    sentence when moving between reading, bookmarks, and study views.
 9. **Build shared loading patterns.** Replace layout jumps with labelled skeletons and stable
@@ -45,6 +55,8 @@ reviewable rather than subjective.
 13. **Add multi-format, multi-file upload.** Keep the native file control, add a visible drop
     target, accept PDF, DOCX, PNG, and JPEG files, validate type and size before upload, and
     report the result of each file without hiding partial failures.
+    *Update: partly done. DOCX, PNG and JPEG upload landed in #76; what remains is the
+    per-file result reporting and the drop target.*
 14. **Create detailed preparation progress.** Present upload, extraction, OCR, segmentation,
     indexing, and audio readiness as honest server states with retry and cancellation.
 15. **Add bulk library management.** Support selection, deletion confirmation, and accessible
@@ -84,6 +96,8 @@ document state through controls suited to them.
     one failed segment, and prevent overlapping audio.
 24. **Add evaluated voice selection.** Put XTTS and the adapted female VITS model behind the
     same adapter, label model provenance, and expose only voices that pass smoke tests.
+    *Update: needs a product decision before it becomes work. A second voice brings its own
+    licence and its own evaluation, and `CLAUDE.md` forbids substituting voices silently.*
 25. **Add chapter download and offline playback.** Implement issue #32 with manifests,
     authorised files, progress, cancellation, storage limits, and removal controls.
 
@@ -110,6 +124,9 @@ device evidence rather than automated claims standing in for assistive technolog
 
 31. **Implement the FM-Abhaya converter.** Use the supplied ordered mapping, span-level font
     detection, provenance, and all supplied character-for-character cases.
+    *Update: already implemented, in `services/worker/src/sinhala_documents/legacy_fm_abhaya.py`
+    with `test_legacy_fm_abhaya.py`. Replace this item with an evaluation of the converter:
+    its unmapped-letter and malformed-sequence rates on held-out legacy pages.*
 32. **Create an OCR evaluation set.** Add permission-cleared scanned pages, human transcripts,
     CER/WER measurement, and error groups for letters, marks, numbers, and layout.
 33. **Add extraction review UI.** Show native, legacy, and OCR provenance with page warnings and
@@ -144,6 +161,8 @@ retrieval and answer configuration.
     account recovery, and route-level ownership tests.
 42. **Formalise database migrations.** Version schema changes, seed only non-sensitive demo
     content, and test migration and rollback against PostgreSQL.
+    *Update: largely done. Numbered migrations with an advisory lock already exist in
+    `postgres.py`; what remains is demo seeding and tested rollback.*
 43. **Move document and audio blobs to private object storage.** Use expiring authorised access,
     encryption, content hashes, and lifecycle rules.
 44. **Implement complete deletion and retention.** Remove originals, text, embeddings, audio,

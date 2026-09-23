@@ -193,8 +193,10 @@ speaker can review the whole interface in a single read. Never inline a Sinhala
 string in a component, and never inline an English one either.
 
 **Sinhala needs vertical room.** Vowel signs stack above and below the base
-letter, so a Latin-default `line-height: 1.4` clips them into each other. The
-body line-height is `1.8` and headings `1.5`. Do not reduce them.
+letter, so a Latin-default `line-height: 1.4` clips them into each other.
+Reading text runs at `1.9` (`--leading-reading`), interface text at `1.7`
+(`--leading-normal`), and headings at `1.5` (`--leading-tight`). Nothing goes
+below 1.5. Do not reduce them.
 
 **Use the font stack that is already there.** `"Noto Sans Sinhala"` first. A
 fallback face loses the distinctions between similar letters, which hurts Sahan
@@ -217,7 +219,7 @@ them.
 | --- | --- | --- |
 | Body text contrast | at least **4.5:1** | WCAG 2.2 AA |
 | Large text and UI borders | at least **3:1** | WCAG 2.2 AA |
-| Touch target | at least **44 × 44 px** | WCAG 2.2 Target Size; Tharindu's thumb |
+| Touch target | **48 px** (`--tap`); never below WCAG's 44 × 44 | WCAG 2.2 Target Size; Tharindu's thumb |
 | Page must work zoomed to | **400%** | WCAG 2.2 Reflow |
 | Horizontal scrolling | **never**, for the page body | Sahan cannot find content off-screen |
 
