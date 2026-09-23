@@ -30,17 +30,17 @@ describe("the tab title", () => {
   it("names the book once it has loaded", async () => {
     openReader(new FakeServer({ books: [book()] }));
 
-    await screen.findByRole("button", { name: FIRST });
-
-    expect(document.title).toBe(`ඉතිහාසය.pdf — ${strings.appName}`);
+    // The title is set in an effect after the book arrives, which can land
+    // a tick after the page's sentences render, so wait for it.
+    await waitFor(() => expect(document.title).toBe(`ඉතිහාසය.pdf — ${strings.appName}`));
   });
 
   it("uses the name the reader gave the book, not its filename", async () => {
     openReader(new FakeServer({ books: [book({ title: "ඉතිහාසය 11 ශ්‍රේණිය" })] }));
 
-    await screen.findByRole("button", { name: FIRST });
-
-    expect(document.title).toBe(`ඉතිහාසය 11 ශ්‍රේණිය — ${strings.appName}`);
+    // The title is set in an effect after the book arrives, which can land
+    // a tick after the page's sentences render, so wait for it.
+    await waitFor(() => expect(document.title).toBe(`ඉතිහාසය 11 ශ්‍රේණිය — ${strings.appName}`));
   });
 });
 
