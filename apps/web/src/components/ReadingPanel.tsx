@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { usePreferences } from "@/components/PreferencesProvider";
 import { roleLabel } from "@/lib/roles";
@@ -60,6 +60,8 @@ export function ReadingPanel({
   const scroller = useRef<HTMLDivElement>(null);
   const [followingLost, setFollowingLost] = useState(false);
   const [wordsOpen, setWordsOpen] = useState(false);
+  /** Generated, not fixed: two panels on one screen must not share an id. */
+  const wordsId = useId();
   /** Set while we are the ones scrolling, so our own scroll is not "the reader". */
   const selfScrolling = useRef(0);
   const wordSegment = segments.find((segment) => segment.segment_id === currentId) ?? segments[0];
@@ -110,7 +112,9 @@ export function ReadingPanel({
           type="button"
           className="btn btn-quiet btn-sm"
           aria-expanded={wordsOpen}
-          aria-controls="sentence-words"
+          // Only while the section is rendered: aria-controls naming an absent
+          // element is invalid, and a screen reader may announce it as broken.
+          aria-controls={wordsOpen ? wordsId : undefined}
           disabled={loading || !wordSegment}
           onClick={() => setWordsOpen((open) => !open)}
         >
@@ -119,7 +123,7 @@ export function ReadingPanel({
       </div>
 
       {wordsOpen && wordSegment ? (
-        <section id="sentence-words" className="sentence-words" aria-label={strings.sentenceWords}>
+        <section id={wordsId} className="sentence-words" aria-label={strings.sentenceWords}>
           <div className="sentence-words-head">
             <h3>{strings.sentenceWords}</h3>
             <span className="hint">{strings.wordCount(words.length)}</span>
