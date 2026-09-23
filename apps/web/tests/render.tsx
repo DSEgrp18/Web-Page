@@ -46,5 +46,5 @@ export function assertiveText(): string {
  * asking "is this on screen" has to say which one it means.
  */
 export function noticeText(): string {
-  return document.querySelector(".notice.error")?.textContent ?? "";
+  return document.querySelector(".notice.notice-bad")?.textContent ?? "";
 }

@@ -39,6 +39,8 @@
   --paper: #f3f8f5; /* the page */
   --panel: #fbfdfb; /* anything raised off it */
   --panel-sunken: #eaf2ee; /* inputs, wells */
+  /* A rendered PDF page is paper in every theme: its own ink assumes white. */
+  --paper: #ffffff;
 
   /* -- ink -------------------------------------------------------------- */
   --ink: #102721;
@@ -508,6 +510,13 @@ textarea {
 .notice-bad {
   border-left-color: var(--bad-ink);
   background: var(--bad-wash);
+}
+
+/* A notice's recovery actions: retry, dismiss. */
+.notice-actions {
+  display: flex;
+  gap: var(--s3);
+  flex-wrap: wrap;
 }
 
 /* ==========================================================================
@@ -1326,7 +1335,7 @@ textarea {
   min-height: 24rem;
   display: grid;
   place-items: center;
-  padding: var(--space-5);
+  padding: var(--s5);
   overflow: auto;
 }
 
@@ -1335,13 +1344,13 @@ textarea {
   max-width: 100%;
   max-height: 70vh;
   object-fit: contain;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-1);
 }
 
 .source-document {
   align-content: center;
-  gap: var(--space-4);
+  gap: var(--s4);
   text-align: center;
 }
 
@@ -1572,7 +1581,7 @@ textarea {
 }
 
 .pdf-viewport canvas {
-  background: #ffffff;
+  background: var(--paper);
   box-shadow: var(--shadow-2);
   border-radius: 2px;
   max-inline-size: none;
@@ -1614,7 +1623,7 @@ textarea {
 }
 
 .thumbnail canvas {
-  background: #ffffff;
+  background: var(--paper);
   border: 1px solid var(--hair);
   max-inline-size: 100%;
 }
