@@ -303,8 +303,25 @@ colours they measured no longer exist.
 
 ### 0.10 Small clean-ups
 
-- Delete `services/api/src/sinhala_reader/worker.py`. Compose uses `celery_worker.py`, and two entry points invite drift.
-- `build_passages` runs on every question. Memoise it per document version (an LRU of 8, beside the `_PREPARED` cache), because search and quizzes will both reuse it.
+- Delete `services/api/src/sinhala_reader/worker.py`. Compose uses `celery_worker.py`, and two entry points invite drift. (#100)
+- **Do not cache passages yet; measured, and the plan was aimed at the wrong thing.**
+  At the size of the real textbook (2,856 segments, 336 passages), per question:
+
+  | Step | Median |
+  | --- | --- |
+  | `build_passages` | 10 ms |
+  | Building the BM25 `LexicalIndex` | 54 ms |
+  | One search | 0.5 ms |
+
+  The index, not the passages, is most of the cost, and both are rebuilt on every
+  question (`answerer.py`, `gemini_answers.py`). About 64 ms is invisible to someone
+  who has just typed a question, and a written answer from Gemini takes seconds.
+
+  A cache here would also be wrong later. Phase 2 withholds pages per class (§7.2), so
+  a cache keyed on the document version alone would serve a withheld page to class
+  members. Revisit with in-book search (5b): search-as-you-type would rebuild on every
+  keystroke. Cache the **index** then, keyed on the version *and* the withheld-page
+  overlay, and measure before and after.
 
 ---
 
