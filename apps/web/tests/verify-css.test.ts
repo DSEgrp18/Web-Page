@@ -80,6 +80,15 @@ describe("verify-css", () => {
     expect(result.output).not.toContain("#fff outside");
   });
 
+  it("does not treat a rule under :root as a token block", () => {
+    const result = check({
+      "app/globals.css": `${tokens}:root[data-theme="dark"] { --ink: #fff; }\n:root[data-theme="dark"] .welcome { background: #0b211b; }\n`,
+    });
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("#0b211b outside a :root block");
+    expect(result.output).not.toContain("#fff outside");
+  });
+
   it("fails when a block defines a property twice", () => {
     // The light theme's page colour, silently replaced by a later token.
     const result = check({

@@ -31,8 +31,9 @@ import { noticeText, renderApp } from "./render";
 
 /**
  * Colour contrast needs real layout and a canvas, neither of which jsdom has,
- * so axe cannot decide it here. The palette in `globals.css` was checked by
- * hand instead, and the measured ratios are recorded there.
+ * so axe cannot decide it here. It is checked twice elsewhere: the token pairs
+ * in tokens.contrast.test.ts, and the rendered screens in both themes by
+ * browser-tests/a11y.spec.cjs.
  */
 const RULES = { "color-contrast": { enabled: false } };
 

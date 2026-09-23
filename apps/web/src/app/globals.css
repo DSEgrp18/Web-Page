@@ -2356,7 +2356,7 @@ h4 {
     background:
       linear-gradient(105deg, rgba(7, 24, 19, 0.98) 0 42%, rgba(7, 24, 19, 0.35) 75%),
       radial-gradient(circle at 82% 38%, rgba(89, 214, 192, 0.24), transparent 30%),
-      linear-gradient(135deg, #0b211b, #071813);
+      linear-gradient(135deg, var(--panel), var(--paper));
   }
 }
 
@@ -2364,7 +2364,7 @@ h4 {
   background:
     linear-gradient(105deg, rgba(7, 24, 19, 0.98) 0 42%, rgba(7, 24, 19, 0.35) 75%),
     radial-gradient(circle at 82% 38%, rgba(89, 214, 192, 0.24), transparent 30%),
-    linear-gradient(135deg, #0b211b, #071813);
+    linear-gradient(135deg, var(--panel), var(--paper));
 }
 
 .welcome::after {
@@ -2614,6 +2614,14 @@ h4 {
 .dialog::backdrop {
   background: color-mix(in srgb, var(--paper) 72%, transparent);
   backdrop-filter: blur(8px);
+}
+
+/* Anything that floats over text is opaque. A translucent popover lets the
+   page's own words show through its words, which no contrast ratio covers;
+   browser-tests/a11y.spec.cjs asserts this for every overlay. */
+.settings-panel,
+.dialog {
+  background: var(--panel);
 }
 
 .dropzone {
