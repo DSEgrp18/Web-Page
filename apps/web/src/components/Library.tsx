@@ -71,6 +71,7 @@ export function Library() {
 
   const addButton = useRef<HTMLButtonElement>(null);
   const cardTrigger = useRef<HTMLElement | null>(null);
+  const restoreAddFocus = useRef(false);
   const searchId = useId();
   const sortId = useId();
 
@@ -178,10 +179,20 @@ export function Library() {
   );
 
   const openUpload = () => setUploading(true);
+  const closeUpload = useCallback(() => {
+    restoreAddFocus.current = true;
+    setUploading(false);
+  }, []);
+
+  useEffect(() => {
+    if (uploading || !restoreAddFocus.current || !addButton.current) return;
+    addButton.current.focus();
+    restoreAddFocus.current = false;
+  }, [all.length, uploading]);
 
   return (
     <div className="library">
-      <Welcome compact={all.length > 0} onAdd={openUpload} addRef={addButton} />
+      {all.length === 0 ? <Welcome onAdd={openUpload} addRef={addButton} /> : null}
 
       {error ? <ErrorNotice message={error} onDismiss={() => setError(null)} /> : null}
 
@@ -195,8 +206,19 @@ export function Library() {
 
           <section className="shelf" aria-labelledby="shelf-heading">
             <div className="shelf-head">
-              <h2 id="shelf-heading">{strings.browseBooks}</h2>
-              <p className="hint">{strings.libraryCount(all.length)}</p>
+              <div>
+                <h1 id="shelf-heading">{strings.browseBooks}</h1>
+                <p className="hint">{strings.libraryCount(all.length)}</p>
+              </div>
+              <button
+                ref={addButton}
+                className="btn btn-primary"
+                type="button"
+                onClick={openUpload}
+              >
+                <PlusIcon />
+                {strings.addBook}
+              </button>
             </div>
 
             <div className="shelf-controls">
@@ -287,12 +309,11 @@ export function Library() {
 
       <UploadDialog
         open={uploading}
-        onClose={() => setUploading(false)}
-        onUploaded={(created) => {
+        onClose={closeUpload}
+        onUploaded={async (created) => {
           pending.current.add(created.document_id);
-          void refresh();
+          await refresh();
         }}
-        returnFocusTo={addButton}
       />
 
       {/* Mounted only while open, and keyed by book: that is what lets the
@@ -330,38 +351,34 @@ export function Library() {
  * from the one they signed up to — just less of it.
  */
 function Welcome({
-  compact,
   onAdd,
   addRef,
 }: {
-  compact: boolean;
   onAdd: () => void;
   addRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   return (
-    <section className="welcome" data-compact={compact} aria-labelledby="welcome-heading">
+    <section className="welcome" aria-labelledby="welcome-heading">
       <div className="welcome-copy">
-        <h1 id="welcome-heading">{compact ? strings.libraryHeading : strings.welcomeHeading}</h1>
-        {compact ? null : <p className="welcome-body">{strings.welcomeBody}</p>}
+        <h1 id="welcome-heading">{strings.welcomeHeading}</h1>
+        <p className="welcome-body">{strings.welcomeBody}</p>
         <div className="welcome-actions">
           <button ref={addRef} className="btn btn-primary" type="button" onClick={onAdd}>
             <PlusIcon />
             {strings.addBook}
           </button>
-          {compact ? null : <p className="hint">{strings.welcomeSecondary}</p>}
+          <p className="hint">{strings.welcomeSecondary}</p>
         </div>
       </div>
-      {compact ? null : (
-        <img
-          className="welcome-art"
-          src="/brand/swara-book.webp"
-          alt=""
-          width={700}
-          height={450}
-          loading="eager"
-          decoding="async"
-        />
-      )}
+      <img
+        className="welcome-art"
+        src="/brand/swara-book.webp"
+        alt=""
+        width={700}
+        height={450}
+        loading="eager"
+        decoding="async"
+      />
     </section>
   );
 }
@@ -409,7 +426,7 @@ function BookCard({
       <BookCover documentId={book.document_id} ready={ready} />
 
       <div className="book-card-body">
-        <h3 className="book-card-title">{title}</h3>
+        <h2 className="book-card-title">{title}</h2>
 
         <p className="book-card-meta">
           {ready ? (

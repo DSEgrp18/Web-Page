@@ -34,19 +34,17 @@ export function UploadDialog({
   open,
   onClose,
   onUploaded,
-  returnFocusTo,
 }: {
   open: boolean;
   onClose: () => void;
-  onUploaded: (created: DocumentDetail) => void;
-  returnFocusTo: React.RefObject<HTMLElement | null>;
+  onUploaded: (created: DocumentDetail) => void | Promise<void>;
 }) {
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
 
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -71,33 +69,38 @@ export function UploadDialog({
     // A dialog that closes mid-upload leaves a request running with nothing
     // watching it, and the reader with no idea whether the book arrived.
     if (busy) return;
-    setFile(null);
+    setFiles([]);
     setTitle("");
     setProblem(null);
     setDragging(false);
     onClose();
-    returnFocusTo.current?.focus();
-  }, [busy, onClose, returnFocusTo]);
+  }, [busy, onClose]);
 
   /** Validate here so the reader hears the reason before a round trip. */
   const accept = useCallback(
-    (chosen: File | null | undefined) => {
-      if (!chosen) return;
-      const looksPdf =
-        chosen.type === "application/pdf" || chosen.name.toLowerCase().endsWith(".pdf");
-      if (!looksPdf) {
-        setProblem(strings.uploadNotPdf);
-        alert(strings.uploadNotPdf);
+    (chosen: FileList | File[] | null | undefined) => {
+      const selected = Array.from(chosen ?? []);
+      if (!selected.length) return;
+      const allowed = selected.every(
+        (item) => /\.(pdf|docx|png|jpe?g)$/i.test(item.name) || !/\.[^./\\]+$/.test(item.name),
+      );
+      if (!allowed) {
+        setProblem(strings.uploadUnsupported);
+        alert(strings.uploadUnsupported);
         return;
       }
-      if (chosen.size > MAX_BYTES) {
+      if (selected.some((item) => item.size > MAX_BYTES)) {
         setProblem(strings.uploadTooBig);
         alert(strings.uploadTooBig);
         return;
       }
       setProblem(null);
-      setFile(chosen);
-      say(`${strings.uploadSelected}: ${chosen.name}`);
+      setFiles(selected);
+      say(
+        selected.length === 1
+          ? strings.uploadSelectedFile(selected[0]?.name ?? "")
+          : strings.uploadSelectedCount(selected.length),
+      );
     },
     [alert, say],
   );
@@ -106,13 +109,13 @@ export function UploadDialog({
     (event: DragEvent<HTMLLabelElement>) => {
       event.preventDefault();
       setDragging(false);
-      accept(event.dataTransfer.files?.[0]);
+      accept(event.dataTransfer.files);
     },
     [accept],
   );
 
   const submit = useCallback(async () => {
-    if (!file) {
+    if (!files.length) {
       setProblem(strings.uploadNoFile);
       alert(strings.uploadNoFile);
       input.current?.focus();
@@ -121,33 +124,36 @@ export function UploadDialog({
     setBusy(true);
     setProblem(null);
     say(strings.uploadInProgress);
+    const remaining = [...files];
     try {
-      let created = await api.upload(file);
-      const chosen = title.trim();
-      if (chosen) {
-        // A separate call rather than a field on the upload: the upload
-        // endpoint takes a file and nothing else, and a rename that fails must
-        // not lose the book that already arrived.
-        try {
-          created = await api.renameDocument(created.document_id, chosen);
-        } catch {
-          // The book is in. The name is cosmetic and can be set again.
+      while (remaining.length) {
+        const file = remaining[0];
+        if (!file) break;
+        let created = await api.upload(file);
+        const chosen = title.trim();
+        if (chosen && files.length === 1) {
+          try {
+            created = await api.renameDocument(created.document_id, chosen);
+          } catch {
+            // The document is in. Its optional display name can be set again.
+          }
         }
+        remaining.shift();
+        await onUploaded(created);
       }
-      setFile(null);
+      setFiles([]);
       setTitle("");
       setBusy(false);
-      onUploaded(created);
       onClose();
-      returnFocusTo.current?.focus();
       say(strings.preparing);
     } catch (cause) {
+      setFiles(remaining);
       const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.uploadFailed;
       setProblem(message);
       alert(message);
       setBusy(false);
     }
-  }, [alert, api, file, onClose, onUploaded, returnFocusTo, say, title]);
+  }, [alert, api, files, onClose, onUploaded, say, title]);
 
   return (
     /* The backdrop click below is a pointer affordance on an element that is
@@ -204,7 +210,7 @@ export function UploadDialog({
             {strings.uploadChoose}
           </span>
           <span className="hint" id={helpId}>
-            {strings.uploadOnlyPdf}
+            {strings.uploadFormats}
           </span>
         </label>
         <input
@@ -212,33 +218,40 @@ export function UploadDialog({
           id={fileId}
           className="visually-hidden"
           type="file"
-          accept="application/pdf,.pdf"
+          accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,image/png,.png,image/jpeg,.jpg,.jpeg"
+          multiple
           // The label element exists so that clicking the dropzone opens the
           // picker. As an accessible *name* its whole text is far too long, so
           // the name is set here and the rest becomes the description.
           aria-label={strings.uploadChoose}
           aria-describedby={problem ? `${helpId} ${problemId}` : helpId}
           disabled={busy}
-          onChange={(event) => accept(event.target.files?.[0])}
+          onChange={(event) => accept(event.target.files)}
         />
 
-        {file ? (
-          <p className="chosen-file">
-            <span className="chosen-file-name">{file.name}</span>
-            <span className="hint latin">{strings.fileSize(file.size)}</span>
+        {files.length ? (
+          <div className="chosen-file">
+            <ul className="upload-file-list">
+              {files.map((file) => (
+                <li key={`${file.name}-${file.size}`}>
+                  <span className="chosen-file-name">{file.name}</span>{" "}
+                  <span className="hint latin">{strings.fileSize(file.size)}</span>
+                </li>
+              ))}
+            </ul>
             <button
               type="button"
               className="btn btn-quiet btn-sm"
               disabled={busy}
               onClick={() => {
-                setFile(null);
+                setFiles([]);
                 if (input.current) input.current.value = "";
                 input.current?.focus();
               }}
             >
-              {strings.removeFile}
+              {strings.removeFiles}
             </button>
-          </p>
+          </div>
         ) : null}
 
         <div className="field">
@@ -253,12 +266,12 @@ export function UploadDialog({
             onChange={(event) => setTitle(event.target.value)}
           />
           <p className="hint" id={`${titleId}-help`}>
-            {strings.uploadTitleHelp}
+            {files.length > 1 ? strings.uploadTitleSingleOnly : strings.uploadTitleHelp}
           </p>
         </div>
 
         <div className="dialog-actions">
-          <button className="btn btn-primary" type="submit" disabled={busy || !file}>
+          <button className="btn btn-primary" type="submit" disabled={busy || !files.length}>
             {busy ? strings.uploadInProgress : strings.uploadSubmit}
           </button>
           <button className="btn" type="button" onClick={close} disabled={busy}>

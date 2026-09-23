@@ -42,6 +42,101 @@ const THUMB_WIDTH = 96;
  */
 export function PdfPanel({
   documentId,
+  mediaType,
+  filename,
+  pageIndex,
+  pageCount,
+  onPageChange,
+}: {
+  documentId: string;
+  mediaType: string;
+  filename: string;
+  pageIndex: number;
+  pageCount: number;
+  onPageChange: (index: number) => void;
+}) {
+  if (mediaType.startsWith("image/")) {
+    return <ImagePanel documentId={documentId} filename={filename} />;
+  }
+  if (mediaType !== "application/pdf") {
+    return <DocumentDownloadPanel documentId={documentId} filename={filename} />;
+  }
+  return (
+    <PdfDocumentPanel
+      documentId={documentId}
+      pageIndex={pageIndex}
+      pageCount={pageCount}
+      onPageChange={onPageChange}
+    />
+  );
+}
+
+function useOriginalUrl(documentId: string) {
+  const { api } = useReader();
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+    void api
+      .getDocumentFile(documentId, controller.signal)
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true);
+      });
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [api, documentId]);
+  return { url, failed };
+}
+
+function ImagePanel({ documentId, filename }: { documentId: string; filename: string }) {
+  const { url, failed } = useOriginalUrl(documentId);
+  return (
+    <section className="panel pdf-panel" aria-label={strings.originalPanel}>
+      <div className="panel-bar">
+        <h2 className="panel-title">{strings.originalPanel}</h2>
+      </div>
+      <div className="pdf-viewport source-preview">
+        {failed ? <p className="notice notice-warn">{strings.originalFailed}</p> : null}
+        {!url && !failed ? (
+          <p className="hint" aria-busy="true">
+            {strings.pdfLoading}
+          </p>
+        ) : null}
+        {url ? <img src={url} alt={strings.uploadedImageAlt(filename)} /> : null}
+      </div>
+    </section>
+  );
+}
+
+function DocumentDownloadPanel({ documentId, filename }: { documentId: string; filename: string }) {
+  const { url, failed } = useOriginalUrl(documentId);
+  return (
+    <section className="panel pdf-panel" aria-label={strings.originalPanel}>
+      <div className="panel-bar">
+        <h2 className="panel-title">{strings.originalPanel}</h2>
+      </div>
+      <div className="source-preview source-document">
+        <p>{strings.docxPreviewUnavailable}</p>
+        {failed ? <p className="notice notice-warn">{strings.originalFailed}</p> : null}
+        {url ? (
+          <a className="btn" href={url} download={filename}>
+            {strings.downloadOriginal}
+          </a>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function PdfDocumentPanel({
+  documentId,
   pageIndex,
   pageCount,
   onPageChange,
