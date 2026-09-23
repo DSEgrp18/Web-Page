@@ -19,6 +19,7 @@ is no rate limiting yet, and ``/readiness`` says so.
 
 from __future__ import annotations
 
+import hmac
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -92,6 +93,32 @@ class PasswordChange(BaseModel):
     new_password: str = Field(min_length=passwords.MIN_LENGTH, max_length=1024)
 
 
+class Recovery(Email):
+    recovery_code: str = Field(min_length=1, max_length=64)
+    new_password: str = Field(min_length=passwords.MIN_LENGTH, max_length=1024)
+
+
+class PasswordCheck(BaseModel):
+    current_password: str = Field(max_length=1024)
+
+
+class RecoveryCode(BaseModel):
+    """A new recovery code. Shown once; only its hash is kept."""
+
+    recovery_code: str
+
+
+#: Four groups of four: about 79 bits, for a code that resets a password.
+RECOVERY_GROUPS = 4
+
+#: One answer for "no such account", "no recovery code on it" and "wrong code".
+RECOVERY_REFUSED = "That email address and recovery code do not match."
+
+#: Compared against when there is no account or no code, so both branches do
+#: the same work. Never a valid code's hash: it is the hash of nothing.
+_NO_CODE_HASH = codes.code_hash("")
+
+
 class Account(BaseModel):
     """What a reader is told about themselves. Never the hash, never the token."""
 
@@ -99,6 +126,9 @@ class Account(BaseModel):
     email: str
     display_name: str
     role: str = Field(description="student, teacher or admin.")
+    has_recovery_code: bool = Field(
+        description="False for accounts made before recovery codes, until they make one."
+    )
     created_at: str
 
     @classmethod
@@ -108,6 +138,7 @@ class Account(BaseModel):
             email=user.email,
             display_name=user.display_name,
             role=str(user.role),
+            has_recovery_code=user.recovery_hash is not None,
             created_at=user.created_at,
         )
 
@@ -127,6 +158,13 @@ class SignedIn(BaseModel):
     token: str
     expires_at: str
     account: Account
+    recovery_code: str | None = Field(
+        default=None,
+        description=(
+            "Present only when an account is made or recovered: the one code that can "
+            "reset its password. Shown once and never again."
+        ),
+    )
 
 
 def sessions_or_503() -> None:
@@ -175,7 +213,82 @@ def register(body: Registration, request: Request) -> SignedIn:
             "That email address already has an account.",
         ) from taken
 
-    return _sign_in(store, user)
+    recovery_code = _new_recovery_code(store, user)
+    # Read back, so the account says it has a code because it does.
+    signed_in = _sign_in(store, store.get_user(user.user_id) or user)
+    return signed_in.model_copy(update={"recovery_code": recovery_code})
+
+
+@router.post("/recover", dependencies=[SessionsRequired])
+def recover(body: Recovery, request: Request) -> SignedIn:
+    """Set a new password with the account's recovery code, with no email.
+
+    There is no email here to send a reset link to, and a reader who has lost
+    a password must not have lost the books with it. The code is spent: every
+    session ends, as for a password change, and a new code comes back, to be
+    kept in place of the old one.
+
+    Every refusal is one answer, and takes the same work, for the reason
+    ``login`` gives: whether an address has an account here is information
+    about a person's disability.
+    """
+    store = store_of(request)
+    # Hashed first, and whatever happens next: the expensive step runs for a
+    # wrong code as it does for a right one. A weak password is refused before
+    # the code is looked at, which says nothing about the account.
+    try:
+        password_hash = passwords.hash_password(body.new_password)
+    except passwords.WeakPassword as weak:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(weak)) from weak
+
+    user = store.get_user_by_email(body.email.strip().lower())
+    stored = user.recovery_hash if user and user.recovery_hash else _NO_CODE_HASH
+    matches = hmac.compare_digest(codes.code_hash(body.recovery_code), stored)
+    if user is None or user.recovery_hash is None or not matches:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, RECOVERY_REFUSED)
+
+    user = store.put_user(replace(user, password_hash=password_hash))
+    store.delete_sessions_for_user(user.user_id)
+    store.record(
+        AuditEvent(
+            event_id=new_id("aud"),
+            kind="password_recovered",
+            actor=user.user_id,
+            subject=user.user_id,
+            reason="recovery-code",
+        )
+    )
+    recovery_code = _new_recovery_code(store, user)
+    # Read back, so the account says it has a code because it does.
+    signed_in = _sign_in(store, store.get_user(user.user_id) or user)
+    return signed_in.model_copy(update={"recovery_code": recovery_code})
+
+
+@router.post("/recovery-code")
+def replace_recovery_code(
+    body: PasswordCheck, request: Request, user: User = CurrentUser
+) -> RecoveryCode:
+    """Make a new recovery code, and end the old one.
+
+    For a reader who lost the code, or whose account predates codes. It asks
+    for the password, as a password change does: whoever holds a stolen
+    session must not be able to mint a code and take the account.
+    """
+    correct, _ = passwords.verify(body.current_password, user.password_hash)
+    if not correct:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That password is not correct.")
+    store = store_of(request)
+    code = _new_recovery_code(store, user)
+    store.record(
+        AuditEvent(
+            event_id=new_id("aud"),
+            kind="recovery_code_replaced",
+            actor=user.user_id,
+            subject=user.user_id,
+            reason="account-page",
+        )
+    )
+    return RecoveryCode(recovery_code=code)
 
 
 @router.post("/login", dependencies=[SessionsRequired])
@@ -273,6 +386,13 @@ def redeem_teacher_invite(body: Invitation, request: Request, user: User = Curre
         )
     )
     return Account.of(replace(user, role=Role.TEACHER))
+
+
+def _new_recovery_code(store: Store, user: User) -> str:
+    """Give an account a fresh code, replacing any it had. Returns it, once."""
+    code = codes.new_code(RECOVERY_GROUPS)
+    store.set_recovery_hash(user.user_id, codes.code_hash(code))
+    return code
 
 
 def _sign_in(store: Store, user: User) -> SignedIn:

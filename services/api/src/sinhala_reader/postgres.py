@@ -801,6 +801,13 @@ class PostgresStore(Store):
             ).rowcount
         return changed == 1
 
+    def set_recovery_hash(self, user_id: str, recovery_hash: str | None) -> bool:
+        with self._pool.connection() as connection:
+            changed = connection.execute(
+                "UPDATE users SET recovery_hash = %s WHERE user_id = %s", (recovery_hash, user_id)
+            ).rowcount
+        return changed == 1
+
     def put_invite(self, invite: TeacherInvite) -> TeacherInvite:
         with self._pool.connection() as connection:
             connection.execute(

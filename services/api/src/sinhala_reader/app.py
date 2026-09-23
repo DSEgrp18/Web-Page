@@ -289,8 +289,9 @@ def create_app(deps: Deps | None = None) -> FastAPI:
                 "through registration are both unthrottled."
             )
             limitations.append(
-                "There is no email verification and no password reset. A reader who "
-                "forgets their password cannot recover the account."
+                "There is no email verification. A forgotten password is reset with the "
+                "recovery code shown once at registration; a reader who has lost both "
+                "needs an admin."
             )
             if passwords.is_weakened():
                 limitations.append(

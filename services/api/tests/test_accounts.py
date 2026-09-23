@@ -372,7 +372,7 @@ class TestReadinessKeepsTellingTheTruth:
         limitations = client.get("/readiness").json()["limitations"]
 
         assert any("rate limiting" in note for note in limitations)
-        assert any("password reset" in note for note in limitations)
+        assert any("email verification" in note for note in limitations)
         # And the header warning is gone, because the header no longer works.
         assert not any("trusted header" in note for note in limitations)
 

@@ -234,6 +234,8 @@ should not require a database and a registered user.
 | `GET /auth/me` | Who am I — what a reloaded interface asks. |
 | `POST /auth/password` | Change it, and end **every** session. |
 | `POST /auth/teacher-invite` | Spend a single-use invitation code to become a teacher. Students only. |
+| `POST /auth/recover` | Email, recovery code and a new password: resets it, ends every session, returns a new code. |
+| `POST /auth/recovery-code` | With the current password: a new recovery code, and the old one stops working. |
 
 ### What these routes refuse to say
 
@@ -304,10 +306,19 @@ A role changes only through `Store.set_role`. Writing a whole user back, as the
 password routes do, never touches it, so a copy taken before a promotion cannot
 undo it.
 
+### Recovery without email
+
+There is no email to send a reset link to. Registration returns a
+`recovery_code` once: four groups of four characters with no look-alikes,
+stored only as a hash. `POST /auth/recover` spends it, sets the new password,
+ends every session and returns a replacement code, which is the only other time
+a code is shown. A wrong code, an unknown address and an account with no code
+all get one answer. `has_recovery_code` on the account says whether an older
+account still needs to make one.
+
 ### Not done
 
-No rate limiting, no email verification, no password reset. A reader who forgets
-their password cannot recover the account. `/readiness` lists all three on every
+No rate limiting and no email verification. `/readiness` lists both on every
 call, so "we have logins" cannot stand in for "this is safe to expose".
 
 ## Storage
