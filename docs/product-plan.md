@@ -180,6 +180,14 @@ different, broken image.
 
 **Rejected:** installing torchcodec plus FFmpeg. It is heavier and reverses a decision the manifest recorded with its reasons.
 
+**Status.** The voice fix landed first, as its own pull request: `torch==2.8.0`,
+`torchaudio==2.8.0` and `coqui-tts==0.27.5` in both runtimes, an import check in
+both image builds, and `.github/workflows/voice-image.yml` building the Docker
+image in CI whenever its Dockerfile changes. Reading the coqui-tts source showed
+the cause precisely: 0.27.5 raises on import when torch is 2.9 or newer and
+torchcodec is absent. The constraints files that close the rest of #79 are next,
+written from the `pip freeze` that workflow records.
+
 ### 0.2 Segment role and level are lost on reload
 
 **What is wrong.** In `services/worker/src/sinhala_documents/serialise.py`, `_segment`

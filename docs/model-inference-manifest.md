@@ -259,34 +259,42 @@ These pins were measured in the owner's runtime. Re-verify them in the container
 before trusting them there; CLAUDE.md is explicit that package pins must not be
 copied between projects without testing.
 
-### What the Modal deployment pins, and why it differs
+### What the voice runtimes pin, and why
 
-`services/tts/deploy/modal_app.py` pins exact versions, which this table does
-not give. Two of them do not match what was measured here, and both differences
-are deliberate rather than oversights to be tidied up:
+Both runtimes that load the voice pin the same libraries:
 
-| | Measured here | Modal container |
+| | Docker (`infra/tts.Dockerfile`) | Modal (`services/tts/deploy/modal_app.py`) |
 | --- | --- | --- |
-| Python | 3.13.7 | 3.12 |
-| `torch` / `torchaudio` | `torch 2.13.0+cpu` | `2.9.1` / `2.9.1` |
+| Python | 3.13 | 3.12 |
+| `torch` / `torchaudio` | `2.8.0` / `2.8.0`, CPU index | `2.8.0` / `2.8.0`, `cu126` index |
+| `coqui-tts` | `0.27.5` | `0.27.5` |
+| `transformers` | `>=4.57,<5` | `>=4.57,<5` |
 
-**The measured torch cannot be reproduced as a matched pair.** There is no
-`torchaudio` 2.13.0 for any Python: the newest `torchaudio` with cp313 wheels on
-the `cu126` index is 2.11.0. `torch` and `torchaudio` version numbers stopped
-tracking each other, so "pin torch to what was measured" has no valid
-counterpart to pin beside it. `2.9.1`/`2.9.1` is a consistent pair that exists
-for cp312 and cp313 on `cu126`; it is four minor versions behind the CPU run,
-and it has never been executed.
+**Why torch 2.8, and not newer.** coqui-tts 0.27.5 refuses to import when torch
+is 2.9 or newer and torchcodec is absent. In `TTS/__init__.py`:
+`if is_torch_greater_or_equal("2.9"): if not is_torchcodec_available(): raise`.
+torchcodec is deliberately absent (see the table above), so torch has to stay
+below 2.9. On 23 September 2026 the Docker image's `torch>=2.5` resolved to 2.9,
+and the voice stopped loading: the same commit as a working image, a different
+and broken build. Modal's earlier pin of `2.9.1` would have failed the same way
+on its first run. Both are now `2.8.0`, the last release before the change.
+Wheels were confirmed on the PyTorch indexes for both targets (cp313 CPU,
+cp312 `cu126`) before the pins were written.
 
-Note also that `torch` 2.9 is where **torchcodec** became the audio IO path,
-which the row above records as deliberately absent. If a load fails on missing
-FFmpeg libraries, that is the first thing to look at.
+**Both images check this when they build.** Each imports exactly what the
+adapter imports when it loads the voice, so a resolve that would break the
+voice fails the build instead of the first listener. The Docker image is built
+in CI by `.github/workflows/voice-image.yml` whenever its Dockerfile changes;
+it needs no weights, because the import is what broke.
 
-So the container's dependency set is a *candidate*, not a measurement, and it
-differs from this document in the two rows above. `modal run` is what settles
-it. Record what the container actually resolved — `pip freeze` in the image, not
-what the source file asks for — because a range or a resolver change can make
-those two different things.
+**What is still not known.** The CPU run recorded below used `torch 2.13.0+cpu`
+and loaded the voice. The coqui-tts version in that environment was not
+recorded, so why it imported under a torch newer than 2.9 cannot be said. An
+earlier coqui-tts, from before this check was added, is the likely explanation.
+That gap is the argument for recording `pip freeze` with every measurement. And
+none of these pins has produced a GPU number yet: `modal run` settles that, and
+what the container resolved should be recorded here from `pip freeze` in the
+image, not from what the source file asks for.
 
 ## First measured run
 

@@ -38,17 +38,34 @@ RUN apt-get update \
 # them appears to succeed and then fails at model load. And the default index
 # serves CUDA builds: several gigabytes of GPU runtime for an image that has no
 # GPU.
+#
+# Pinned exactly, and below 2.9 on purpose. coqui-tts refuses to import at all
+# when torch is 2.9 or newer and torchcodec is absent
+# (`if is_torch_greater_or_equal("2.9"): if not is_torchcodec_available(): raise`),
+# because torch 2.9 moved audio IO to torchcodec, which needs FFmpeg's native
+# libraries. The adapter reads the speaker clip with soundfile and never needs
+# either, which the manifest records as a deliberate decision. This used to say
+# `torch>=2.5`: a rebuild on 23 September 2026 resolved it to 2.9, and the voice
+# stopped loading - the same commit, a different and broken image.
 RUN pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cpu \
-      "torch>=2.5" "torchaudio>=2.5"
+      "torch==2.8.0" "torchaudio==2.8.0"
 
-# transformers is pinned deliberately. transformers 5 removed isin_mps_friendly,
-# which coqui-tts still imports; an unpinned install resolves to 5.x and
-# synthesis dies on the first request rather than at install time.
+# coqui-tts is pinned to the version the Modal deployment uses, so the same
+# voice runs on the same library wherever it is served. transformers is pinned
+# deliberately too: transformers 5 removed isin_mps_friendly, which coqui-tts
+# still imports; an unpinned install resolves to 5.x and synthesis dies on the
+# first request rather than at install time.
 RUN pip install --no-cache-dir \
-      "coqui-tts>=0.25" \
+      "coqui-tts==0.27.5" \
       "transformers>=4.57,<5" \
       "soundfile>=0.12"
+
+# Fail the build, not the first reader. These are exactly the imports the
+# adapter makes when it loads the voice; the torchcodec refusal above happens
+# on the first of them. No weights are needed for this, so it runs anywhere,
+# including CI.
+RUN python -c "from TTS.tts.configs.xtts_config import XttsConfig; from TTS.tts.models.xtts import Xtts; import torch; print('voice runtime imports, torch', torch.__version__)"
 
 RUN pip install --no-cache-dir \
       "fastapi>=0.115" \

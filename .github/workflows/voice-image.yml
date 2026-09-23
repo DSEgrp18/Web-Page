@@ -1,0 +1,57 @@
+# Builds the image that carries the real Sinhala voice, and proves it can load it.
+#
+# Why this exists: on 23 September 2026 a rebuild of infra/tts.Dockerfile, from
+# the same commit as a working image, produced a broken one. `torch>=2.5`
+# resolved to 2.9, coqui-tts then refused to import without torchcodec, and the
+# voice stopped loading. Nothing caught it, because no job ever built that image.
+#
+# The Dockerfile now fails its own build if the voice runtime cannot be
+# imported, so building it here is the test. No weights are needed: the import
+# is what broke, and it needs none.
+#
+# Why a separate workflow and not a job in ci.yml: this build downloads torch
+# and coqui-tts and takes several minutes, and it only needs to run when what
+# decides those dependencies changes. ci.yml's aggregate `ci` check requires
+# every one of its jobs to *succeed*, so a job there that skipped on unrelated
+# pull requests would turn every one of them red. As its own workflow it runs,
+# and reports, on the pull requests that touch the voice image, and is
+# advisory rather than a required check. It can also be run by hand.
+name: Voice image
+
+on:
+  pull_request:
+    paths:
+      - infra/tts.Dockerfile
+      - .github/workflows/voice-image.yml
+  push:
+    branches: [main]
+    paths:
+      - infra/tts.Dockerfile
+      - .github/workflows/voice-image.yml
+  workflow_dispatch:
+
+concurrency:
+  group: voice-image-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Voice image builds and imports
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The build context is the repository root, as compose uses. models/ is
+      # excluded by .dockerignore, so no weights could be sent even by mistake.
+      - name: Build infra/tts.Dockerfile
+        run: docker build --file infra/tts.Dockerfile --tag voice-image-check .
+      # Everything the image resolved, not what the Dockerfile asked for: the two
+      # differ wherever it says `>=`. This is the record a constraints file for
+      # #79 is written from, and the evidence of what a release contained.
+      - name: Record what was actually installed
+        run: docker run --rm voice-image-check python -m pip freeze

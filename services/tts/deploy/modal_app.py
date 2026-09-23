@@ -81,6 +81,13 @@ volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 #                                 the first request.
 #   no torchcodec               - deliberately absent; the conditioning path
 #                                 does not need it.
+#   torch 2.8, not 2.9          - follows from the line above. coqui-tts
+#                                 refuses to import when torch is 2.9 or newer
+#                                 and torchcodec is absent. These pins said
+#                                 2.9.1 until 23 September 2026, which made the
+#                                 two lines contradict each other: the first
+#                                 `modal run` would have failed on import. The
+#                                 Docker image failed exactly this way.
 #
 # CLAUDE.md is explicit that pins must not be copied between environments
 # untested. These were measured on Windows with Python 3.13 and are **not yet
@@ -89,8 +96,8 @@ volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install(
-        "torch==2.9.1",
-        "torchaudio==2.9.1",
+        "torch==2.8.0",
+        "torchaudio==2.8.0",
         index_url="https://download.pytorch.org/whl/cu126",
     )
     .pip_install(
@@ -98,6 +105,15 @@ image = (
         "transformers>=4.57,<5",
         "numpy>=1.26",
         "soundfile>=0.12",
+    )
+    # Fail the image build rather than the first `modal run`. These are exactly
+    # the imports the adapter makes when it loads the voice, and the torchcodec
+    # refusal happens on the first of them. Needs no GPU and no weights, so it
+    # costs a few seconds of build time rather than a billed GPU start.
+    .run_commands(
+        'python -c "from TTS.tts.configs.xtts_config import XttsConfig; '
+        "from TTS.tts.models.xtts import Xtts; import torch; "
+        "print('voice runtime imports, torch', torch.__version__)\""
     )
     .add_local_python_source("sinhala_tts")
 )
