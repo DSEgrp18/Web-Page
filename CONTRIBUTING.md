@@ -87,6 +87,28 @@ No `PYTHONPATH` is needed — each `pyproject.toml` puts the source directories 
 the path for pytest. What you do need is that service's runtime dependencies;
 its README lists them on one `pip install` line.
 
+### The browser test
+
+`browser-tests/` drives the real reader in Chromium with Playwright, against a
+mocked API. It is the `Reader browser` job, and it is part of the required `ci`
+check like every other job, so it can turn your pull request red on its own.
+
+```bash
+cd browser-tests
+npm ci
+npx playwright install --with-deps chromium   # once per machine
+npm test
+```
+
+It starts the reader itself on port 3100, so nothing needs to be running first.
+
+What these guard is not the feature under test for its own sake. The first
+asserts that opening a document makes **no audio request at all** — the "no
+automatic narration on page load" rule in CLAUDE.md, and the kind of regression
+a unit test with a mocked player cannot see. The second uploads a PDF and a DOCX
+together, which is where a real file input and a real multi-file flow behave
+differently from a mocked one.
+
 ### The tests that need a server
 
 `services/api` has database and queue tests that **skip silently** without one,

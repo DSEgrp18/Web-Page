@@ -259,6 +259,35 @@ These pins were measured in the owner's runtime. Re-verify them in the container
 before trusting them there; CLAUDE.md is explicit that package pins must not be
 copied between projects without testing.
 
+### What the Modal deployment pins, and why it differs
+
+`services/tts/deploy/modal_app.py` pins exact versions, which this table does
+not give. Two of them do not match what was measured here, and both differences
+are deliberate rather than oversights to be tidied up:
+
+| | Measured here | Modal container |
+| --- | --- | --- |
+| Python | 3.13.7 | 3.12 |
+| `torch` / `torchaudio` | `torch 2.13.0+cpu` | `2.9.1` / `2.9.1` |
+
+**The measured torch cannot be reproduced as a matched pair.** There is no
+`torchaudio` 2.13.0 for any Python: the newest `torchaudio` with cp313 wheels on
+the `cu126` index is 2.11.0. `torch` and `torchaudio` version numbers stopped
+tracking each other, so "pin torch to what was measured" has no valid
+counterpart to pin beside it. `2.9.1`/`2.9.1` is a consistent pair that exists
+for cp312 and cp313 on `cu126`; it is four minor versions behind the CPU run,
+and it has never been executed.
+
+Note also that `torch` 2.9 is where **torchcodec** became the audio IO path,
+which the row above records as deliberately absent. If a load fails on missing
+FFmpeg libraries, that is the first thing to look at.
+
+So the container's dependency set is a *candidate*, not a measurement, and it
+differs from this document in the two rows above. `modal run` is what settles
+it. Record what the container actually resolved — `pip freeze` in the image, not
+what the source file asks for — because a range or a resolver change can make
+those two different things.
+
 ## First measured run
 
 2026-09-09, `services/tts/scripts/smoke_synthesize.py`, on the development
