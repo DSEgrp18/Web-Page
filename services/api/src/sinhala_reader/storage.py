@@ -39,6 +39,20 @@ from enum import StrEnum
 DATABASE_URL_ENV = "SINHALA_READER_DATABASE_URL"
 
 
+class Role(StrEnum):
+    """What an account may do beyond reading its own books.
+
+    Registration always makes a student. Nobody can make themselves anything
+    else: a teacher is made by an admin, on the command line or through a
+    single-use invitation. An admin has no access to anyone's content; admin
+    work happens on the command line.
+    """
+
+    STUDENT = "student"
+    TEACHER = "teacher"
+    ADMIN = "admin"
+
+
 class EmailTaken(Exception):
     """That address already has an account.
 
@@ -227,6 +241,54 @@ class User:
     password_hash: str
     display_name: str
     created_at: str = field(default_factory=_now)
+
+    role: Role = Role.STUDENT
+    """Set when the account is created, and changed only by
+    :meth:`Store.set_role`. Writing a whole user back never changes it, so a
+    stale copy saved after a password change cannot demote a teacher."""
+
+    recovery_hash: str | None = None
+    """The hash of the one recovery code this account has, or ``None``.
+
+    Like the role, it is set only by its own method, so a stale copy written
+    back cannot bring a used code back to life.
+    """
+
+
+@dataclass(frozen=True)
+class TeacherInvite:
+    """A single-use code that makes the student who redeems it a teacher.
+
+    Only the hash is stored, as for sessions: the code is shown once, to the
+    admin who made it.
+    """
+
+    code_hash: str
+    created_by: str
+    created_at: str
+    expires_at: str
+    used_by: str | None = None
+    used_at: str | None = None
+
+
+@dataclass(frozen=True)
+class AuditEvent:
+    """Something that changed what an account may do, and who did it.
+
+    Kinds and reasons are codes, never content: the log says that a role was
+    granted and on what basis, not anything from a book.
+    """
+
+    event_id: str
+    kind: str
+    actor: str
+    """A user id, or ``cli`` for the admin command line."""
+
+    subject: str | None
+    """The account it happened to, when there is one."""
+
+    reason: str
+    at: str = field(default_factory=_now)
 
 
 @dataclass(frozen=True)
@@ -430,6 +492,32 @@ class Store(ABC):
     def get_user_by_email(self, email_key: str) -> User | None: ...
 
     @abstractmethod
+    def set_role(self, user_id: str, role: Role) -> bool:
+        """Change an account's role. The only way a role changes.
+
+        Returns ``False`` if there is no such account. Callers record an
+        :class:`AuditEvent`; the store does not decide what counts as one.
+        """
+
+    @abstractmethod
+    def put_invite(self, invite: TeacherInvite) -> TeacherInvite: ...
+
+    @abstractmethod
+    def redeem_invite(self, code_hash: str, user_id: str, now: str) -> bool:
+        """Spend an invitation, once. ``True`` only for the one caller that did.
+
+        Unused and unexpired are checked in the same step as marking it used,
+        so two people typing the same code at once cannot both become teachers.
+        """
+
+    @abstractmethod
+    def record(self, event: AuditEvent) -> None: ...
+
+    @abstractmethod
+    def audit_for(self, subject: str) -> list[AuditEvent]:
+        """What happened to an account, oldest first."""
+
+    @abstractmethod
     def put_session(self, session: Session) -> Session: ...
 
     @abstractmethod
@@ -476,6 +564,8 @@ class InMemoryStore(Store):
         self._bookmarks_by_segment: dict[tuple[str, str, str], str] = {}
         self._users: dict[str, User] = {}
         self._users_by_email: dict[str, str] = {}
+        self._invites: dict[str, TeacherInvite] = {}
+        self._audit: list[AuditEvent] = []
         self._sessions: dict[str, Session] = {}
 
     # -- documents ---------------------------------------------------------
@@ -705,9 +795,43 @@ class InMemoryStore(Store):
             existing = self._users_by_email.get(user.email_key)
             if existing is not None and existing != user.user_id:
                 raise EmailTaken(user.email_key)
+            stored = self._users.get(user.user_id)
+            if stored is not None:
+                # As the Postgres upsert: role and recovery code have their own
+                # methods, and a whole-user write never changes them.
+                user = replace(user, role=stored.role, recovery_hash=stored.recovery_hash)
             self._users[user.user_id] = user
             self._users_by_email[user.email_key] = user.user_id
         return user
+
+    def set_role(self, user_id: str, role: Role) -> bool:
+        with self._lock:
+            user = self._users.get(user_id)
+            if user is None:
+                return False
+            self._users[user_id] = replace(user, role=role)
+            return True
+
+    def put_invite(self, invite: TeacherInvite) -> TeacherInvite:
+        with self._lock:
+            self._invites[invite.code_hash] = invite
+        return invite
+
+    def redeem_invite(self, code_hash: str, user_id: str, now: str) -> bool:
+        with self._lock:
+            invite = self._invites.get(code_hash)
+            if invite is None or invite.used_at is not None or invite.expires_at <= now:
+                return False
+            self._invites[code_hash] = replace(invite, used_by=user_id, used_at=now)
+            return True
+
+    def record(self, event: AuditEvent) -> None:
+        with self._lock:
+            self._audit.append(event)
+
+    def audit_for(self, subject: str) -> list[AuditEvent]:
+        with self._lock:
+            return sorted((e for e in self._audit if e.subject == subject), key=lambda e: e.at)
 
     def get_user(self, user_id: str) -> User | None:
         with self._lock:

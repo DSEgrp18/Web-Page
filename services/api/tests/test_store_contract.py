@@ -29,6 +29,7 @@ import pytest
 
 from sinhala_reader.storage import (
     AudioRecord,
+    AuditEvent,
     Bookmark,
     Document,
     EmailTaken,
@@ -36,8 +37,10 @@ from sinhala_reader.storage import (
     Job,
     JobState,
     Progress,
+    Role,
     Session,
     Store,
+    TeacherInvite,
     User,
     new_id,
 )
@@ -915,3 +918,117 @@ class TestSessions:
 
     def test_an_unknown_token_is_none(self, store: Store) -> None:
         assert store.get_session("never-issued") is None
+
+
+# --- roles, invitations and the audit log ----------------------------------
+
+
+class TestRoles:
+    def test_a_new_account_is_a_student(self, store: Store) -> None:
+        user = store.put_user(a_user())
+        got = store.get_user(user.user_id)
+        assert got is not None and got.role is Role.STUDENT
+
+    def test_set_role_is_the_way_a_role_changes(self, store: Store) -> None:
+        user = store.put_user(a_user())
+
+        assert store.set_role(user.user_id, Role.TEACHER) is True
+
+        got = store.get_user(user.user_id)
+        assert got is not None and got.role is Role.TEACHER
+
+    def test_a_whole_user_write_keeps_the_role_and_recovery_code(self, store: Store) -> None:
+        """A stale copy written back must not demote a teacher or revive a code."""
+        from dataclasses import replace
+
+        user = store.put_user(a_user())
+        store.set_role(user.user_id, Role.TEACHER)
+
+        store.put_user(replace(user, display_name="Renamed", recovery_hash="stale"))
+
+        got = store.get_user(user.user_id)
+        assert got is not None
+        assert (got.display_name, got.role, got.recovery_hash) == ("Renamed", Role.TEACHER, None)
+
+    def test_a_missing_account_has_no_role_to_set(self, store: Store) -> None:
+        assert store.set_role("usr_nobody", Role.ADMIN) is False
+
+
+class TestTeacherInvites:
+    NOW = "2026-09-01T00:00:00+00:00"
+
+    def _invite(self, store: Store, expires_at: str = "2026-09-08T00:00:00+00:00") -> str:
+        code_hash = new_id("hash")
+        store.put_invite(
+            TeacherInvite(
+                code_hash=code_hash,
+                created_by="cli",
+                created_at="2026-08-31T00:00:00+00:00",
+                expires_at=expires_at,
+            )
+        )
+        return code_hash
+
+    def test_redeems_once(self, store: Store) -> None:
+        one = store.put_user(a_user("one@example.lk"))
+        two = store.put_user(a_user("two@example.lk"))
+        code_hash = self._invite(store)
+
+        assert store.redeem_invite(code_hash, one.user_id, self.NOW) is True
+        assert store.redeem_invite(code_hash, two.user_id, self.NOW) is False
+
+    def test_an_expired_one_is_not_redeemed(self, store: Store) -> None:
+        user = store.put_user(a_user())
+        code_hash = self._invite(store, expires_at="2026-08-31T12:00:00+00:00")
+
+        assert store.redeem_invite(code_hash, user.user_id, self.NOW) is False
+
+    def test_an_unknown_one_is_not_redeemed(self, store: Store) -> None:
+        user = store.put_user(a_user())
+        assert store.redeem_invite("never-issued", user.user_id, self.NOW) is False
+
+
+class TestAudit:
+    def test_records_are_read_back_per_account_oldest_first(self, store: Store) -> None:
+        user = store.put_user(a_user())
+        other = store.put_user(a_user("other@example.lk"))
+        later = AuditEvent(
+            event_id=new_id("aud"),
+            kind="role_granted",
+            actor="cli",
+            subject=user.user_id,
+            reason="teacher->student:revoked",
+            at="2026-09-02T00:00:00+00:00",
+        )
+        earlier = AuditEvent(
+            event_id=new_id("aud"),
+            kind="role_granted",
+            actor="cli",
+            subject=user.user_id,
+            reason="student->teacher:verified-teacher",
+            at="2026-09-01T00:00:00+00:00",
+        )
+        for event in (later, earlier):
+            store.record(event)
+        store.record(
+            AuditEvent(
+                event_id=new_id("aud"),
+                kind="role_granted",
+                actor="cli",
+                subject=other.user_id,
+                reason="student->teacher:school-staff",
+            )
+        )
+
+        assert store.audit_for(user.user_id) == [earlier, later]
+
+    def test_an_event_about_no_account_is_kept(self, store: Store) -> None:
+        store.record(
+            AuditEvent(
+                event_id=new_id("aud"),
+                kind="invite_created",
+                actor="cli",
+                subject=None,
+                reason="teacher:7d",
+            )
+        )

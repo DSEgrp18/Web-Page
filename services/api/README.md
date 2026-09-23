@@ -233,6 +233,7 @@ should not require a database and a registered user.
 | `POST /auth/logout` | End this session. Idempotent. |
 | `GET /auth/me` | Who am I — what a reloaded interface asks. |
 | `POST /auth/password` | Change it, and end **every** session. |
+| `POST /auth/teacher-invite` | Spend a single-use invitation code to become a teacher. Students only. |
 
 ### What these routes refuse to say
 
@@ -281,6 +282,27 @@ Long, deliberately. Signing in is a much heavier task with a screen reader or at
 exactly the readers this exists for. Sessions are revocable server-side, which
 is what makes that defensible, and they renew in use so a daily reader is never
 signed out mid-chapter.
+
+### Roles, and the admin command line
+
+Every account is a `student`, `teacher` or `admin`, and `GET /auth/me` says
+which. Registration always makes a student, whatever the request says. A
+teacher is made in one of two ways, both starting on the command line, since
+admins have no screens and no access to anyone's books:
+
+```bash
+# needs SINHALA_READER_DATABASE_URL; it refuses to act on the in-memory store
+python -m sinhala_reader.admin grant-role --email t@school.lk --role teacher --reason verified-teacher
+python -m sinhala_reader.admin invite-teacher --days 7   # prints a code, once
+```
+
+An invitation code is single use, expires in at most 30 days, and is stored
+only as a hash. Reasons are codes from a fixed list. Every grant and every
+invitation goes into `audit_events`, which holds codes and never content.
+
+A role changes only through `Store.set_role`. Writing a whole user back, as the
+password routes do, never touches it, so a copy taken before a promotion cannot
+undo it.
 
 ### Not done
 

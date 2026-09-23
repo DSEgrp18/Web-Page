@@ -19,12 +19,15 @@ is no rate limiting yet, and ``/readiness`` says so.
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 
-from . import passwords, sessions
+from . import codes, passwords, sessions
 from .security import AUTH_MODE_ENV, NOT_SIGNED_IN, require_user, store_of, uses_sessions
-from .storage import EmailTaken, Store, User, new_id
+from .storage import AuditEvent, EmailTaken, Role, Store, User, new_id
 
 router = APIRouter(prefix="/auth", tags=["accounts"])
 
@@ -95,6 +98,7 @@ class Account(BaseModel):
     user_id: str
     email: str
     display_name: str
+    role: str = Field(description="student, teacher or admin.")
     created_at: str
 
     @classmethod
@@ -103,8 +107,18 @@ class Account(BaseModel):
             user_id=user.user_id,
             email=user.email,
             display_name=user.display_name,
+            role=str(user.role),
             created_at=user.created_at,
         )
+
+
+class Invitation(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
+#: One answer for an invitation that does not exist, has been used, or has
+#: expired. Which of the three is not the typist's business.
+INVALID_INVITATION = "That invitation code is not valid."
 
 
 class SignedIn(BaseModel):
@@ -181,15 +195,7 @@ def login(body: Credentials, request: Request) -> SignedIn:
     if needs_rehash:
         # The parameters were raised since this password was set. Upgrade it
         # now, while the plaintext is in hand, rather than resetting it later.
-        user = User(
-            user_id=user.user_id,
-            email=user.email,
-            email_key=user.email_key,
-            password_hash=passwords.hash_password(body.password),
-            display_name=user.display_name,
-            created_at=user.created_at,
-        )
-        store.put_user(user)
+        user = store.put_user(replace(user, password_hash=passwords.hash_password(body.password)))
 
     return _sign_in(store, user)
 
@@ -236,17 +242,37 @@ def change_password(body: PasswordChange, request: Request, user: User = Current
     except passwords.WeakPassword as weak:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(weak)) from weak
 
-    store.put_user(
-        User(
-            user_id=user.user_id,
-            email=user.email,
-            email_key=user.email_key,
-            password_hash=password_hash,
-            display_name=user.display_name,
-            created_at=user.created_at,
+    store.put_user(replace(user, password_hash=password_hash))
+    store.delete_sessions_for_user(user.user_id)
+
+
+@router.post("/teacher-invite")
+def redeem_teacher_invite(body: Invitation, request: Request, user: User = CurrentUser) -> Account:
+    """Become a teacher with a single-use code an admin issued.
+
+    The only way an account makes itself a teacher, and it needs something an
+    admin handed over. A teacher or admin already has the role, and is not
+    allowed to spend an invitation meant for someone else.
+    """
+    store = store_of(request)
+    if user.role is not Role.STUDENT:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This account already has that role.")
+
+    now = datetime.now(UTC).isoformat()
+    if not store.redeem_invite(codes.code_hash(body.code), user.user_id, now):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, INVALID_INVITATION)
+
+    store.set_role(user.user_id, Role.TEACHER)
+    store.record(
+        AuditEvent(
+            event_id=new_id("aud"),
+            kind="role_granted",
+            actor=user.user_id,
+            subject=user.user_id,
+            reason="student->teacher:invitation",
         )
     )
-    store.delete_sessions_for_user(user.user_id)
+    return Account.of(replace(user, role=Role.TEACHER))
 
 
 def _sign_in(store: Store, user: User) -> SignedIn:
