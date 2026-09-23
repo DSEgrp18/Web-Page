@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 
 from . import codes, passwords, sessions
+from .preparation import forget_prepared
 from .ratelimit import client_address, enforce, private
 from .security import (
     AUTH_MODE_ENV,
@@ -370,6 +371,33 @@ def logout_everywhere(request: Request, response: Response, user: User = Current
     here, and its CSRF token, like any other change to the account.
     """
     store_of(request).delete_sessions_for_user(user.user_id)
+    clear_session_cookie(response)
+
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    body: PasswordCheck, request: Request, response: Response, user: User = CurrentUser
+) -> None:
+    """Delete the account and everything in it. Not undoable.
+
+    Every book goes first, each through the same deletion a reader's delete
+    button uses, so its text, audio, positions, bookmarks and caches go with it.
+    Then the account, its sessions and its history. It asks for the password,
+    because a session left open on a shared phone must not be enough to erase
+    someone's year of notes.
+
+    Phones are shared: the web app also clears its offline audio on the way out.
+    Backups are kept for the period the privacy notice states, and then go too.
+    """
+    correct, _ = passwords.verify(body.current_password, user.password_hash)
+    if not correct:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That password is not correct.")
+
+    store = store_of(request)
+    for document in store.list_documents(user.user_id):
+        store.delete_document(document.document_id, user.user_id)
+        forget_prepared(document.document_id)
+    store.delete_user(user.user_id)
     clear_session_cookie(response)
 
 
