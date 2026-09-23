@@ -40,18 +40,30 @@ This README is corrected as capabilities land rather than written ahead of them.
 | Study mode: retrieval and cited answers | Working. **Lexical retrieval only**; the dense and hybrid arms CLAUDE.md requires are not built. Answers are extractive by default, or written in Sinhala by Gemini when configured; citations are restricted to retrieved passages and unsupported answers abstain. **No evaluation set exists**, so retrieval and answer quality are unmeasured |
 | Deployment, monitoring, quotas, rollback | Not started. Nothing has been deployed |
 
-## Planned scope
+## Where this is going
 
-**Read mode** narrates the text extracted from the document. It is never
-rewritten by a language model. **Study mode** answers questions using passages
+Swara is becoming an accessible Sinhala **study platform**. A student can listen
+to a textbook, ask about it, practise on it and track their progress,
+independently, and a teacher can prepare a book once for a whole class. The
+loop is **Listen → Understand → Practise → Track**; the first two are built.
+
+The phased plan, with the reasons for each decision and the alternatives we
+turned down, is [`docs/product-plan.md`](docs/product-plan.md):
+
+0. **Foundation**: defects found under the new features, including the voice image and segment roles lost on reload
+1. **Portal and real accounts**
+2. **Class library**: reviewed, rights-attested books, voiced once for the class
+3. **Practise**: fill-in-the-blank questions, then model-drafted ones that a deterministic verifier must pass
+4. **Track**: coverage, progress and spaced review
+5. **Reader additions**: pasted text, search, problem reports, offline chapters
+6. **Evaluation and a user study**, then 7. **Release**
+
+**Read mode** narrates the text extracted from the document, and is never
+rewritten by a language model. **Study mode** answers questions from passages
 retrieved from the document, labels its output as AI-generated, cites the pages
-it used, and abstains when the document does not support an answer.
-
-The first release targets digital Sinhala PDFs and pasted text, sentence-level
-narration with page and chapter navigation, bookmarks and saved progress,
-cached and downloadable audio, and document questions with page citations.
-Scanned PDFs with Sinhala OCR, a correction workflow, and grounded summaries
-follow.
+it used, and abstains when the document does not support an answer. Practice
+questions follow the same discipline: a model may draft one, but it may never be
+the only judge of its answer.
 
 Accessibility targets WCAG 2.2 AA and is validated with people who use assistive
 technology. If a core task cannot be completed with NVDA or TalkBack, that is a
@@ -86,7 +98,7 @@ services/tts/        Sinhala XTTS text front end, segmentation, synthesis adapte
 services/worker/     PDF extraction, FM-Abhaya decoding, and the reading pipeline
 services/api/        Reader API: upload, segments, audio, progress, study answers
 data/legacy_fonts/   Vendored FM-Abhaya to Unicode mapping (MIT, hash-verified)
-docs/                Accessible UI guide, inference manifest, roadmap, setup evidence
+docs/                Product plan, quality roadmap, accessible UI guide, inference manifest, setup evidence
 infra/               Dockerfiles and Compose for running the whole reader locally
 browser-tests/       Playwright tests driving the real reader in Chromium
 scripts/             Repository verification and local refresh scripts
