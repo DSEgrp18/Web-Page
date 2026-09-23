@@ -106,6 +106,27 @@ describe("no automatically detectable violations", () => {
     expect(await violationsIn(container)).toEqual([]);
   });
 
+  it("on a book whose preparation failed", async () => {
+    const { container } = renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      new FakeServer({
+        books: [
+          {
+            document_id: "doc-1",
+            filename: "ඉතිහාසය.pdf",
+            version: null,
+            pages: [],
+            job: { state: "failed", stage: "stalled", can_retry: true },
+          },
+        ],
+      }),
+    );
+    await screen.findByText(strings.failedStalled);
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
   it("on the bookmarks screen", async () => {
     const { container } = renderApp(
       <AppFrame>

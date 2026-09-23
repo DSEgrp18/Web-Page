@@ -74,6 +74,15 @@ export interface Job {
   stage: string;
   /** Why it failed. Never contains document text. */
   detail: string | null;
+  /**
+   * How far through the current stage, in pages. Each stage counts its own
+   * pages, so these start again when the stage changes. Null before a stage
+   * finishes its first page.
+   */
+  pages_done: number | null;
+  pages_total: number | null;
+  /** Whether `retryDocument` would start the book again. */
+  can_retry: boolean;
   updated_at: string;
 }
 
@@ -100,6 +109,11 @@ export interface DocumentSummary {
   segment_count: number;
   /** Null when this reader has never opened the book. */
   reading: ReadingPosition | null;
+  /**
+   * The latest preparation job. A book with no version is being prepared only
+   * while this is queued or running; after a failure it says why.
+   */
+  job: Job | null;
 }
 
 /** Where a chapter opens, as the book prints it. */
@@ -113,7 +127,6 @@ export interface Chapter {
 
 export interface DocumentDetail extends DocumentSummary {
   notes: string[];
-  job: Job | null;
   /**
    * `[]` means the book was examined and has none. `null` means nobody looked
    * (not ready, or prepared before chapters existed). Never announce `null` as

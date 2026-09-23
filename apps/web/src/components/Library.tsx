@@ -16,6 +16,7 @@ import {
   isFinished,
   isReady,
   matchesQuery,
+  preparationOf,
   onShelf,
   percentRead,
   sortBooks,
@@ -23,7 +24,7 @@ import {
   type Shelf,
 } from "@/lib/books";
 import { ApiError } from "@/lib/client";
-import { messageFor, strings } from "@/lib/strings";
+import { jobFailureMessage, jobProgressMessage, messageFor, strings } from "@/lib/strings";
 import type { DocumentSummary } from "@/lib/types";
 
 /** How often to ask whether a book has finished preparing. */
@@ -87,8 +88,11 @@ export function Library() {
       // ready is news, "still working" every 1.5 seconds is not.
       const stillPending = new Set<string>();
       for (const book of listed) {
-        if (!isReady(book)) stillPending.add(book.document_id);
-        else if (pending.current.has(book.document_id)) say(strings.prepared);
+        const preparation = preparationOf(book);
+        if (preparation === "preparing") stillPending.add(book.document_id);
+        else if (!pending.current.has(book.document_id)) continue;
+        else if (preparation === "ready") say(strings.prepared);
+        else say(strings.bookFailed(bookTitle(book)));
       }
       pending.current = stillPending;
     },
@@ -129,7 +133,7 @@ export function Library() {
 
   // Poll only while something is being prepared, and stop the moment nothing
   // is. An idle library makes no requests: this runs on a student's phone.
-  const anyPending = (documents ?? []).some((book) => !isReady(book));
+  const anyPending = (documents ?? []).some((book) => preparationOf(book) === "preparing");
   useEffect(() => {
     if (!anyPending) return;
     const timer = setInterval(() => void refresh(), POLL_MS);
@@ -148,6 +152,25 @@ export function Library() {
       fail(cause);
     }
   }, [api, deleting, refresh, say, fail]);
+
+  /**
+   * Start a failed book again. The button that asked disappears as the book
+   * goes back to being prepared, so focus moves to the book's heading rather
+   * than falling to the top of the page.
+   */
+  const retry = useCallback(
+    async (book: DocumentSummary) => {
+      try {
+        await api.retryDocument(book.document_id);
+        say(strings.retrying);
+        await refresh();
+        document.getElementById(`book-${book.document_id}`)?.focus();
+      } catch (cause) {
+        fail(cause);
+      }
+    },
+    [api, refresh, say, fail],
+  );
 
   const saveName = useCallback(
     async (title: string) => {
@@ -291,6 +314,7 @@ export function Library() {
                   <BookCard
                     key={book.document_id}
                     book={book}
+                    onRetry={() => void retry(book)}
                     onRename={(trigger) => {
                       cardTrigger.current = trigger;
                       setRenaming(book);
@@ -409,14 +433,17 @@ function ContinueCard({ book }: { book: DocumentSummary }) {
 
 function BookCard({
   book,
+  onRetry,
   onRename,
   onDelete,
 }: {
   book: DocumentSummary;
+  onRetry: () => void;
   onRename: (trigger: HTMLElement) => void;
   onDelete: (trigger: HTMLElement) => void;
 }) {
-  const ready = isReady(book);
+  const preparation = preparationOf(book);
+  const ready = preparation === "ready";
   const percent = percentRead(book);
   const finished = isFinished(book);
   const title = bookTitle(book);
@@ -426,7 +453,11 @@ function BookCard({
       <BookCover documentId={book.document_id} ready={ready} />
 
       <div className="book-card-body">
-        <h2 className="book-card-title">{title}</h2>
+        {/* Focusable from script only: where focus lands after "try again",
+            whose button is gone once the book is being prepared. */}
+        <h2 className="book-card-title" id={`book-${book.document_id}`} tabIndex={-1}>
+          {title}
+        </h2>
 
         <p className="book-card-meta">
           {ready ? (
@@ -442,19 +473,30 @@ function BookCard({
                 <span className="pill pill-quiet">{strings.notStarted}</span>
               )}
             </>
+          ) : preparation === "failed" ? (
+            <span className="pill pill-bad">{strings.stateFailed}</span>
           ) : (
-            /* Not a percentage: the API reports no real progress for
-               preparation, and inventing one is a lie that runs at a
-               believable speed. */
-            <span className="pill pill-warn">{strings.stateRunning}</span>
+            /* Pages, not a percentage: each stage counts its own pages, and a
+               percentage across stages that run at different speeds would be
+               a guess that moves at a believable pace. Not a live region: the
+               book becoming ready or failing is announced, not every page. */
+            <span className="pill pill-warn">{jobProgressMessage(book.job)}</span>
           )}
         </p>
+
+        {preparation === "failed" ? <p className="hint">{jobFailureMessage(book.job)}</p> : null}
 
         {ready && percent !== null && !finished ? (
           <ProgressBar percent={percent} label={title} />
         ) : null}
 
         <div className="book-card-actions">
+          {preparation === "failed" && book.job?.can_retry ? (
+            <button className="btn btn-primary btn-sm" type="button" onClick={onRetry}>
+              {strings.retry}
+              <span className="visually-hidden"> — {title}</span>
+            </button>
+          ) : null}
           {ready ? (
             <Link className="btn btn-primary btn-sm" href={`/documents/${book.document_id}`}>
               {strings.continueOrOpen(book.reading !== null)}

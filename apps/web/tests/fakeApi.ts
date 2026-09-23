@@ -14,6 +14,7 @@ import type {
   Bookmark,
   Chapter,
   DocumentDetail,
+  Job,
   Page,
   Progress,
   Segment,
@@ -42,6 +43,11 @@ export interface FakeBook {
     stale: boolean;
   } | null;
   created_at?: string;
+  /**
+   * Replaces fields of the book's latest job. Without it the job has
+   * succeeded once there is a version, and is running before.
+   */
+  job?: Partial<Job>;
 }
 
 export interface FakeServerOptions {
@@ -164,6 +170,9 @@ export class FakeServer {
     if (method === "GET" && path === "/documents") return this.listDocuments();
     if (method === "POST" && path === "/documents") return this.upload(init);
 
+    const retry = /^\/documents\/([^/]+)\/retry$/.exec(path);
+    if (method === "POST" && retry) return this.retry(retry[1]!);
+
     const audio = /^\/documents\/([^/]+)\/segments\/([^/]+)\/audio$/.exec(path);
     if (method === "GET" && audio) return this.audio(audio[1]!, audio[2]!);
 
@@ -270,7 +279,11 @@ export class FakeServer {
         state: book.version ? "succeeded" : "running",
         stage: "extract",
         detail: null,
+        pages_done: null,
+        pages_total: null,
+        can_retry: false,
         updated_at: "2026-09-09T00:00:00Z",
+        ...book.job,
       },
     };
   }
@@ -285,6 +298,17 @@ export class FakeServer {
       return summary;
     });
     return this.json(listed);
+  }
+
+  /** As the API: a new job, queued, and only when the last one may be retried. */
+  private retry(id: string): Response {
+    const book = this.book(id);
+    if (!book) return this.notFound();
+    if (book.job?.state !== "failed" || !book.job.can_retry) {
+      return this.json({ detail: "cannot retry" }, 409);
+    }
+    book.job = { job_id: `job-${id}-again`, state: "queued", stage: "queued", can_retry: false };
+    return this.json(this.summarise(book), 202);
   }
 
   private async upload(init: RequestInit): Promise<Response> {

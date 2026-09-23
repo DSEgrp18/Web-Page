@@ -132,6 +132,17 @@ export class ReaderApi {
     await this.request(`/documents/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
+  /**
+   * Prepare a book again from the file already uploaded, after a failure.
+   * Only offered when the latest job says `can_retry`; the server refuses
+   * otherwise.
+   */
+  retryDocument(id: string): Promise<DocumentDetail> {
+    return this.json<DocumentDetail>(`/documents/${encodeURIComponent(id)}/retry`, {
+      method: "POST",
+    });
+  }
+
   /** Give a book the reader's own name. Blank clears it back to the filename. */
   renameDocument(id: string, title: string): Promise<DocumentDetail> {
     return this.json<DocumentDetail>(`/documents/${encodeURIComponent(id)}`, {
