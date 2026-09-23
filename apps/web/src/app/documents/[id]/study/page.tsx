@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
+
 import { Study } from "@/components/Study";
+import { strings } from "@/lib/strings";
+
+export const metadata: Metadata = { title: strings.studyHeading };
 
 /** The book stays private to the browser identity held by ReaderProvider. */
 export default async function StudyPage({ params }: { params: Promise<{ id: string }> }) {

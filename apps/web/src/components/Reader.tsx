@@ -16,6 +16,7 @@ import { SplitView } from "@/components/SplitView";
 import { ApiError } from "@/lib/client";
 import { messageFor, strings } from "@/lib/strings";
 import type { Bookmark, Chapter, DocumentDetail, Page, Progress } from "@/lib/types";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { usePlayer } from "@/lib/usePlayer";
 
 type Side = "original" | "reading";
@@ -61,6 +62,8 @@ export function Reader({
   const { preferences, set } = usePreferences();
 
   const [book, setBook] = useState<DocumentDetail | null>(null);
+  // The tab is named after the book, once it is known (WCAG 2.4.2).
+  useDocumentTitle(book ? book.title?.trim() || book.filename : null);
   const [pageIndex, setPageIndex] = useState(0);
   const [pdfPageIndex, setPdfPageIndex] = useState(0);
   const [page, setPage] = useState<Page | null>(null);
