@@ -101,10 +101,13 @@ npm test
 ```
 
 It starts the reader itself on port 3100, so nothing needs to be running first.
-What it guards is not the word list for its own sake: it asserts that opening a
-document makes **no audio request at all**, which is the "no automatic narration
-on page load" rule in CLAUDE.md, and the kind of regression a unit test with a
-mocked player cannot see.
+
+What these guard is not the feature under test for its own sake. The first
+asserts that opening a document makes **no audio request at all** — the "no
+automatic narration on page load" rule in CLAUDE.md, and the kind of regression
+a unit test with a mocked player cannot see. The second uploads a PDF and a DOCX
+together, which is where a real file input and a real multi-file flow behave
+differently from a mocked one.
 
 ### The tests that need a server
 

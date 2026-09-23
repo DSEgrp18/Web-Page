@@ -31,11 +31,11 @@ This README is corrected as capabilities land rather than written ahead of them.
 | Legacy FM-Abhaya font data (vendored, verified) | In place |
 | Sinhala TTS text front end | Vendored and tested; three defects documented |
 | Sinhala XTTS inference | Runs through the API on CPU, measured and listened to ([the manifest](docs/model-inference-manifest.md)). **Never run on a GPU and never deployed** — the Modal worker is written but unrun, so no GPU numbers exist |
-| PDF extraction and FM-Abhaya decoding | Working. 97.4% of a real 168-page Grade 11 textbook readable; what is not is flagged, not narrated |
-| Reader API: upload, pages, segments, audio, progress, bookmarks | Working. Accounts, PostgreSQL and a Celery queue are implemented and selected by configuration. [Compose](infra/README.md) runs PostgreSQL and Celery; the code's own **defaults** are still a trusted header, in-memory storage and a thread per job. Audio lives in the database rather than object storage |
-| Reader interface: library, two-panel reader, player, bookmarks, chapters | Working. **No testing with assistive technology has been done**, which CLAUDE.md treats as a release blocker, and no screen reader has ever been run against any of it. Chapter navigation landed; the reading settings screen, the voice-loading notice, the designed error states and offline downloads are still open issues |
+| Document extraction: PDF, DOCX, images | Working. 97.4% of a real 168-page Grade 11 textbook readable; what is not is flagged, not narrated. FM-Abhaya legacy text is decoded; DOCX gives paragraph text but not Word's page layout; a standalone image is one page and depends on OCR being configured |
+| Reader API: upload, pages, segments, audio, progress, bookmarks | Working, and accepts PDF, DOCX, PNG and JPEG. Accounts, PostgreSQL and a Celery queue are implemented and selected by configuration. [Compose](infra/README.md) runs PostgreSQL and Celery; the code's own **defaults** are still a trusted header, in-memory storage and a thread per job. Audio lives in the database rather than object storage |
+| Reader interface: library, two-panel reader, player, bookmarks, chapters | Working. **No testing with assistive technology has been done**, which CLAUDE.md treats as a release blocker, and no screen reader has ever been run against any of it. Chapter navigation and multi-file upload landed; the reading settings screen, the voice-loading notice, the designed error states and offline downloads are still open issues |
 | Sinhala interface text | **Awaiting native-speaker review** ([one file](apps/web/src/lib/strings.ts)) |
-| Scanned and broken pages: Sinhala OCR | Working locally with Tesseract (`sin`), off by default and `broken` under Compose. Every OCR'd page is marked for review; there is **no review or correction workflow yet**, and OCR accuracy has not been measured |
+| Scanned and broken pages: Sinhala OCR | Working locally with Tesseract (`sin`), off by default and `broken` under Compose. It also reads uploaded PNG and JPEG pages. Every OCR'd page is marked for review; there is **no review or correction workflow yet**, and OCR accuracy has not been measured |
 | Structure inference by a model | Optional (`SINHALA_READER_STRUCTURE`), verified character for character against the extraction; deterministic by default |
 | Study mode: retrieval and cited answers | Working. **Lexical retrieval only**; the dense and hybrid arms CLAUDE.md requires are not built. Answers are extractive by default, or written in Sinhala by Gemini when configured; citations are restricted to retrieved passages and unsupported answers abstain. **No evaluation set exists**, so retrieval and answer quality are unmeasured |
 | Deployment, monitoring, quotas, rollback | Not started. Nothing has been deployed |
@@ -86,9 +86,9 @@ services/tts/        Sinhala XTTS text front end, segmentation, synthesis adapte
 services/worker/     PDF extraction, FM-Abhaya decoding, and the reading pipeline
 services/api/        Reader API: upload, segments, audio, progress, study answers
 data/legacy_fonts/   Vendored FM-Abhaya to Unicode mapping (MIT, hash-verified)
-docs/                Accessible UI guide, inference manifest, setup evidence
+docs/                Accessible UI guide, inference manifest, roadmap, setup evidence
 infra/               Dockerfiles and Compose for running the whole reader locally
-browser-tests/       Playwright test driving the real reader in Chromium
+browser-tests/       Playwright tests driving the real reader in Chromium
 scripts/             Repository verification and local refresh scripts
 .github/             CI, code owners, issue and pull request templates
 CLAUDE.md            Governing project specification
