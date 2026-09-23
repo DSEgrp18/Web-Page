@@ -305,7 +305,7 @@ class TestAudio:
         record = an_audio_record(document, wav=wav)
 
         store.put_audio(record)
-        got = store.get_audio(record.cache_key, ALICE)
+        got = store.get_audio(record.cache_key, record.document_id, ALICE)
 
         assert got is not None
         assert got.wav == wav
@@ -323,7 +323,7 @@ class TestAudio:
         record = an_audio_record(document)
         store.put_audio(record)
 
-        assert store.get_audio(record.cache_key, BOB) is None
+        assert store.get_audio(record.cache_key, record.document_id, BOB) is None
 
     def test_the_real_model_flag_survives(self, store: Store) -> None:
         """It is part of cache identity and of every response.
@@ -336,13 +336,49 @@ class TestAudio:
         record = an_audio_record(document, is_real_model=True, model_version="ce18fe82442ccbd3")
         store.put_audio(record)
 
-        got = store.get_audio(record.cache_key, ALICE)
+        got = store.get_audio(record.cache_key, record.document_id, ALICE)
 
         assert got is not None and got.is_real_model is True
         assert got.model_version == "ce18fe82442ccbd3"
 
     def test_a_missing_key_is_none(self, store: Store) -> None:
-        assert store.get_audio("key_nothing", ALICE) is None
+        assert store.get_audio("key_nothing", "doc_nothing", ALICE) is None
+
+    def test_two_readers_of_the_same_book_each_keep_their_audio(self, store: Store) -> None:
+        """The key comes from the text, not the reader, so it is shared.
+
+        Two readers who upload the same PDF produce the same key for the same
+        sentence. When audio was keyed on that alone, Postgres kept the first
+        reader's clip and silently dropped the second's, and the in-memory store
+        let each overwrite the other. Either way one of them was synthesising
+        the same sentence again on every play.
+        """
+        alices, bobs = a_document(owner=ALICE), a_document(owner=BOB)
+        store.put_document(alices)
+        store.put_document(bobs)
+        key = "key_same_sentence_same_settings"
+
+        store.put_audio(an_audio_record(alices, cache_key=key, wav=b"alice"))
+        store.put_audio(an_audio_record(bobs, cache_key=key, wav=b"bob"))
+
+        alice_got = store.get_audio(key, alices.document_id, ALICE)
+        bob_got = store.get_audio(key, bobs.document_id, BOB)
+        assert alice_got is not None and alice_got.wav == b"alice"
+        assert bob_got is not None and bob_got.wav == b"bob"
+
+    def test_deleting_one_readers_book_keeps_the_others_audio(self, store: Store) -> None:
+        alices, bobs = a_document(owner=ALICE), a_document(owner=BOB)
+        store.put_document(alices)
+        store.put_document(bobs)
+        key = "key_same_sentence_same_settings"
+        store.put_audio(an_audio_record(alices, cache_key=key, wav=b"alice"))
+        store.put_audio(an_audio_record(bobs, cache_key=key, wav=b"bob"))
+
+        store.delete_document(alices.document_id, ALICE)
+
+        assert store.get_audio(key, alices.document_id, ALICE) is None
+        bob_got = store.get_audio(key, bobs.document_id, BOB)
+        assert bob_got is not None and bob_got.wav == b"bob"
 
 
 # --- progress --------------------------------------------------------------
@@ -560,7 +596,7 @@ class TestDeletion:
         assert store.get_source(document.document_id) is None
         assert store.get_job(job.job_id, ALICE) is None
         assert store.get_job_for_worker(job.job_id) is None
-        assert store.get_audio(record.cache_key, ALICE) is None
+        assert store.get_audio(record.cache_key, record.document_id, ALICE) is None
         assert store.get_progress(document.document_id, ALICE) is None
         assert store.get_bookmark(bookmark.bookmark_id, ALICE) is None
         assert store.list_bookmarks(document.document_id, ALICE) == []
