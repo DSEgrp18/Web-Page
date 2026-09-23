@@ -43,6 +43,7 @@ from .model import (
     DocumentExtraction,
     PageExtraction,
     PageKind,
+    Progress,
     QualityState,
     worst,
 )
@@ -217,6 +218,7 @@ def prepare_pages(
     *,
     limit: int = MODEL_INPUT_CHAR_LIMIT,
     structure: StructureAdapter | None = None,
+    progress: Progress | None = None,
 ) -> tuple[ReadablePage, ...]:
     """Segment each page's readable text, keeping geometry and page identity.
 
@@ -298,6 +300,8 @@ def prepare_pages(
                 notes=tuple(notes),
             )
         )
+        if progress is not None:
+            progress("structuring", len(pages), len(extraction.pages))
     return tuple(pages)
 
 
@@ -311,6 +315,7 @@ def prepare_document(
     structure: StructureAdapter | None = None,
     ocr: OcrAdapter | None = None,
     ocr_mode: OcrMode = OcrMode.OFF,
+    progress: Progress | None = None,
 ) -> ReadableDocument:
     """Extract, decode, and segment a PDF into playable units.
 
@@ -323,6 +328,10 @@ def prepare_document(
     ``ocr_mode`` chooses which pages are read from their image instead; see
     :class:`~.ocr.OcrMode`. Without an ``ocr`` adapter nothing is recognised,
     whatever the mode.
+
+    ``progress`` is told as each page of each stage finishes; see
+    :data:`~.model.Progress`. A DOCX or an image reports only the structuring
+    stage, since there is no page loop before it worth reporting.
     """
     source_bytes = source if isinstance(source, bytes) else None
     media_type = media_type_for(filename, source_bytes)
@@ -336,17 +345,19 @@ def prepare_document(
             source = Path(source).read_bytes()
         extraction = extract_image(source, ocr if recognising else None)
     else:
-        extraction = extract_document(source, page_indexes=page_indexes, password=password)
+        extraction = extract_document(
+            source, page_indexes=page_indexes, password=password, progress=progress
+        )
     if recognising and media_type == "application/pdf":
         assert ocr is not None
-        extraction = apply_ocr(extraction, source, ocr, ocr_mode)
+        extraction = apply_ocr(extraction, source, ocr, ocr_mode, progress=progress)
     from_a_provider = structure is not None and not isinstance(structure, DeterministicStructure)
     version = _document_version(
         _digest(source),
         f"{ocr_mode.value}:{ocr.version}" if recognising and ocr else None,
         structure.version if from_a_provider else None,
     )
-    pages = prepare_pages(extraction, limit=limit, structure=structure)
+    pages = prepare_pages(extraction, limit=limit, structure=structure, progress=progress)
 
     notes = list(extraction.notes)
     unreadable = [page.page_index for page in pages if not page.has_audio]

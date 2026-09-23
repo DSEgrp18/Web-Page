@@ -55,6 +55,7 @@ from .model import (
     ExtractionMethod,
     PageExtraction,
     PageKind,
+    Progress,
     QualityState,
     TextLine,
     TextSpan,
@@ -434,6 +435,7 @@ def apply_ocr(
     *,
     dpi: int = DEFAULT_DPI,
     render: Callable[..., bytes] = render_page,
+    progress: Progress | None = None,
 ) -> DocumentExtraction:
     """The document with the chosen pages read from their images.
 
@@ -444,11 +446,17 @@ def apply_ocr(
     if mode is OcrMode.OFF:
         return extraction
 
+    chosen = {
+        page.page_index
+        for page in extraction.pages
+        if mode is not OcrMode.BROKEN or text_layer_failed(page)
+    }
     pages: list[PageExtraction] = []
     failed: list[int] = []
     reason = ""
+    done = 0
     for page in extraction.pages:
-        if mode is OcrMode.BROKEN and not text_layer_failed(page):
+        if page.page_index not in chosen:
             pages.append(page)
             continue
         try:
@@ -458,6 +466,9 @@ def apply_ocr(
             pages.append(page)
             failed.append(page.page_index)
             reason = str(error)
+        done += 1
+        if progress is not None:
+            progress("recognising", done, len(chosen))
 
     notes = list(extraction.notes)
     if failed:

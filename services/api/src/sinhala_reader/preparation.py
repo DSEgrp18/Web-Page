@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import replace
@@ -42,7 +43,7 @@ from sinhala_documents.structuring import StructureAdapter
 
 from .recognition import build_ocr
 from .recognition import ocr_mode as configured_ocr_mode
-from .storage import Document, Job, JobState, Store
+from .storage import REJECTED_STAGE, Document, Job, JobState, Store
 from .structure import build_structure
 
 #: Prepared documents already deserialised, keyed by document id.
@@ -82,8 +83,13 @@ REAP_EVERY_SECONDS = 60
 #: the document.
 STALLED_DETAIL = (
     "The work stopped before it finished, most likely because the server restarted. "
-    "Upload the book again to try once more."
+    "It can be tried again."
 )
+
+#: The most often a job's progress is written. Extraction finishes a page every
+#: few milliseconds; a write per page would be hundreds of writes for a number a
+#: reader's screen asks for every few seconds.
+PROGRESS_EVERY_SECONDS = 1.0
 
 
 def _in(seconds: float) -> str:
@@ -120,6 +126,43 @@ def _heartbeat(store: Store, job_id: str, *, every: float = HEARTBEAT_SECONDS) -
     finally:
         stop.set()
         thread.join(timeout=every)
+
+
+class _ProgressReport:
+    """Writes a job's page progress, at most every ``every`` seconds.
+
+    The first page of a stage and its last are always written, so a reader
+    sees each stage begin and end even when it takes less than a second.
+    A failed write is logged and forgotten: progress is information, and
+    losing one report must never fail the book.
+    """
+
+    def __init__(
+        self,
+        store: Store,
+        job_id: str,
+        *,
+        every: float = PROGRESS_EVERY_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._store = store
+        self._job_id = job_id
+        self._every = every
+        self._clock = clock
+        self._stage: str | None = None
+        self._written_at = 0.0
+
+    def __call__(self, stage: str, done: int, total: int) -> None:
+        now = self._clock()
+        new_stage = stage != self._stage
+        if not new_stage and done < total and now - self._written_at < self._every:
+            return
+        self._stage = stage
+        self._written_at = now
+        try:
+            self._store.report_progress(self._job_id, stage, done, total)
+        except Exception:  # noqa: BLE001 - progress must never fail the book
+            log.warning("could not record progress on job %s", self._job_id, exc_info=True)
 
 
 def reap_stalled_jobs(store: Store) -> list[str]:
@@ -325,13 +368,14 @@ class PreparationService:
                     structure=self._structure,
                     ocr=self._ocr,
                     ocr_mode=self._ocr_mode,
+                    progress=_ProgressReport(self._store, job.job_id),
                 )
         except DocumentRejected as error:
             # The one case where the message is about the reader's file rather
             # than about the server, and is safe to show them. Never retried:
             # the same file will be rejected the same way every time, and a
             # reader watching four attempts learns nothing from the extra three.
-            self._fail(job, "extracting", str(error))
+            self._fail(job, REJECTED_STAGE, str(error))
             return
         except Exception as error:  # noqa: BLE001 - recorded without document text
             # The job stays running while the queue waits to retry it. A full

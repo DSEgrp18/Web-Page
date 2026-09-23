@@ -46,6 +46,7 @@ from .model import (
     ExtractionMethod,
     PageExtraction,
     PageKind,
+    Progress,
     QualityState,
     TextLine,
     TextSpan,
@@ -518,6 +519,7 @@ def extract_document(
     page_indexes: Iterable[int] | None = None,
     max_pages: int = MAX_PAGES,
     password: str = "",
+    progress: Progress | None = None,
 ) -> DocumentExtraction:
     """Extract a PDF, or only the pages named in ``page_indexes``.
 
@@ -544,7 +546,12 @@ def extract_document(
             if not wanted:
                 notes.append("None of the requested pages exist in this document.")
 
-        pages = tuple(extract_page(pdf.pages[index], index, labels[index]) for index in wanted)
+        extracted: list[PageExtraction] = []
+        for index in wanted:
+            extracted.append(extract_page(pdf.pages[index], index, labels[index]))
+            if progress is not None:
+                progress("extracting", len(extracted), len(wanted))
+        pages = tuple(extracted)
 
     ocr_needed = sum(1 for page in pages if page.kind is PageKind.IMAGE)
     if ocr_needed:

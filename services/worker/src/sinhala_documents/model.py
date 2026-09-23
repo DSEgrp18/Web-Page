@@ -20,9 +20,19 @@ geometry is discarded during assembly it cannot be recovered.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum
+
+Progress = Callable[[str, int, int], None]
+"""Told ``(stage, done, total)`` each time a page of a stage is finished.
+
+The stages are ``extracting``, ``recognising`` and ``structuring``, in that
+order, and each counts its own pages: recognition only counts the pages it
+reads from their image. A book of 168 pages takes about a minute to prepare,
+and much longer when it is scanned, which is long enough that "preparing"
+with nothing moving looks exactly like "stuck".
+"""
 
 
 class ExtractionMethod(StrEnum):

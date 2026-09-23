@@ -197,7 +197,8 @@ def test_a_document_that_cannot_be_read_fails_its_job_without_leaking_text(
     response = upload(client, broken)
     body = response.json()
     assert body["job"]["state"] == "failed"
-    assert body["job"]["stage"] == "extracting"
+    assert body["job"]["stage"] == "rejected"
+    assert body["job"]["can_retry"] is False
     assert "පොත්" not in (body["job"]["detail"] or "")
 
 

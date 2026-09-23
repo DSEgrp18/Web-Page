@@ -30,7 +30,8 @@ audio rather than being available on request.
 | `GET /documents` | Your documents. |
 | `GET /documents/{id}` | Status, page and segment counts, and what the book lost. |
 | `DELETE /documents/{id}` | The upload **and everything derived from it**. |
-| `GET /documents/{id}/jobs/{job_id}` | queued, running, succeeded, failed, cancelled. |
+| `GET /documents/{id}/jobs/{job_id}` | queued, running, succeeded, failed, cancelled; the stage, and `pages_done` of `pages_total` in it; `can_retry`. |
+| `POST /documents/{id}/retry` | Prepare the stored file again after a failure. 409 while preparing, once ready, or when the file itself was `rejected`. |
 | `GET /documents/{id}/pages/{n}` | A page's segments, and what could not be read. |
 | `GET /documents/{id}/segments/{sid}` | One segment. |
 | `GET /documents/{id}/segments/{sid}/audio` | WAV, generated on demand then cached. |

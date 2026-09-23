@@ -116,6 +116,17 @@ class JobStatus(BaseModel):
     detail: str | None = Field(
         default=None, description="Why it failed. Never contains document text."
     )
+    pages_done: int | None = Field(
+        default=None,
+        description="Pages finished in the current stage, or null before the first.",
+    )
+    pages_total: int | None = Field(
+        default=None, description="Pages the current stage will work through."
+    )
+    can_retry: bool = Field(
+        default=False,
+        description="Whether POST /documents/{id}/retry would start the book again.",
+    )
     updated_at: str
 
     @classmethod
@@ -126,6 +137,9 @@ class JobStatus(BaseModel):
             state=job.state.value,
             stage=job.stage,
             detail=job.detail,
+            pages_done=job.pages_done,
+            pages_total=job.pages_total,
+            can_retry=job.can_retry,
             updated_at=job.updated_at,
         )
 

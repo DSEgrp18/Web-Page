@@ -485,6 +485,44 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         forget_prepared(document_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    @app.post(
+        "/documents/{document_id}/retry",
+        status_code=status.HTTP_202_ACCEPTED,
+        tags=["documents"],
+        summary="Prepare a book again after its preparation failed",
+    )
+    def retry_preparation(document_id: str, owner: str = Depends(require_owner)) -> DocumentDetail:
+        """Start a new job on the book as uploaded, when the last one failed.
+
+        The file is already stored, so a reader whose book stopped when the
+        server restarted does not have to find it and upload it again. A new
+        job, not a reset of the old one: the failure stays on record, and a
+        worker still holding the old job cannot mistake it for its own.
+
+        Refused with 409 while the book is being prepared or once it is ready,
+        and when the file itself was rejected, since that would fail the same
+        way again. Another reader's book is absent, as everywhere.
+        """
+        document = owned(document_id, owner)
+        jobs = deps.store.jobs_for(document_id, owner)
+        if not jobs or not jobs[-1].can_retry:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Only a book whose preparation failed, and could succeed, can be tried again.",
+            )
+        if deps.store.get_source(document_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document.")
+        job = deps.preparation.start(
+            document,
+            Job(
+                job_id=new_id("job"),
+                document_id=document_id,
+                owner=owner,
+                kind="prepare",
+            ),
+        )
+        return _document_detail(deps.store, document_id, owner, job)
+
     @app.get("/documents/{document_id}/jobs/{job_id}", tags=["documents"])
     def get_job(document_id: str, job_id: str, owner: str = Depends(require_owner)) -> JobStatus:
         owned(document_id, owner)

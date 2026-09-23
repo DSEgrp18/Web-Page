@@ -212,3 +212,29 @@ def test_a_document_can_be_looked_up_by_segment_and_page() -> None:
 
 def test_the_pipeline_version_is_declared() -> None:
     assert PIPELINE_VERSION
+
+
+# --------------------------------------------------------------------------
+# Progress
+# --------------------------------------------------------------------------
+
+
+def test_progress_counts_each_page_of_each_stage_in_order() -> None:
+    """What a reader watching a long book is told: the page, of how many."""
+    heard: list[tuple[str, int, int]] = []
+
+    prepared(sinhala_page(), sinhala_page(), sinhala_page(), progress=lambda *p: heard.append(p))
+
+    assert heard == [
+        ("extracting", 1, 3),
+        ("extracting", 2, 3),
+        ("extracting", 3, 3),
+        ("structuring", 1, 3),
+        ("structuring", 2, 3),
+        ("structuring", 3, 3),
+    ]
+
+
+def test_progress_is_optional_and_changes_nothing() -> None:
+    pdf = build_pdf([sinhala_page()])
+    assert prepare_document(pdf, progress=lambda *_: None) == prepare_document(pdf)
