@@ -2,11 +2,11 @@
 
 ## Purpose and current state
 
-Build a shippable Sinhala document reader and document-grounded study assistant for blind and low-vision readers and students.
+Build a shippable, accessible Sinhala study platform for blind and low-vision readers and students. A student can listen to a textbook, ask about it, practise on it, and track their progress, independently. A teacher can prepare a book once for a whole class. The learning loop is **Listen → Understand → Practise → Track**.
 
 The Sinhala XTTS model is already trained. Integrate the existing model for inference only. Do not introduce model training, fine-tuning, dataset collection for training, or automatic retraining unless explicitly requested.
 
-This repository starts without application code. The architecture below is the proposed implementation direction, not a description of existing functionality. Inspect the repository before making changes and update this file as decisions become concrete.
+The reader works end to end: extraction with FM-Abhaya decoding and OCR fallback, sentence narration, bookmarks, progress, chapters, and cited study answers with abstention. The phased plan for the rest, with the reasons behind each decision, is [`docs/product-plan.md`](docs/product-plan.md). Where this file states a rule, this file governs; where it describes direction, the plan holds the detail. Inspect the repository before making changes and update both as decisions become concrete.
 
 ## Product scope
 
@@ -23,20 +23,27 @@ The core experience is: upload a Sinhala PDF, select a page or chapter, listen, 
 - Private documents and authorization enforced throughout processing and retrieval.
 - Operational monitoring, predictable failure handling, and reproducible deployment.
 
-### Subsequent milestones
+### Study platform scope
 
-- Scanned PDFs with Sinhala OCR and extraction-quality review.
-- Teacher/admin correction workflow and permission-cleared shared books.
-- Clearly labelled summaries and revision questions grounded in the document.
+Agreed in [`docs/product-plan.md`](docs/product-plan.md), in phase order:
+
+- A public portal and real accounts: public pages, sign-in, registration, and recovery without email.
+- A teacher class library: a teacher reviews a book's flagged pages, attests the right to share it, and publishes it to a class, with its audio rendered once for every member.
+- Practice questions grounded in the document, under the verification rule below.
+- Progress and spaced review, presented as text first.
+- Scanned PDFs with Sinhala OCR and extraction-quality review, and a teacher correction workflow.
+
+Later: clearly labelled summaries grounded in the document.
 
 ### Out of scope unless requested
 
 - Training or fine-tuning TTS, ASR, embedding, or language models.
 - Voice cloning, voice commands, and spoken-question recognition.
-- Native mobile applications, billing, and unrestricted public book sharing.
+- Native mobile applications, billing, and unrestricted public book sharing. Sharing is class-limited only.
 - Guaranteed interpretation of handwriting, complex equations, tables, or diagrams.
 - Offline model inference. Offline listening uses previously generated audio.
 - Kubernetes, excessive microservices, and unnecessary orchestration platforms.
+- Agentic features beyond practice-question generation (see the agentic boundary below).
 
 ## Essential product behavior
 
@@ -83,6 +90,55 @@ never supply, correct, complete, or smooth the words a reader hears as the
 document. A sighted proofreader catches an invented date; a blind student
 cannot.
 
+### Generated questions: a model may write a question; it may never be the only judge of its answer
+
+Practice questions are study-mode content, labelled with how they were made.
+A fill-in-the-blank question is the book's own sentence with one term removed,
+and may say so. A model-drafted question is never presented as the document's
+words. A model may draft a question and its options, but it must cite a
+numbered passage it was given and quote its evidence.
+
+A deterministic verifier then decides, and it is mandatory, not advisory:
+
+- The quote must appear verbatim, after normalisation, in the cited passage.
+  Zero-width joiners are part of Sinhala words and are kept.
+- The correct option must be supported by the quote. No distractor may be.
+- The cited passage must be one that was sent, and must be on a page accepted
+  for reading. A page that needs review, or that a teacher withheld, never
+  grounds a question.
+- **A single failed check discards the question.** It is never repaired.
+
+A model's opinion, such as an independent re-answer, may reject a question but
+never accept one. Questions reach a class only after a teacher approves them.
+Record the generator, provider, model, prompt version, verifier version, and
+framework version on every quiz, and mark quizzes stale when the document
+version moves.
+
+A deterministic generator that needs no provider (fill-in-the-blank from the
+book's own sentences) must remain available and good enough to ship, for the
+same reason the deterministic structure path must: it is what runs when the
+provider is unavailable, unaffordable, or wrong. If generation fails, say so
+and offer it as a choice. Never switch generators silently.
+
+### The agentic boundary
+
+LangGraph is used for **practice-question generation only**, because that loop
+genuinely cycles (draft, verify, bounded revision). The single-pass study
+answers do not use it, and no other feature does without a new decision
+recorded in the product plan.
+
+- It runs only in the Celery worker and is imported lazily. A test asserts that
+  the API process never loads `langgraph` or `langchain_core`.
+- Every run is bounded: revisions per question, total model calls, wall-clock
+  time, and a recursion limit.
+- It retrieves only over the authorised document's passages in scope. It has
+  no tools, no web access, and no cross-document context. Document contents are
+  untrusted evidence, never instructions.
+- Model calls use the project's own transport, not framework model wrappers.
+- Human review is a database status (`draft`, `approved`, `published`), never a
+  paused graph, so approval is a queryable, audited fact that is deleted with
+  the document.
+
 ## Proposed architecture
 
 - Frontend: Next.js, React, and TypeScript progressive web app.
@@ -93,6 +149,8 @@ cannot.
 - Inference: separate GPU worker wrapping the supplied Sinhala TTS implementation.
 - Retrieval: lexical and multilingual vector search, selected through evaluation.
 - Answer generation: replaceable LLM adapter, selected through Sinhala evaluation.
+- Practice questions: a deterministic generator by default, and a LangGraph generator in the worker only, both judged by one deterministic verifier.
+- Sessions: an httpOnly cookie through a same-origin route handler in the web app, with CSRF and Fetch-Metadata checks.
 - Packaging: Docker with pinned dependencies and compatible GPU runtime.
 - CI: GitHub Actions for relevant checks and builds.
 - Monitoring: structured logs and service metrics; add dashboards as needed.
@@ -199,7 +257,7 @@ Text corrections create a new document version and invalidate affected audio and
 
 ### Legacy fonts and extraction validation
 
-This repository includes `data/legacy_fonts/fm_abhaya.tsv` and `fm_abhaya_cases.tsv`, with six supplied conversion examples copied unchanged from the user-supplied reference. Their README records provenance and copy-verification hashes, and the upstream MIT license is included. Resolve these assets relative to the repository/package; do not depend on the seed project's absolute local path. The converter itself is not implemented yet.
+This repository includes `data/legacy_fonts/fm_abhaya.tsv` and `fm_abhaya_cases.tsv`, with six supplied conversion examples copied unchanged from the user-supplied reference. Their README records provenance and copy-verification hashes, and the upstream MIT license is included. Resolve these assets relative to the repository/package; do not depend on the seed project's absolute local path. The converter is implemented in `services/worker/src/sinhala_documents/legacy_fm_abhaya.py` and tested against every supplied case.
 
 - Inspect per-span font metadata and normalize subset prefixes when identifying a legacy font. Pages may mix Unicode headings and legacy body text; decode at span/line level rather than applying one mapping to the entire page.
 - Reuse the documented mapping rather than inventing one. Preserve its included license and attribution, and verify provenance for any future additions or replacements.
@@ -257,9 +315,35 @@ Target WCAG 2.2 AA and validate with people who use assistive technology.
 - Make Sinhala the primary UI language and have controls, errors, and status messages reviewed by a native speaker. Set appropriate language metadata and test how target assistive technologies announce the interface; Sinhala audio content alone does not make navigation accessible.
 - Use polite live regions for routine progress and reserve assertive alerts for urgent errors. Avoid announcing every prefetch or intermediate update.
 
+## Accounts, roles, and authorization
+
+- **Roles** are student, teacher, and admin. Registration always creates a
+  student. A teacher is made by an admin or by a single-use invitation. Nobody
+  can declare their own role.
+- **Admins have no content access.** Administration happens on the command line.
+- **Reading** is allowed to a document's owner, or to an active member of a
+  class the book is published to, at the version pinned when it was published.
+  **Writing** (rename, delete, publish, pre-render, authoring quizzes) is
+  owner-only.
+- Enforce this in the store, never only in a route. Anything a reader may not
+  see is absent (404), never forbidden (403). The cross-access matrix across
+  actors, resources, and routes is a release gate.
+- A teacher never sees a student's private books, bookmarks, notes, or
+  questions. A teacher sees class progress only from students who chose to
+  share it. That choice is off by default and can be withdrawn.
+- **Sessions** use an httpOnly, `SameSite=Lax` cookie through a same-origin
+  route handler, with CSRF and Fetch-Metadata checks. Rate-limit sign-in,
+  registration, recovery, and costly requests. Do not use CAPTCHAs; they are
+  inaccessible. Recovery works without email, through a one-time recovery code
+  or a reset issued by the student's own teacher.
+- Publishing a book requires the teacher to attest the permission that clears
+  it for their class, and records who attested it and on what basis. The system
+  cannot verify that permission itself, so sharing stays class-limited,
+  audited, and withdrawable.
+
 ## Data and API design
 
-Core entities: User, Document, DocumentVersion, Page, TextSegment, AudioSegment, ProcessingJob, ReadingProgress, Bookmark, QuestionAnswer, Feedback, and ModelRelease.
+Core entities: User, Document, DocumentVersion, Page, TextSegment, AudioSegment, ProcessingJob, ReadingProgress, Bookmark, QuestionAnswer, Feedback, ModelRelease, Class, ClassMember, PublishedBook, Quiz, Question, QuizAttempt, and ReviewCard.
 
 Use explicit job states such as queued, running, succeeded, failed, and cancelled. Store stage-specific failure details without leaking private content.
 
@@ -271,6 +355,9 @@ Suggested API capabilities:
 - Save reading position and bookmarks.
 - Ask a document question and return an answer plus citations.
 - Submit extraction or pronunciation feedback.
+- Create classes, join them, and publish reviewed books to them.
+- Generate, review, take, and resume practice quizzes; record spaced review.
+- Report reading coverage and progress.
 - Expose internal health/readiness and operational metrics.
 
 Validate contracts on the server. Use expiring authorized object access and enforce ownership for every operation.
@@ -309,6 +396,10 @@ Evaluate:
 | Which retrieval works for Sinhala? | Lexical vs dense vs hybrid | Recall@5, answer correctness, citation support, abstention |
 | Does caching improve operation? | Cached vs uncached sessions | Playback delay, GPU time, unit cost |
 | Can users read independently? | Counterbalanced representative tasks | Completion, time, assistance required |
+| Does the verifier make generated questions safe? | Full generation vs verification bypassed vs no model check, rated blind by teachers | Grounded rate, verifier false accepts (the safety measure) and false rejects, rater agreement, cost per accepted question |
+| Model-drafted vs fill-in-the-blank questions | Teacher ratings, review data, and student attempts | Approval rate, time to approve, item difficulty and discrimination |
+| Can students complete the learning loop alone? | Counterbalanced listen, ask, practise, and revise tasks | Completion, time, assistance required, errors; no learning-gain claim |
+| Does pre-rendering class books fix latency and cost? | On-demand vs pre-rendered audio | First-audio p50/p95, CPU hours vs GPU seconds, storage per audio hour |
 
 Start with 300–500 held-out sentences, 50–100 manually transcribed pages, and 150–250 questions with supporting passages and unanswerable examples. These are planning quantities, not collected assets.
 
@@ -328,6 +419,8 @@ These are targets to refine after baseline measurements, not performance claims:
 - Cached playback starts within 2 seconds at p95 on a specified network/device.
 - First short synthesized segment within 5 seconds at p95 on declared hardware and load, excluding PDF/OCR processing.
 - Safe retry behavior, tested model rollback, and passing cross-user access checks.
+- The cross-access matrix passes, including class members, removed members, and admins.
+- No question reaches a class without passing the verifier and a teacher's approval.
 
 Measure sustained synthesis speed as well as first-segment latency to detect playback stalls.
 
@@ -339,20 +432,27 @@ Measure sustained synthesis speed as well as first-segment latency to detect pla
 - Store secrets in environment/secret storage, never source code or browser bundles.
 - Apply upload limits, quotas, request rate limits, and retention controls.
 - Use permission-cleared content for shared libraries and research assets.
+- Students may be minors. Obtain legal review and guardian consent before any pilot, and collect only what a feature needs. Do not claim compliance with data-protection law without that review.
+- Clear offline audio caches on sign-out and account deletion; phones are shared.
 - Audit the supplied checkpoint's provenance. XTTS-v2 weights under CPML have non-commercial restrictions; fine-tuning does not automatically remove them. Resolve applicability before a commercial release.
 
 ## Implementation order
 
-1. Inspect the working inference setup and establish a benchmark.
-2. Build the model adapter and containerized inference worker.
-3. Complete digital PDF → selected page → audio → pause/resume end to end.
-4. Add bookmarks, caching, downloads, and accessibility verification.
-5. Add scanned-PDF extraction and review.
-6. Add evaluated retrieval, Sinhala answers, citations, and abstention.
-7. Add operational dashboards, quotas, rollback, and load testing.
-8. Run the user study, fix defects, and prepare deployment and research documentation.
+The reader itself (inference, the adapter, PDF to audio, bookmarks, caching,
+OCR, and cited answers) is built. What remains follows the phases in
+[`docs/product-plan.md`](docs/product-plan.md), each with an exit gate that
+includes an NVDA or TalkBack pass on the new core task:
 
-Indicative schedule: 12 weeks for a 3–4 person team with working inference; re-estimate after repository and hardware assessment.
+0. **Foundation.** Fix the defects that sit under the new features: the voice image, segment roles lost on reload, role-aware text reaching the voice, structure in the document version, the audio cache for a second reader, jobs that outlive their process, page titles, and contrast checking.
+1. **Portal and real accounts.**
+2. **Class library** with reviewed, attested, pre-rendered books.
+3. **Practise:** fill-in-the-blank questions and the quiz screen first, then model-drafted questions with teacher review.
+4. **Track:** coverage, progress, and spaced review.
+5. **Reader additions:** pasted text, in-book search, problem reports, and offline chapter download.
+6. **Evaluation and the user study.**
+7. **Release:** staging, observability, load and failure tests, rehearsed rollback.
+
+[`docs/upgrade-roadmap-50-commits.md`](docs/upgrade-roadmap-50-commits.md) runs alongside as the quality track.
 
 ## Development and completion rules
 
