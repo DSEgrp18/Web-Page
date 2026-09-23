@@ -39,8 +39,8 @@
   --paper: #f3f8f5; /* the page */
   --panel: #fbfdfb; /* anything raised off it */
   --panel-sunken: #eaf2ee; /* inputs, wells */
-  /* A rendered PDF page is paper in every theme: its own ink assumes white. */
-  --paper: #ffffff;
+  /* A rendered PDF page is white in every theme: its own ink assumes it. */
+  --pdf-page: #ffffff;
 
   /* -- ink -------------------------------------------------------------- */
   --ink: #102721;
@@ -1581,7 +1581,7 @@ textarea {
 }
 
 .pdf-viewport canvas {
-  background: var(--paper);
+  background: var(--pdf-page);
   box-shadow: var(--shadow-2);
   border-radius: 2px;
   max-inline-size: none;
@@ -1623,7 +1623,7 @@ textarea {
 }
 
 .thumbnail canvas {
-  background: var(--paper);
+  background: var(--pdf-page);
   border: 1px solid var(--hair);
   max-inline-size: 100%;
 }

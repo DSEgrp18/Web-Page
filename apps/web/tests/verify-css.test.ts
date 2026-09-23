@@ -79,4 +79,13 @@ describe("verify-css", () => {
     expect(result.output).toContain("#ffffff outside a :root block");
     expect(result.output).not.toContain("#fff outside");
   });
+
+  it("fails when a block defines a property twice", () => {
+    // The light theme's page colour, silently replaced by a later token.
+    const result = check({
+      "app/globals.css": ":root {\n  --paper: #f3f8f5;\n  --paper: #ffffff;\n}\n",
+    });
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('--paper is defined twice in ":root"');
+  });
 });

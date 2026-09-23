@@ -12,7 +12,9 @@
  *      stylesheet, as a next/font `variable`, or as an inline style;
  *   2. every class a component writes has a rule in the stylesheet;
  *   3. colours are tokens: no hex colour outside a `:root` block, so a theme
- *      and the contrast test see every colour the page can paint.
+ *      and the contrast test see every colour the page can paint;
+ *   4. no block defines a custom property twice, where the second silently
+ *      replaces the first for every rule that uses it.
  *
  * Classes are read from string literals inside `className`, so a class built
  * by concatenation is not seen. `KNOWN_UNSTYLED` is the debt that existed
@@ -177,27 +179,38 @@ for (const [name, allowed] of KNOWN_UNSTYLED) {
   }
 }
 
-// -- 3. colours are tokens --------------------------------------------------
+// -- 3. colours are tokens, and 4. defined once per block -------------------
 
 for (const [file, text] of css) {
   // Track the selector of every open block, so a declaration knows whether
-  // any enclosing block is a `:root` (the light, dark and media variants).
+  // any enclosing block is a `:root` (the light, dark and media variants),
+  // and the properties each open block has defined so far.
   const open = [];
+  const props = [];
   let buffer = "";
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (ch === "{") {
       open.push(buffer.trim());
+      props.push(new Set());
       buffer = "";
     } else if (ch === "}") {
       open.pop();
+      props.pop();
       buffer = "";
     } else if (ch === ";") {
+      const where = `${rel(file)}:${lineOf(text, i)}`;
       const hex = buffer.match(/#[0-9a-fA-F]{3,8}\b/);
       if (hex && !open.some((s) => s.includes(":root"))) {
-        problems.push(
-          `${rel(file)}:${lineOf(text, i)}  ${hex[0]} outside a :root block: make it a token`,
-        );
+        problems.push(`${where}  ${hex[0]} outside a :root block: make it a token`);
+      }
+      const prop = buffer.match(/^\s*(--[\w-]+)\s*:/);
+      if (prop && props.length) {
+        const seen = props.at(-1);
+        if (seen.has(prop[1])) {
+          problems.push(`${where}  ${prop[1]} is defined twice in "${open.at(-1)}"`);
+        }
+        seen.add(prop[1]);
       }
       buffer = "";
     } else {
