@@ -537,6 +537,10 @@ def create_app(deps: Deps | None = None) -> FastAPI:
                 owner=owner,
                 segment_id=segment_id,
                 document_version=document.version,
+                # The text the pipeline prepared knowing the segment's role, not a
+                # fresh normalisation of what is on screen: a heading's "1.1" is a
+                # section number, and only the pipeline knew it was a heading.
+                prepared=(segment.spoken_text, segment.model_text),
             )
         except TextNotSpeakableError as error:
             raise HTTPException(
@@ -563,7 +567,11 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         if segment is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
         assert document.version is not None
-        key = deps.synthesis.cache_key_for(segment.display_text, document.version)
+        key = deps.synthesis.cache_key_for(
+            segment.display_text,
+            document.version,
+            prepared=(segment.spoken_text, segment.model_text),
+        )
         record = deps.store.get_audio(key, owner)
         return AudioManifest(
             segment_id=segment_id,

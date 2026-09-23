@@ -268,6 +268,7 @@ class TtsAdapter(ABC):
         settings: SynthesisSettings | None = None,
         *,
         document_version: str | None = None,
+        prepared: tuple[str, str] | None = None,
     ) -> str:
         """The key :meth:`synthesize` would produce, without generating anything.
 
@@ -279,7 +280,7 @@ class TtsAdapter(ABC):
         The text guards run here too, so an unspeakable segment is refused at
         lookup rather than at generation.
         """
-        spoken, model_text = self.prepare_text(text)
+        spoken, model_text = self.prepare_text(text, prepared=prepared)
         return SynthesisMetadata(
             voice_id=self.voice_id_for(voice_id),
             is_real_model=self.is_real_model,
@@ -305,18 +306,32 @@ class TtsAdapter(ABC):
         *,
         document_version: str | None = None,
         timeout_seconds: float | None = None,
+        prepared: tuple[str, str] | None = None,
     ) -> SynthesisResult: ...
 
-    def prepare_text(self, text: str) -> tuple[str, str]:
+    def prepare_text(
+        self, text: str, *, prepared: tuple[str, str] | None = None
+    ) -> tuple[str, str]:
         """Display text to (spoken text, model input), with the guards applied.
 
         Shared by every implementation so the development adapter exercises the
         same validation the real one does. A text that would be rejected in
         production must be rejected in development, or the placeholder stops
         being a useful stand-in.
+
+        ``prepared`` is a ``(spoken, model input)`` pair written by the document
+        pipeline, and when it is given it is used as it stands. The pipeline
+        knows what each segment is, so it reads "1.1" in a heading as a section
+        number and in a sentence as a decimal. Normalising the display text again
+        here cannot know that, and would read every heading's number as a
+        decimal. Only the derivation is skipped: the guards below still run,
+        because a stored pair can be as unspeakable or as long as a fresh one.
         """
-        spoken = to_speech_text(text)
-        model_text = to_model_input(text)
+        if prepared is None:
+            spoken = to_speech_text(text)
+            model_text = to_model_input(text)
+        else:
+            spoken, model_text = prepared
         if not is_speakable(model_text):
             raise TextNotSpeakableError(
                 f"{text!r} normalises to {model_text!r}, which has nothing to say. "
@@ -375,9 +390,10 @@ class DevelopmentAdapter(TtsAdapter):
         *,
         document_version: str | None = None,
         timeout_seconds: float | None = None,
+        prepared: tuple[str, str] | None = None,
     ) -> SynthesisResult:
         settings = settings or SynthesisSettings()
-        spoken, model_text = self.prepare_text(text)
+        spoken, model_text = self.prepare_text(text, prepared=prepared)
 
         # Length follows the measured duration model, so timing-dependent code
         # above the adapter sees something plausible rather than a fixed clip.
@@ -580,11 +596,12 @@ class XttsAdapter(TtsAdapter):
         *,
         document_version: str | None = None,
         timeout_seconds: float | None = None,
+        prepared: tuple[str, str] | None = None,
     ) -> SynthesisResult:
         import torch
 
         settings = settings or SynthesisSettings()
-        spoken, model_text = self.prepare_text(text)
+        spoken, model_text = self.prepare_text(text, prepared=prepared)
 
         self.load()
         loaded = self._loaded

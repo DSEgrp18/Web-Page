@@ -79,15 +79,24 @@ class SynthesisService:
             return self._locks.setdefault(key, threading.Lock())
 
     def cache_key_for(
-        self, text: str, document_version: str, settings: SynthesisSettings | None = None
+        self,
+        text: str,
+        document_version: str,
+        settings: SynthesisSettings | None = None,
+        *,
+        prepared: tuple[str, str] | None = None,
     ) -> str:
         """The key this text would be cached under, without generating anything.
 
         Lets a caller check the cache before taking a synthesis lock, which is
         what makes the common case — audio already generated — cost nothing.
+
+        ``prepared`` is the segment's stored ``(spoken_text, model_text)``. Pass
+        it wherever the segment is known: the key must be derived from the same
+        text the synthesis will speak, or a lookup misses audio that exists.
         """
         return self._adapter.cache_key(
-            text, self._voice_id, settings, document_version=document_version
+            text, self._voice_id, settings, document_version=document_version, prepared=prepared
         )
 
     def synthesize(
@@ -99,9 +108,10 @@ class SynthesisService:
         segment_id: str,
         document_version: str,
         settings: SynthesisSettings | None = None,
+        prepared: tuple[str, str] | None = None,
     ) -> AudioRecord:
         """Return cached audio for this segment, generating it if needed."""
-        key = self.cache_key_for(text, document_version, settings)
+        key = self.cache_key_for(text, document_version, settings, prepared=prepared)
 
         cached = self._store.get_audio(key, owner)
         if cached is not None:
@@ -114,7 +124,11 @@ class SynthesisService:
                 return cached
 
             result = self._adapter.synthesize(
-                text, self._voice_id, settings, document_version=document_version
+                text,
+                self._voice_id,
+                settings,
+                document_version=document_version,
+                prepared=prepared,
             )
             record = AudioRecord(
                 cache_key=result.metadata.cache_key(),

@@ -207,8 +207,14 @@ heading is read as a section number rather than a decimal. Those stored fields n
 the voice, because the adapter runs its own normalisation again without a role.
 
 **Fix 0.2 alone would change nothing a reader hears.** Synthesise from the stored
-`spoken_text` and `model_text`, and key the cache on them. Keys change once; the release
-notes must say so.
+`spoken_text` and `model_text`, and key the cache on them.
+
+**This invalidates almost nothing.** Both the adapter's normaliser and
+`number_style_for` default to `NumberStyle.PROSE`, so for an ordinary segment the stored
+text *is* what the adapter would have derived: every cache key stays the same. Only
+headings, captions, contents rows, addresses and page numbers read digits as identifiers.
+Those roles exist only when structure inference is on, so only those segments that
+contain digits get new keys. Those are exactly the clips that were read wrongly.
 
 ### 0.4 Structure is missing from the document version
 
