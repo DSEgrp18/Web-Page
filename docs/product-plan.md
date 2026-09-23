@@ -182,11 +182,12 @@ different, broken image.
 
 **Status.** The voice fix landed first, as its own pull request: `torch==2.8.0`,
 `torchaudio==2.8.0` and `coqui-tts==0.27.5` in both runtimes, an import check in
-both image builds, and `.github/workflows/voice-image.yml` building the Docker
+both image builds, and `.github/workflows/python-images.yml` building the Docker
 image in CI whenever its Dockerfile changes. Reading the coqui-tts source showed
 the cause precisely: 0.27.5 raises on import when torch is 2.9 or newer and
-torchcodec is absent. The constraints files that close the rest of #79 are next,
-written from the `pip freeze` that workflow records.
+torchcodec is absent. Then #79 closed the rest: `infra/constraints/python.txt`,
+the `pip freeze` of a known-good build, pins every package in both Python images,
+and the workflow fails if either image installs a package the file does not pin.
 
 ### 0.2 Segment role and level are lost on reload
 

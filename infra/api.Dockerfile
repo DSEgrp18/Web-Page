@@ -24,12 +24,15 @@ WORKDIR /app
 # Installed before the source is copied, so that editing code does not reinstall
 # the world.
 #
-# These are floors, not pins: `>=` resolves to whatever is newest on PyPI at
-# build time, so two builds of the same commit can produce different images.
-# That is at odds with the reproducible releases CLAUDE.md asks for — the web
-# image gets this right with `npm ci` — and it should become exact pins with a
-# build to prove them. Tracked; do not read `>=` here as "pinned".
-RUN pip install --no-cache-dir \
+# Pinned by infra/constraints/python.txt, the pip freeze of a known-good build.
+# The `>=` ranges below say what the code needs; the constraints decide what is
+# actually installed, so two builds of the same commit produce the same image.
+# Until #79 these were bare floors, which resolve to whatever is newest at build
+# time: the voice image, built the same way, broke on an unchanged commit when
+# torch 2.9 arrived. The same file pins the voice image, so the packages the two
+# images share are the same versions in both.
+COPY infra/constraints/python.txt /tmp/constraints.txt
+RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       "fastapi>=0.115" \
       "python-multipart>=0.0.9" \
       "uvicorn>=0.27" \

@@ -284,7 +284,7 @@ cp312 `cu126`) before the pins were written.
 **Both images check this when they build.** Each imports exactly what the
 adapter imports when it loads the voice, so a resolve that would break the
 voice fails the build instead of the first listener. The Docker image is built
-in CI by `.github/workflows/voice-image.yml` whenever its Dockerfile changes;
+in CI by `.github/workflows/python-images.yml` whenever its Dockerfile changes;
 it needs no weights, because the import is what broke.
 
 **What is still not known.** The CPU run recorded below used `torch 2.13.0+cpu`
