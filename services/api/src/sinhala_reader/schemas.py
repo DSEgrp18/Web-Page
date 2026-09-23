@@ -173,6 +173,13 @@ class DocumentSummary(BaseModel):
     reading: ReadingPosition | None = Field(
         default=None, description="Null when this reader has never opened the book."
     )
+    job: JobStatus | None = Field(
+        default=None,
+        description=(
+            "The latest preparation job. A book with no version is being prepared only "
+            "while this is queued or running; after a failure it says why."
+        ),
+    )
 
     @classmethod
     def of(
@@ -181,6 +188,7 @@ class DocumentSummary(BaseModel):
         *,
         progress: Progress | None = None,
         media_type: str | None = None,
+        job: Job | None = None,
     ) -> DocumentSummary:
         return cls(
             document_id=document.document_id,
@@ -207,6 +215,7 @@ class DocumentSummary(BaseModel):
                 if progress is not None
                 else None
             ),
+            job=JobStatus.of(job) if job else None,
         )
 
 
@@ -228,7 +237,6 @@ class DocumentDetail(DocumentSummary):
     notes: list[str] = Field(
         default_factory=list, description="What this document lost, across all pages."
     )
-    job: JobStatus | None = None
     chapters: list[ChapterDetail] | None = Field(
         default=None,
         description=(
@@ -249,9 +257,10 @@ class DocumentDetail(DocumentSummary):
         media_type: str | None = None,
     ) -> DocumentDetail:
         return cls(
-            **DocumentSummary.of(document, progress=progress, media_type=media_type).model_dump(),
+            **DocumentSummary.of(
+                document, progress=progress, media_type=media_type, job=job
+            ).model_dump(),
             notes=list(document.notes),
-            job=JobStatus.of(job) if job else None,
             chapters=None if chapters is None else [ChapterDetail.of(c) for c in chapters],
         )
 

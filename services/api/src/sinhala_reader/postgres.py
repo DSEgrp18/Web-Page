@@ -532,6 +532,19 @@ class PostgresStore(Store):
             ).fetchall()
         return [row["job_id"] for row in rows]
 
+    def latest_jobs(self, owner: str) -> dict[str, Job]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT DISTINCT ON (document_id) *
+                  FROM jobs
+                 WHERE owner = %s
+                 ORDER BY document_id, created_at DESC
+                """,
+                (owner,),
+            ).fetchall()
+        return {row["document_id"]: _job(row) for row in rows}
+
     def jobs_for(self, document_id: str, owner: str) -> list[Job]:
         with self._pool.connection() as connection:
             rows = connection.execute(

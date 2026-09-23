@@ -385,11 +385,13 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         per book on a student's phone data.
         """
         positions = deps.store.list_progress(owner)
+        jobs = deps.store.latest_jobs(owner)
         return [
             DocumentSummary.of(
                 d,
                 progress=positions.get(d.document_id),
                 media_type=media_type_for(d.filename, deps.store.get_source(d.document_id)),
+                job=jobs.get(d.document_id),
             )
             for d in deps.store.list_documents(owner)
         ]
