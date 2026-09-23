@@ -318,10 +318,32 @@ a code is shown. A wrong code, an unknown address and an account with no code
 all get one answer. `has_recovery_code` on the account says whether an older
 account still needs to make one.
 
+### Rate limits
+
+`SINHALA_READER_RATE_LIMIT` is `memory` (the default: counted in this process)
+or `redis` (shared, at `SINHALA_READER_REDIS_URL`). An unknown value stops the
+server from starting. A refusal is 429 with `Retry-After`, in the same words for
+every limit. **There is no CAPTCHA**: it is a test of sight or hearing, which
+the readers this is for are the most likely to fail (WCAG 2.2, 3.3.8).
+
+| Limit | Allowed |
+| --- | --- |
+| Sign in, per email address (whether or not it has an account) | 10 per 15 minutes |
+| Sign in, per client address | 30 per 15 minutes |
+| Register, per client address | 5 per hour |
+| Recover, per email address and per client address | 10 per hour |
+| Teacher invitation, per account | 10 per hour |
+| Questions, per reader | 60 per hour |
+| Uploads and retries, per reader | 30 per day |
+
+Email addresses are hashed before they become keys. The client address is the
+connecting one unless `SINHALA_READER_TRUST_FORWARDED=1`, which is only for
+running behind the web app's pass-through.
+
 ### Not done
 
-No rate limiting and no email verification. `/readiness` lists both on every
-call, so "we have logins" cannot stand in for "this is safe to expose".
+No email verification. `/readiness` says so on every call, so "we have logins"
+cannot stand in for "this is safe to expose".
 
 ## Storage
 

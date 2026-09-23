@@ -57,6 +57,7 @@ from .preparation import (
     reap_periodically,
 )
 from .queue import QUEUE_ENV, REDIS_URL_ENV, build_app, queue_mode, send_prepare, uses_celery
+from .ratelimit import RateLimiter, build_rate_limiter, enforce
 from .recognition import ocr_limitations, ocr_mode
 from .schemas import (
     AudioManifest,
@@ -124,8 +125,11 @@ class Deps:
         run_in_background: bool = True,
         warm_on_start: bool = True,
         reap_stalled: bool | None = None,
+        rate_limiter: RateLimiter | None = None,
     ) -> None:
         self.store = store or build_store()
+        #: Chosen from configuration, defaulting to counting in this process.
+        self.rate_limiter = rate_limiter or build_rate_limiter()
         # Chosen from configuration, defaulting to the labelled placeholder.
         self.adapter = adapter or build_adapter()
         #: Chosen from configuration, defaulting to the book's own words.
@@ -285,10 +289,6 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             # finished. Saying nothing here would let "we have logins" stand in
             # for "this is safe to expose".
             limitations.append(
-                "There is no rate limiting. Password guessing and email enumeration "
-                "through registration are both unthrottled."
-            )
-            limitations.append(
                 "There is no email verification. A forgotten password is reset with the "
                 "recovery code shown once at registration; a reader who has lost both "
                 "needs an admin."
@@ -313,6 +313,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
                 "Any website may call this API from a browser. With header identity that "
                 "means any page can read any reader's documents."
             )
+        limitations.extend(deps.rate_limiter.limitations())
         limitations.extend(structure_limitations())
         limitations.extend(ocr_limitations())
         limitations.extend(answer_limitations())
@@ -344,12 +345,17 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         tags=["documents"],
         summary="Upload a PDF, DOCX or image and start preparing it",
     )
-    async def upload(file: UploadFile, owner: str = Depends(require_owner)) -> DocumentDetail:
+    async def upload(
+        file: UploadFile, request: Request, owner: str = Depends(require_owner)
+    ) -> DocumentDetail:
         """Accept a book and return immediately with a job to watch.
 
         Preparation of a whole book takes tens of seconds, so this never waits
         for it. The response is 202 with a job, not 201 with a finished document.
         """
+        # Counted before the body is read: a refused upload should not cost
+        # the server 200 MB of network first.
+        enforce(request, "upload", owner)
         data = await file.read()
         try:
             filename = file.filename or "document.pdf"
@@ -494,7 +500,9 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         tags=["documents"],
         summary="Prepare a book again after its preparation failed",
     )
-    def retry_preparation(document_id: str, owner: str = Depends(require_owner)) -> DocumentDetail:
+    def retry_preparation(
+        document_id: str, request: Request, owner: str = Depends(require_owner)
+    ) -> DocumentDetail:
         """Start a new job on the book as uploaded, when the last one failed.
 
         The file is already stored, so a reader whose book stopped when the
@@ -508,6 +516,8 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         """
         document = owned(document_id, owner)
         jobs = deps.store.jobs_for(document_id, owner)
+        # The same work as an upload, so the same allowance.
+        enforce(request, "upload", owner)
         if not jobs or not jobs[-1].can_retry:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -635,7 +645,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
 
     @app.post("/documents/{document_id}/questions", tags=["study"])
     def ask_question(
-        document_id: str, body: QuestionBody, owner: str = Depends(require_owner)
+        document_id: str, body: QuestionBody, request: Request, owner: str = Depends(require_owner)
     ) -> StudyAnswer:
         """Find evidence in this reader's document and answer only from it.
 
@@ -645,6 +655,9 @@ def create_app(deps: Deps | None = None) -> FastAPI:
         the caller does not own.
         """
         document = owned(document_id, owner)
+        # After the ownership check, so another reader's book stays absent
+        # rather than rate limited; before any model is called.
+        enforce(request, "question", owner)
         prepared = prepared_or_409(document)
         result = answer_with_fallback(
             deps.answerer,

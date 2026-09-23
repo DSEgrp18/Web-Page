@@ -59,6 +59,8 @@ services:
       SINHALA_READER_DATABASE_URL: postgresql://reader:dev@postgres:5432/reader
       SINHALA_READER_QUEUE: celery
       SINHALA_READER_REDIS_URL: redis://redis:6379/0
+      # Shared by every API process, in the same Redis as the queue.
+      SINHALA_READER_RATE_LIMIT: redis
       # A placeholder tone unless the real bundle is mounted. See README.
       SINHALA_READER_TTS: ${SINHALA_READER_TTS:-development}
       SINHALA_TTS_MODEL_DIR: /models/xtts_si_female

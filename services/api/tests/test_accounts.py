@@ -371,8 +371,10 @@ class TestReadinessKeepsTellingTheTruth:
         """ "We have logins" must not be allowed to stand in for "this is safe"."""
         limitations = client.get("/readiness").json()["limitations"]
 
-        assert any("rate limiting" in note for note in limitations)
         assert any("email verification" in note for note in limitations)
+        # Rate limits exist; what is still true is that memory counts per process.
+        assert not any("no rate limiting" in note for note in limitations)
+        assert any("counted in this process" in note for note in limitations)
         # And the header warning is gone, because the header no longer works.
         assert not any("trusted header" in note for note in limitations)
 

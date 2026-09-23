@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 
 from . import codes, passwords, sessions
+from .ratelimit import client_address, enforce, private
 from .security import AUTH_MODE_ENV, NOT_SIGNED_IN, require_user, store_of, uses_sessions
 from .storage import AuditEvent, EmailTaken, Role, Store, User, new_id
 
@@ -190,6 +191,7 @@ def register(body: Registration, request: Request) -> SignedIn:
     chosen a password type it again, on a screen reader or at 400% zoom, is a
     real cost for no security gain.
     """
+    enforce(request, "register", client_address(request))
     store = store_of(request)
     email = body.email.strip()
 
@@ -232,6 +234,8 @@ def recover(body: Recovery, request: Request) -> SignedIn:
     ``login`` gives: whether an address has an account here is information
     about a person's disability.
     """
+    enforce(request, "recover", f"ip:{client_address(request)}")
+    enforce(request, "recover", f"email:{private(body.email)}")
     store = store_of(request)
     # Hashed first, and whatever happens next: the expensive step runs for a
     # wrong code as it does for a right one. A weak password is refused before
@@ -293,7 +297,13 @@ def replace_recovery_code(
 
 @router.post("/login", dependencies=[SessionsRequired])
 def login(body: Credentials, request: Request) -> SignedIn:
-    """Sign in. Every failure is the same failure."""
+    """Sign in. Every failure is the same failure.
+
+    Limited by address and by account, before any work: per account whether
+    or not it exists, so the limit is not a way to find out.
+    """
+    enforce(request, "login-ip", client_address(request))
+    enforce(request, "login-email", private(body.email))
     store = store_of(request)
     user = store.get_user_by_email(body.email.strip().lower())
 
@@ -367,6 +377,7 @@ def redeem_teacher_invite(body: Invitation, request: Request, user: User = Curre
     admin handed over. A teacher or admin already has the role, and is not
     allowed to spend an invitation meant for someone else.
     """
+    enforce(request, "invite", user.user_id)
     store = store_of(request)
     if user.role is not Role.STUDENT:
         raise HTTPException(status.HTTP_409_CONFLICT, "This account already has that role.")
