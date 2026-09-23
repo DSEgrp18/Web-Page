@@ -170,6 +170,22 @@ class TestTryingAgain:
         assert jobs[0].state is JobState.FAILED
         assert len(jobs) == 2
 
+    def test_the_library_can_tell_a_failed_book_from_one_being_prepared(self) -> None:
+        """Both have no version. Without the job, both read as "preparing"
+        for ever, and the library polls for ever."""
+        client, deps = _client()
+        failed, _ = _failed(deps.store)
+        waiting, job = _book(deps.store)
+        deps.store.put_job(replace(job, state=JobState.RUNNING))
+
+        books = {
+            b["document_id"]: b for b in client.get("/documents", headers=as_reader(client)).json()
+        }
+
+        assert books[failed.document_id]["job"]["state"] == "failed"
+        assert books[failed.document_id]["job"]["can_retry"] is True
+        assert books[waiting.document_id]["job"]["state"] == "running"
+
     def test_the_failed_status_offers_it(self) -> None:
         client, deps = _client()
         document, failed = _failed(deps.store)

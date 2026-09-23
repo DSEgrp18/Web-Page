@@ -354,6 +354,14 @@ class Store(ABC):
     def jobs_for(self, document_id: str, owner: str) -> list[Job]: ...
 
     @abstractmethod
+    def latest_jobs(self, owner: str) -> dict[str, Job]:
+        """Each of this reader's books' most recent job, keyed by document.
+
+        One query, for the same reason as :meth:`list_progress`: the library
+        has to tell a book being prepared from one that failed, on every card.
+        """
+
+    @abstractmethod
     def put_audio(self, record: AudioRecord) -> AudioRecord: ...
 
     @abstractmethod
@@ -598,6 +606,14 @@ class InMemoryStore(Store):
                 j for j in self._jobs.values() if j.document_id == document_id and j.owner == owner
             ]
         return sorted(mine, key=lambda j: j.created_at)
+
+    def latest_jobs(self, owner: str) -> dict[str, Job]:
+        with self._lock:
+            mine = sorted(
+                (j for j in self._jobs.values() if j.owner == owner), key=lambda j: j.created_at
+            )
+        # Oldest first, so each later job replaces the one before it.
+        return {job.document_id: job for job in mine}
 
     # -- audio -------------------------------------------------------------
 

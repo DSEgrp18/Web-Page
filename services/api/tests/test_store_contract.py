@@ -293,6 +293,24 @@ class TestJobs:
         assert [j.job_id for j in listed] == [first.job_id, second.job_id]
         assert store.jobs_for(document.document_id, BOB) == []
 
+    def test_the_latest_job_of_each_book_in_one_call(self, store: Store) -> None:
+        one, two = a_document(), a_document()
+        store.put_document(one)
+        store.put_document(two)
+        failed = a_job(one, created_at="2026-01-01T00:00:00+00:00", state=JobState.FAILED)
+        retried = a_job(one, created_at="2026-02-01T00:00:00+00:00")
+        only = a_job(two, created_at="2026-01-15T00:00:00+00:00")
+        for job in (retried, only, failed):
+            store.put_job(job)
+
+        latest = store.latest_jobs(ALICE)
+
+        assert {d: j.job_id for d, j in latest.items()} == {
+            one.document_id: retried.job_id,
+            two.document_id: only.job_id,
+        }
+        assert store.latest_jobs(BOB) == {}
+
 
 # --- job leases ------------------------------------------------------------
 
