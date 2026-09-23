@@ -24,22 +24,22 @@ export function ErrorNotice({
   onDismiss?: () => void;
 }) {
   return (
-    <div className="notice error">
+    <div className="notice notice-bad">
       <h2>{strings.errorHeading}</h2>
       <p>{message}</p>
       {onRetry || onDismiss ? (
-        <p className="row">
+        <div className="notice-actions">
           {onRetry ? (
-            <button type="button" onClick={onRetry}>
+            <button type="button" className="btn btn-primary" onClick={onRetry}>
               {strings.retry}
             </button>
           ) : null}
           {onDismiss ? (
-            <button type="button" onClick={onDismiss}>
+            <button type="button" className="btn btn-quiet" onClick={onDismiss}>
               {strings.dismiss}
             </button>
           ) : null}
-        </p>
+        </div>
       ) : null}
     </div>
   );

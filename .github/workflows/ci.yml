@@ -247,6 +247,10 @@ jobs:
         # mistakes that are invisible in a browser and obvious in a screen
         # reader. It does not replace testing with NVDA and TalkBack.
         run: npm run lint
+      - name: CSS resolves
+        # Undefined custom properties and classes with no rule fail silently
+        # in a browser; this is what catches them. See scripts/verify-css.mjs.
+        run: npm run verify:css
       - name: Format check
         run: npm run format:check
       - name: Types

@@ -70,7 +70,7 @@ export function ConfirmDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="confirm-dialog"
+      className="dialog"
       aria-labelledby={titleId}
       aria-describedby={bodyId}
       onCancel={(event) => {
@@ -78,15 +78,17 @@ export function ConfirmDialog({
         onCancel();
       }}
     >
-      <h2 id={titleId}>{title}</h2>
-      <p id={bodyId}>{body}</p>
-      <div className="row">
-        <button ref={cancelRef} type="button" onClick={onCancel}>
-          {cancelLabel}
-        </button>
-        <button type="button" className="danger" onClick={onConfirm}>
-          {confirmLabel}
-        </button>
+      <div className="dialog-body">
+        <h2 id={titleId}>{title}</h2>
+        <p id={bodyId}>{body}</p>
+        <div className="dialog-actions">
+          <button ref={cancelRef} type="button" className="btn" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button type="button" className="btn btn-danger" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
       </div>
     </dialog>
   );

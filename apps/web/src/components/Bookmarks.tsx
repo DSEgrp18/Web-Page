@@ -129,7 +129,7 @@ export function Bookmarks() {
         <section className="bookmarks-empty panel" aria-labelledby="bookmarks-empty-heading">
           <h2 id="bookmarks-empty-heading">{strings.bookmarksEmptyTitle}</h2>
           <p>{strings.bookmarksEmptyBody}</p>
-          <Link className="button primary" href="/">
+          <Link className="btn btn-primary" href="/">
             {strings.libraryHeading}
           </Link>
         </section>
@@ -166,10 +166,10 @@ export function Bookmarks() {
                           <p className="bookmark-warning">{strings.bookmarkMissing}</p>
                         ) : null}
                       </div>
-                      <div className="row bookmark-actions">
+                      <div className="bookmark-actions">
                         {canOpen ? (
                           <Link
-                            className="button"
+                            className="btn"
                             href={`/documents/${encodeURIComponent(bookmark.document_id)}?segment=${encodeURIComponent(bookmark.segment_id)}`}
                           >
                             {strings.bookmarkOpen}
@@ -177,6 +177,7 @@ export function Bookmarks() {
                         ) : null}
                         <button
                           type="button"
+                          className="btn"
                           onClick={() => void remove(group.document.document_id, bookmark)}
                           disabled={removing === bookmark.bookmark_id}
                           aria-label={strings.bookmarkRemoveNamed(group.document.filename, page)}
