@@ -341,6 +341,86 @@ describe("adding a book", () => {
   });
 });
 
+describe("a book that is not ready", () => {
+  /** A book still without a version, whose latest job is as given. */
+  function unready(job: FakeBook["job"]): FakeBook {
+    return book({ version: null, job });
+  }
+
+  /** Longer than the library's poll interval, so a poll would have happened. */
+  const afterAPoll = () => new Promise((resolve) => setTimeout(resolve, 1700));
+
+  it("says which page of which stage it is on", async () => {
+    renderApp(
+      <Library />,
+      new FakeServer({
+        books: [
+          unready({ state: "running", stage: "recognising", pages_done: 12, pages_total: 168 }),
+        ],
+      }),
+    );
+
+    expect(
+      await screen.findByText(`${strings.stageRecognising}: ${strings.ofPages(12, 168)}`),
+    ).toBeTruthy();
+  });
+
+  it("says a failed book stopped, and why, instead of preparing for ever", async () => {
+    const server = new FakeServer({
+      books: [unready({ state: "failed", stage: "stalled", can_retry: true })],
+    });
+    renderApp(<Library />, server);
+
+    expect(await screen.findByText(strings.stateFailed)).toBeTruthy();
+    expect(screen.getByText(strings.failedStalled)).toBeTruthy();
+    expect(screen.queryByText(strings.stateRunning)).toBeNull();
+    expect(screen.getByRole("button", { name: /නැවත උත්සාහ.*ඉතිහාසය/ })).toBeTruthy();
+
+    // Nothing is being prepared, so nothing is polled.
+    await afterAPoll();
+    expect(server.callsTo("GET", /^\/documents$/)).toHaveLength(1);
+  });
+
+  it("does not offer to try a file that was rejected for itself", async () => {
+    renderApp(
+      <Library />,
+      new FakeServer({
+        books: [unready({ state: "failed", stage: "rejected", can_retry: false })],
+      }),
+    );
+
+    expect(await screen.findByText(strings.failedRejected)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /නැවත උත්සාහ/ })).toBeNull();
+  });
+
+  it("tries again, says so, and keeps focus on the book", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({
+      books: [unready({ state: "failed", stage: "stalled", can_retry: true })],
+    });
+    renderApp(<Library />, server);
+
+    await user.click(await screen.findByRole("button", { name: /නැවත උත්සාහ.*ඉතිහාසය/ }));
+
+    await waitFor(() => expect(server.callsTo("POST", /\/retry$/)).toHaveLength(1));
+    await waitFor(() => expect(politeText()).toContain(strings.retrying));
+    await screen.findByText(strings.stateRunning);
+    // The button is gone with the failure; focus is on the book, not the page.
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "ඉතිහාසය.pdf" }));
+  });
+
+  it("announces a book that fails while the reader waits", async () => {
+    const server = new FakeServer({ books: [unready({ state: "running" })] });
+    renderApp(<Library />, server);
+    await screen.findByText(strings.stateRunning);
+
+    server.books[0]!.job = { state: "failed", stage: "stalled", can_retry: true };
+    await afterAPoll();
+
+    await waitFor(() => expect(politeText()).toContain(strings.bookFailed("ඉතිහාසය.pdf")));
+  });
+});
+
 describe("naming a book", () => {
   it("saves the reader's own name for it", async () => {
     const user = userEvent.setup();

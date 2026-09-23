@@ -11,10 +11,14 @@
  * these strings and nothing else, so an awkward or wrong word is the whole
  * interface. See `apps/web/README.md`.
  *
- * A note on what is *not* here: text that comes from the API — page notes,
- * failure details — is already Sinhala-facing prose written by the server, and
- * is shown as received. Translating it twice would be two places to get it wrong.
+ * A note on what is *not* here: page notes from the API are already
+ * Sinhala-facing prose written by the server, and are shown as received.
+ * Translating them twice would be two places to get it wrong. A job's failure
+ * `detail` is different: it is an English diagnostic, so a failed book is
+ * described from its stage instead (`jobFailureMessage`).
  */
+
+import type { Job } from "./types";
 
 export const strings = {
   // Swara — "voice" / "tone". The brand mark is an open book with a gold
@@ -121,6 +125,16 @@ export const strings = {
   stateCancelled: "අවලංගු කරන ලදී",
   preparing: "පොත සූදානම් වෙමින් පවතී. සූදානම් වූ පසු දැනුම් දෙනු ලැබේ.",
   prepared: "පොත කියවීමට සූදානම්.",
+  // Where preparation has got to, and why it stopped.
+  stageExtracting: "පිටු කියවමින්",
+  stageRecognising: "පින්තූරවලින් අකුරු හඳුනාගනිමින්",
+  stageStructuring: "වාක්‍ය ලෙස සකසමින්",
+  failedStalled: "සූදානම් කිරීම අවසන් වීමට පෙර නතර විය. නැවත උත්සාහ කළ හැක.",
+  failedRejected:
+    "මෙම ගොනුව කියවිය නොහැක. එය හානි වී හෝ මුරපදයකින් ආරක්ෂා කර තිබිය හැක. වෙනත් පිටපතක් එක් කරන්න.",
+  failedOther: "සූදානම් කිරීම අසාර්ථක විය. නැවත උත්සාහ කළ හැක.",
+  bookFailed: (title: string) => `"${title}" සූදානම් කිරීම අසාර්ථක විය.`,
+  retrying: "පොත නැවත සූදානම් කරමින්.",
 
   // -- reader ------------------------------------------------------------
   backToLibrary: "පොත් ලැයිස්තුවට",
@@ -402,6 +416,30 @@ export function messageFor(kind: string): string {
     default:
       return strings.errorServer;
   }
+}
+
+/**
+ * What a book being prepared is doing, as its card shows it: "reading pages:
+ * page 12 of 168", or just "preparing" before the first page is done.
+ */
+export function jobProgressMessage(job: Job | null): string {
+  if (!job || job.pages_done === null || job.pages_total === null || job.pages_total <= 0) {
+    return strings.stateRunning;
+  }
+  const stage =
+    job.stage === "recognising"
+      ? strings.stageRecognising
+      : job.stage === "structuring"
+        ? strings.stageStructuring
+        : strings.stageExtracting;
+  return `${stage}: ${strings.ofPages(job.pages_done, job.pages_total)}`;
+}
+
+/** Why a book stopped, in words a reader can act on. Never the server's detail. */
+export function jobFailureMessage(job: Job | null): string {
+  if (job?.stage === "stalled") return strings.failedStalled;
+  if (job?.stage === "rejected") return strings.failedRejected;
+  return strings.failedOther;
 }
 
 export function jobStateMessage(state: string): string {

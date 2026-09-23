@@ -22,6 +22,23 @@ export function isReady(book: DocumentSummary): boolean {
   return book.version !== null;
 }
 
+export type Preparation = "ready" | "preparing" | "failed";
+
+/**
+ * Whether a book is readable, still being prepared, or stopped.
+ *
+ * Not ready is not the same as preparing. A book whose preparation failed has
+ * no version either, and treating it as preparing tells the reader to wait
+ * for something that will never come, while the library polls for ever. A
+ * book with no job at all is from before jobs were listed, and is assumed
+ * to be on its way.
+ */
+export function preparationOf(book: DocumentSummary): Preparation {
+  if (isReady(book)) return "ready";
+  const state = book.job?.state;
+  return state === "failed" || state === "cancelled" ? "failed" : "preparing";
+}
+
 /**
  * How far through, 0–100.
  *
