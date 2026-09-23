@@ -210,7 +210,7 @@ Two modes, and no third. `SINHALA_READER_AUTH` picks one:
 
 | | |
 | --- | --- |
-| `sessions` | Real accounts. `Authorization: Bearer <token>` from `POST /auth/login`. |
+| `sessions` | Real accounts. A browser holds an httpOnly cookie; a script may ask for a bearer token. Needs `SINHALA_READER_SECRET`. |
 | `development` | The `X-Reader-User` header, trusted completely. **Anyone can be anyone.** |
 
 Unset is neither and every request is refused, so a deployment that forgets
@@ -229,8 +229,9 @@ should not require a database and a registered user.
 | | |
 | --- | --- |
 | `POST /auth/register` | Create an account, and sign in with it. |
-| `POST /auth/login` | A token and when it expires. |
-| `POST /auth/logout` | End this session. Idempotent. |
+| `POST /auth/login` | A session, and when it expires, with the page's CSRF token. |
+| `POST /auth/logout` | End this session and clear the cookie. Idempotent. |
+| `POST /auth/logout-everywhere` | End every session on every device. |
 | `GET /auth/me` | Who am I — what a reloaded interface asks. |
 | `POST /auth/password` | Change it, and end **every** session. |
 | `POST /auth/teacher-invite` | Spend a single-use invitation code to become a teacher. Students only. |
@@ -284,6 +285,30 @@ Long, deliberately. Signing in is a much heavier task with a screen reader or at
 exactly the readers this exists for. Sessions are revocable server-side, which
 is what makes that defensible, and they renew in use so a daily reader is never
 signed out mid-chapter.
+
+### Cookies, CSRF and Fetch Metadata
+
+A browser's session is the cookie `__Host-swara_session`: `HttpOnly`, so a
+script in the page cannot take it (pdf.js renders untrusted PDFs there);
+`Secure`; `SameSite=Lax`, since Strict signs a student out when they follow a
+teacher's link from a messaging app. No route puts a token in a browser's
+response body. A test or script that wants one sends
+`X-Session-Transport: bearer`, and the web app's pass-through strips that
+header.
+
+Because a browser sends the cookie whoever asks, a cookie-authenticated
+request must also show it came from this site:
+
+- **Fetch Metadata**: `Sec-Fetch-Site: cross-site` or `same-site` is refused
+  on every request, reads included, since asking for audio starts synthesis. All
+  `/auth` routes refuse it too, so a page cannot sign a reader into an account
+  it controls.
+- **A CSRF token** on every POST, PUT, PATCH and DELETE: `X-CSRF-Token`, an HMAC
+  of the session under `SINHALA_READER_SECRET`. Sign-in returns it, and
+  `GET /auth/me` returns it again for a reloaded page.
+
+In `sessions` mode the server will not start without `SINHALA_READER_SECRET`
+of at least 32 bytes. A renewed session renews the cookie with it.
 
 ### Roles, and the admin command line
 

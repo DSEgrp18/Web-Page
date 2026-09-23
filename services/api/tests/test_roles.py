@@ -41,7 +41,10 @@ def store() -> InMemoryStore:
 
 @pytest.fixture
 def client(store: InMemoryStore) -> TestClient:
-    return TestClient(create_app(Deps(store=store, run_in_background=False, warm_on_start=False)))
+    return TestClient(
+        create_app(Deps(store=store, run_in_background=False, warm_on_start=False)),
+        headers={"X-Session-Transport": "bearer"},
+    )
 
 
 def _invite(store: InMemoryStore, *, days: int = 7, code: str | None = None) -> str:

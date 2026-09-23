@@ -40,7 +40,10 @@ def store() -> InMemoryStore:
 
 @pytest.fixture
 def client(store: InMemoryStore) -> TestClient:
-    return TestClient(create_app(Deps(store=store, run_in_background=False, warm_on_start=False)))
+    return TestClient(
+        create_app(Deps(store=store, run_in_background=False, warm_on_start=False)),
+        headers={"X-Session-Transport": "bearer"},
+    )
 
 
 def recover(client: TestClient, code: str, email: str = "nimali@example.lk", password=NEW_PASSWORD):

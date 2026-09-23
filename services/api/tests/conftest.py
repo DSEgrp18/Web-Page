@@ -26,7 +26,7 @@ if str(_WORKER_TESTS) not in sys.path:
 from pdf_fixtures import Page, Text, build_pdf, legacy_page, sinhala_page  # noqa: E402
 
 from sinhala_reader import Deps, create_app  # noqa: E402
-from sinhala_reader.security import AUTH_MODE_ENV, DEVELOPMENT_MODE  # noqa: E402
+from sinhala_reader.security import AUTH_MODE_ENV, DEVELOPMENT_MODE, SECRET_ENV  # noqa: E402
 from sinhala_reader.storage import InMemoryStore  # noqa: E402
 
 READER = "reader-one"
@@ -35,8 +35,13 @@ OTHER_READER = "reader-two"
 
 @pytest.fixture(autouse=True)
 def development_auth(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The API refuses to serve anything without this, by design."""
+    """The API refuses to serve anything without this, by design.
+
+    The secret is set too, so a test that switches to sessions mode starts. It
+    is a test value, and nothing it signs outlives the test.
+    """
     monkeypatch.setenv(AUTH_MODE_ENV, DEVELOPMENT_MODE)
+    monkeypatch.setenv(SECRET_ENV, "test-secret-" + "x" * 40)
 
 
 @pytest.fixture(autouse=True)

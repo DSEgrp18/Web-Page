@@ -81,6 +81,7 @@ from .security import (
     OWNER_HEADER,
     allowed_origins,
     auth_mode,
+    check_configuration,
     is_development_auth,
     require_owner,
     uses_sessions,
@@ -168,6 +169,8 @@ class Deps:
 
 def create_app(deps: Deps | None = None) -> FastAPI:
     """Build the app around an explicit set of dependencies."""
+    # Before anything is built: sessions without a CSRF key must not start.
+    check_configuration()
     deps = deps or Deps()
     app = FastAPI(
         title="Sinhala Accessible Reader",

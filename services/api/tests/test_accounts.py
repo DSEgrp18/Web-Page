@@ -47,8 +47,11 @@ def sessions_auth(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def client() -> TestClient:
+    # These tests hold the session as a bearer token, as a script would. The
+    # cookie a browser gets instead is tested in test_cookie_sessions.py.
     return TestClient(
-        create_app(Deps(store=InMemoryStore(), run_in_background=False, warm_on_start=False))
+        create_app(Deps(store=InMemoryStore(), run_in_background=False, warm_on_start=False)),
+        headers={"X-Session-Transport": "bearer"},
     )
 
 
