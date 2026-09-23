@@ -73,6 +73,11 @@ class JobState(StrEnum):
         return self in (JobState.SUCCEEDED, JobState.FAILED, JobState.CANCELLED)
 
 
+#: The stage a job fails at when the file itself is the problem: encrypted,
+#: damaged, too long. Trying again would fail the same way, so it is not offered.
+REJECTED_STAGE = "rejected"
+
+
 @dataclass(frozen=True)
 class Job:
     """A unit of background work a reader can be told about."""
@@ -84,6 +89,15 @@ class Job:
     state: JobState = JobState.QUEUED
     stage: str = "queued"
     """Where the work has got to, in words fit to show a person."""
+
+    pages_done: int | None = None
+    pages_total: int | None = None
+    """How far through the current stage, in pages: "page 12 of 168".
+
+    ``None`` until a stage has finished its first page, and for jobs from
+    before progress was recorded. Each stage counts its own pages, so the
+    numbers start again when extraction gives way to recognition.
+    """
 
     detail: str | None = None
     """Why it failed, with no document content in it.
@@ -104,6 +118,17 @@ class Job:
     the process preparing it went away. ``None`` for a job that is not running,
     and for one started before leases existed.
     """
+
+    @property
+    def can_retry(self) -> bool:
+        """Whether preparing the book again could turn out differently.
+
+        A failure from the server's side (a crash, a timeout, a stalled
+        process) might not happen twice. A file that was rejected will be
+        rejected again, and offering to try is offering a second
+        disappointment.
+        """
+        return self.state is JobState.FAILED and self.stage != REJECTED_STAGE
 
 
 @dataclass(frozen=True)
@@ -299,6 +324,17 @@ class Store(ABC):
         ``False`` if the job is no longer running, and changes nothing then, so
         a heartbeat that arrives after the reaper has given up on a job can
         never bring it back to life.
+        """
+
+    @abstractmethod
+    def report_progress(self, job_id: str, stage: str, done: int, total: int) -> bool:
+        """Record how far a running job has got, and nothing else.
+
+        Unscoped, like :meth:`renew_lease`, and narrow for the same reason: the
+        worker writes this while its own copy of the job is stale, so a whole
+        :meth:`put_job` would overwrite whatever changed since. Returns
+        ``False``, changing nothing, once the job is no longer running, so a
+        late report cannot move a failed or cancelled job.
         """
 
     @abstractmethod
@@ -522,6 +558,16 @@ class InMemoryStore(Store):
             if job is None or job.state is not JobState.RUNNING:
                 return False
             self._jobs[job_id] = replace(job, lease_expires_at=until)
+            return True
+
+    def report_progress(self, job_id: str, stage: str, done: int, total: int) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job.state is not JobState.RUNNING:
+                return False
+            self._jobs[job_id] = replace(
+                job, stage=stage, pages_done=done, pages_total=total, updated_at=_now()
+            )
             return True
 
     def fail_stalled_jobs(self, now: str, stale_before: str, detail: str) -> list[str]:

@@ -394,6 +394,19 @@ def test_broken_mode_reads_only_the_broken_page_from_its_image() -> None:
     assert NOTE in broken.notes
 
 
+def test_recognition_progress_counts_only_the_pages_it_reads() -> None:
+    """In broken mode, one page of two is read from its image: "1 of 1"."""
+    pdf = build_pdf([sinhala_page(), legacy_page("DL-Manel")])
+    heard: list[tuple[str, int, int]] = []
+
+    prepare_document(
+        pdf, ocr=CountingOcr(), ocr_mode=OcrMode.BROKEN, progress=lambda *p: heard.append(p)
+    )
+
+    assert [p for p in heard if p[0] == "recognising"] == [("recognising", 1, 1)]
+    assert [p[0] for p in heard] == ["extracting"] * 2 + ["recognising"] + ["structuring"] * 2
+
+
 def test_all_mode_reads_every_page_from_its_image() -> None:
     pdf = build_pdf([sinhala_page(), legacy_page("DL-Manel")])
     ocr = CountingOcr()

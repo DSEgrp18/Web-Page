@@ -385,6 +385,49 @@ class TestJobLeases:
         assert store.renew_lease("job_nothing", FAR_AHEAD) is False
 
 
+# --- job progress ----------------------------------------------------------
+
+
+class TestJobProgress:
+    def _job(self, store: Store, state: JobState) -> Job:
+        document = a_document()
+        store.put_document(document)
+        return store.put_job(a_job(document, state=state))
+
+    def test_a_running_job_records_its_page(self, store: Store) -> None:
+        job = self._job(store, JobState.RUNNING)
+
+        assert store.report_progress(job.job_id, "recognising", 12, 168) is True
+
+        got = store.get_job(job.job_id, ALICE)
+        assert got is not None
+        assert (got.stage, got.pages_done, got.pages_total) == ("recognising", 12, 168)
+        assert got.state is JobState.RUNNING
+
+    def test_a_late_report_cannot_move_a_finished_job(self, store: Store) -> None:
+        """The worker's report can arrive after the reaper, or after a cancel."""
+        for state in (JobState.QUEUED, JobState.SUCCEEDED, JobState.FAILED, JobState.CANCELLED):
+            job = self._job(store, state)
+
+            assert store.report_progress(job.job_id, "extracting", 1, 2) is False
+
+            got = store.get_job(job.job_id, ALICE)
+            assert got is not None
+            assert (got.state, got.pages_done) == (state, None)
+
+    def test_progress_survives_a_whole_job_write(self, store: Store) -> None:
+        from dataclasses import replace
+
+        job = self._job(store, JobState.RUNNING)
+        store.put_job(replace(job, pages_done=3, pages_total=9))
+
+        got = store.get_job(job.job_id, ALICE)
+        assert got is not None and (got.pages_done, got.pages_total) == (3, 9)
+
+    def test_a_missing_job_records_nothing(self, store: Store) -> None:
+        assert store.report_progress("job_nothing", "extracting", 1, 1) is False
+
+
 # --- audio -----------------------------------------------------------------
 
 

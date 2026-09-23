@@ -254,6 +254,16 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
         CREATE INDEX jobs_running ON jobs (lease_expires_at) WHERE state = 'running';
         """,
     ),
+    (
+        "0008_job_progress",
+        """
+        -- How far through its current stage a job is, in pages: "page 12 of
+        -- 168". NULL until a stage finishes its first page, and for every job
+        -- from before this.
+        ALTER TABLE jobs ADD COLUMN pages_done integer;
+        ALTER TABLE jobs ADD COLUMN pages_total integer;
+        """,
+    ),
 )
 
 
@@ -433,15 +443,19 @@ class PostgresStore(Store):
             connection.execute(
                 """
                 INSERT INTO jobs (job_id, document_id, owner, kind, state, stage, detail,
-                                  created_at, updated_at, lease_expires_at)
+                                  created_at, updated_at, lease_expires_at,
+                                  pages_done, pages_total)
                 VALUES (%(job_id)s, %(document_id)s, %(owner)s, %(kind)s, %(state)s, %(stage)s,
-                        %(detail)s, %(created_at)s, %(updated_at)s, %(lease_expires_at)s)
+                        %(detail)s, %(created_at)s, %(updated_at)s, %(lease_expires_at)s,
+                        %(pages_done)s, %(pages_total)s)
                 ON CONFLICT (job_id) DO UPDATE SET
                     state            = EXCLUDED.state,
                     stage            = EXCLUDED.stage,
                     detail           = EXCLUDED.detail,
                     updated_at       = EXCLUDED.updated_at,
-                    lease_expires_at = EXCLUDED.lease_expires_at
+                    lease_expires_at = EXCLUDED.lease_expires_at,
+                    pages_done       = EXCLUDED.pages_done,
+                    pages_total      = EXCLUDED.pages_total
                 """,
                 {
                     "job_id": job.job_id,
@@ -454,6 +468,8 @@ class PostgresStore(Store):
                     "created_at": job.created_at,
                     "updated_at": job.updated_at,
                     "lease_expires_at": job.lease_expires_at,
+                    "pages_done": job.pages_done,
+                    "pages_total": job.pages_total,
                 },
             )
         return job
@@ -483,6 +499,21 @@ class PostgresStore(Store):
                 (until, job_id),
             ).rowcount
         return renewed == 1
+
+    def report_progress(self, job_id: str, stage: str, done: int, total: int) -> bool:
+        """See ``Store.report_progress``. The state is in the WHERE clause, as
+        in :meth:`renew_lease`, so a late report cannot move a finished job."""
+        with self._pool.connection() as connection:
+            updated = connection.execute(
+                """
+                UPDATE jobs
+                   SET stage = %(stage)s, pages_done = %(done)s, pages_total = %(total)s,
+                       updated_at = %(now)s
+                 WHERE job_id = %(job_id)s AND state = 'running'
+                """,
+                {"stage": stage, "done": done, "total": total, "now": _now(), "job_id": job_id},
+            ).rowcount
+        return updated == 1
 
     def fail_stalled_jobs(self, now: str, stale_before: str, detail: str) -> list[str]:
         """See ``Store.fail_stalled_jobs``. One statement, so it is idempotent."""
@@ -782,6 +813,8 @@ def _job(row: dict[str, Any]) -> Job:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         lease_expires_at=row["lease_expires_at"],
+        pages_done=row["pages_done"],
+        pages_total=row["pages_total"],
     )
 
 
