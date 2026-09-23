@@ -174,6 +174,52 @@ def test_oversized_text_is_refused_rather_than_truncated(adapter: DevelopmentAda
 
 
 # --------------------------------------------------------------------------
+# Text the document pipeline has already prepared
+# --------------------------------------------------------------------------
+
+#: A heading's "1.1", as the pipeline writes it: section one one. The adapter
+#: would read the same digits in SENTENCE-style prose as a quantity.
+HEADING = ("එක එක", "eka eka")
+
+
+def test_prepared_text_is_spoken_as_given(adapter: DevelopmentAdapter) -> None:
+    """The pipeline knew the segment's role; a fresh normalisation would not."""
+    meta = adapter.synthesize(SENTENCE, "si-female", prepared=HEADING).metadata
+
+    assert (meta.spoken_text, meta.model_text) == HEADING
+
+
+def test_the_lookup_key_matches_the_key_the_audio_is_stored_under(
+    adapter: DevelopmentAdapter,
+) -> None:
+    """Otherwise a cache lookup misses audio that exists, and generates it again."""
+    looked_up = adapter.cache_key(SENTENCE, "si-female", prepared=HEADING)
+    stored = adapter.synthesize(SENTENCE, "si-female", prepared=HEADING).metadata.cache_key()
+
+    assert looked_up == stored
+    assert looked_up != adapter.cache_key(SENTENCE, "si-female")
+
+
+def test_unspeakable_prepared_text_is_still_refused(adapter: DevelopmentAdapter) -> None:
+    """Only the derivation is skipped, never the guard.
+
+    The display text here is perfectly speakable. If a stored pair could slip
+    past the check, a silent clip would be cached as valid audio.
+    """
+    with pytest.raises(TextNotSpeakableError):
+        adapter.synthesize(SENTENCE, "si-female", prepared=("", ""))
+
+
+def test_oversized_prepared_text_is_still_refused(adapter: DevelopmentAdapter) -> None:
+    from sinhala_tts.normalize import to_model_input
+
+    long_model_text = to_model_input("මම ගෙදර යනවා. " * 40)
+
+    with pytest.raises(TextTooLongError):
+        adapter.synthesize(SENTENCE, "si-female", prepared=("මම ගෙදර යනවා.", long_model_text))
+
+
+# --------------------------------------------------------------------------
 # Readiness, liveness, and configuration
 # --------------------------------------------------------------------------
 
