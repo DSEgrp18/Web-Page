@@ -45,14 +45,17 @@ from psycopg_pool import ConnectionPool
 
 from .storage import (
     AudioRecord,
+    AuditEvent,
     Bookmark,
     Document,
     EmailTaken,
     Job,
     JobState,
     Progress,
+    Role,
     Session,
     Store,
+    TeacherInvite,
     User,
     _now,
 )
@@ -262,6 +265,41 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
         -- from before this.
         ALTER TABLE jobs ADD COLUMN pages_done integer;
         ALTER TABLE jobs ADD COLUMN pages_total integer;
+        """,
+    ),
+    (
+        "0009_roles_recovery_audit",
+        """
+        -- Registration always makes a student. A teacher is made by an admin,
+        -- on the command line or through an invitation; nobody can declare it.
+        ALTER TABLE users ADD COLUMN role text NOT NULL DEFAULT 'student'
+            CHECK (role IN ('student', 'teacher', 'admin'));
+
+        -- The hash of the account's one recovery code. NULL for accounts
+        -- made before recovery codes, until they make one.
+        ALTER TABLE users ADD COLUMN recovery_hash text;
+
+        CREATE TABLE teacher_invites (
+            -- The hash of the code, never the code: it is shown once.
+            code_hash  text PRIMARY KEY,
+            created_by text NOT NULL,
+            created_at text NOT NULL,
+            expires_at text NOT NULL,
+            used_by    text REFERENCES users (user_id) ON DELETE SET NULL,
+            used_at    text
+        );
+
+        -- What changed what an account may do, and who did it. Codes, never
+        -- content. Deleted with the account it is about.
+        CREATE TABLE audit_events (
+            event_id text PRIMARY KEY,
+            kind     text NOT NULL,
+            actor    text NOT NULL,
+            subject  text REFERENCES users (user_id) ON DELETE CASCADE,
+            reason   text NOT NULL,
+            at       text NOT NULL
+        );
+        CREATE INDEX audit_by_subject ON audit_events (subject, at);
         """,
     ),
 )
@@ -712,9 +750,12 @@ class PostgresStore(Store):
                 connection.execute(
                     """
                     INSERT INTO users (user_id, email, email_key, password_hash,
-                                       display_name, created_at)
+                                       display_name, created_at, role, recovery_hash)
                     VALUES (%(user_id)s, %(email)s, %(email_key)s, %(password_hash)s,
-                            %(display_name)s, %(created_at)s)
+                            %(display_name)s, %(created_at)s, %(role)s, %(recovery_hash)s)
+                    -- role and recovery_hash are deliberately not updated: they
+                    -- have their own methods, so a stale copy written back
+                    -- cannot demote a teacher or revive a used code.
                     ON CONFLICT (user_id) DO UPDATE SET
                         email         = EXCLUDED.email,
                         email_key     = EXCLUDED.email_key,
@@ -728,6 +769,8 @@ class PostgresStore(Store):
                         "password_hash": user.password_hash,
                         "display_name": user.display_name,
                         "created_at": user.created_at,
+                        "role": str(user.role),
+                        "recovery_hash": user.recovery_hash,
                     },
                 )
         except UniqueViolation as clash:
@@ -750,6 +793,63 @@ class PostgresStore(Store):
                 "SELECT * FROM users WHERE email_key = %s", (email_key,)
             ).fetchone()
         return _user(row) if row else None
+
+    def set_role(self, user_id: str, role: Role) -> bool:
+        with self._pool.connection() as connection:
+            changed = connection.execute(
+                "UPDATE users SET role = %s WHERE user_id = %s", (str(role), user_id)
+            ).rowcount
+        return changed == 1
+
+    def put_invite(self, invite: TeacherInvite) -> TeacherInvite:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO teacher_invites (code_hash, created_by, created_at, expires_at)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (invite.code_hash, invite.created_by, invite.created_at, invite.expires_at),
+            )
+        return invite
+
+    def redeem_invite(self, code_hash: str, user_id: str, now: str) -> bool:
+        """See ``Store.redeem_invite``. One statement: check and spend together."""
+        with self._pool.connection() as connection:
+            spent = connection.execute(
+                """
+                UPDATE teacher_invites SET used_by = %(user_id)s, used_at = %(now)s
+                 WHERE code_hash = %(code_hash)s AND used_at IS NULL AND expires_at > %(now)s
+                """,
+                {"user_id": user_id, "now": now, "code_hash": code_hash},
+            ).rowcount
+        return spent == 1
+
+    def record(self, event: AuditEvent) -> None:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO audit_events (event_id, kind, actor, subject, reason, at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (event.event_id, event.kind, event.actor, event.subject, event.reason, event.at),
+            )
+
+    def audit_for(self, subject: str) -> list[AuditEvent]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM audit_events WHERE subject = %s ORDER BY at", (subject,)
+            ).fetchall()
+        return [
+            AuditEvent(
+                event_id=row["event_id"],
+                kind=row["kind"],
+                actor=row["actor"],
+                subject=row["subject"],
+                reason=row["reason"],
+                at=row["at"],
+            )
+            for row in rows
+        ]
 
     def put_session(self, session: Session) -> Session:
         with self._pool.connection() as connection:
@@ -877,6 +977,8 @@ def _user(row: dict[str, Any]) -> User:
         password_hash=row["password_hash"],
         display_name=row["display_name"],
         created_at=row["created_at"],
+        role=Role(row["role"]),
+        recovery_hash=row["recovery_hash"],
     )
 
 
