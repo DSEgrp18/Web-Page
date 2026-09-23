@@ -23,15 +23,30 @@ import hmac
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 
 from . import codes, passwords, sessions
 from .ratelimit import client_address, enforce, private
-from .security import AUTH_MODE_ENV, NOT_SIGNED_IN, require_user, store_of, uses_sessions
+from .security import (
+    AUTH_MODE_ENV,
+    NOT_SIGNED_IN,
+    clear_session_cookie,
+    csrf_token,
+    refuse_cross_site,
+    require_user,
+    session_token,
+    set_session_cookie,
+    store_of,
+    uses_sessions,
+    wants_bearer,
+)
 from .storage import AuditEvent, EmailTaken, Role, Store, User, new_id
 
-router = APIRouter(prefix="/auth", tags=["accounts"])
+#: Every account route refuses a request another site's page made. For the
+#: routes a session protects, that is part of CSRF protection; for sign-in and
+#: registration it stops a page signing a reader into someone else's account.
+router = APIRouter(prefix="/auth", tags=["accounts"], dependencies=[Depends(refuse_cross_site)])
 
 #: A failed login should not be measurably faster than a successful one. When
 #: there is no account, there is no stored hash to check, so the work that makes
@@ -154,11 +169,20 @@ INVALID_INVITATION = "That invitation code is not valid."
 
 
 class SignedIn(BaseModel):
-    """The token, returned exactly once. It is not stored anywhere in this shape."""
+    """A new session. A browser receives it as a cookie, never in this body."""
 
-    token: str
+    token: str | None = Field(
+        default=None,
+        description=(
+            "Only for a client that sent X-Session-Transport: bearer, such as a test or "
+            "a script. A browser gets an httpOnly cookie instead, which no script can read."
+        ),
+    )
     expires_at: str
     account: Account
+    csrf_token: str = Field(
+        description="Send back in X-CSRF-Token on every POST, PUT, PATCH and DELETE."
+    )
     recovery_code: str | None = Field(
         default=None,
         description=(
@@ -184,7 +208,7 @@ CurrentUser = Depends(require_user)
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, dependencies=[SessionsRequired])
-def register(body: Registration, request: Request) -> SignedIn:
+def register(body: Registration, request: Request, response: Response) -> SignedIn:
     """Create an account and sign in with it.
 
     Signing in immediately is not a convenience. Making a reader who has just
@@ -217,12 +241,12 @@ def register(body: Registration, request: Request) -> SignedIn:
 
     recovery_code = _new_recovery_code(store, user)
     # Read back, so the account says it has a code because it does.
-    signed_in = _sign_in(store, store.get_user(user.user_id) or user)
+    signed_in = _sign_in(store, store.get_user(user.user_id) or user, request, response)
     return signed_in.model_copy(update={"recovery_code": recovery_code})
 
 
 @router.post("/recover", dependencies=[SessionsRequired])
-def recover(body: Recovery, request: Request) -> SignedIn:
+def recover(body: Recovery, request: Request, response: Response) -> SignedIn:
     """Set a new password with the account's recovery code, with no email.
 
     There is no email here to send a reset link to, and a reader who has lost
@@ -264,7 +288,7 @@ def recover(body: Recovery, request: Request) -> SignedIn:
     )
     recovery_code = _new_recovery_code(store, user)
     # Read back, so the account says it has a code because it does.
-    signed_in = _sign_in(store, store.get_user(user.user_id) or user)
+    signed_in = _sign_in(store, store.get_user(user.user_id) or user, request, response)
     return signed_in.model_copy(update={"recovery_code": recovery_code})
 
 
@@ -296,7 +320,7 @@ def replace_recovery_code(
 
 
 @router.post("/login", dependencies=[SessionsRequired])
-def login(body: Credentials, request: Request) -> SignedIn:
+def login(body: Credentials, request: Request, response: Response) -> SignedIn:
     """Sign in. Every failure is the same failure.
 
     Limited by address and by account, before any work: per account whether
@@ -320,11 +344,11 @@ def login(body: Credentials, request: Request) -> SignedIn:
         # now, while the plaintext is in hand, rather than resetting it later.
         user = store.put_user(replace(user, password_hash=passwords.hash_password(body.password)))
 
-    return _sign_in(store, user)
+    return _sign_in(store, user, request, response)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, dependencies=[SessionsRequired])
-def logout(request: Request) -> None:
+def logout(request: Request, response: Response) -> None:
     """End this session. Idempotent, and never says whether it found one.
 
     A reader pressing "sign out" twice, or after their session expired, must get
@@ -332,15 +356,40 @@ def logout(request: Request) -> None:
     able to use this route to find out whether a token is live.
     """
     store = store_of(request)
-    token = _token_of(request)
+    token, _ = session_token(request)
     if token:
         store.delete_session(sessions.token_hash(token))
+    clear_session_cookie(response)
+
+
+@router.post("/logout-everywhere", status_code=status.HTTP_204_NO_CONTENT)
+def logout_everywhere(request: Request, response: Response, user: User = CurrentUser) -> None:
+    """End every session this account has, on every device.
+
+    For a reader who signed in on a shared or lost phone. Needs a live session
+    here, and its CSRF token, like any other change to the account.
+    """
+    store_of(request).delete_sessions_for_user(user.user_id)
+    clear_session_cookie(response)
+
+
+class Me(Account):
+    csrf_token: str | None = Field(
+        default=None,
+        description="For a browser session: send back in X-CSRF-Token. Null for a bearer token.",
+    )
 
 
 @router.get("/me")
-def me(user: User = CurrentUser) -> Account:
-    """Who am I. The route a reloaded interface uses to find out it is signed in."""
-    return Account.of(user)
+def me(request: Request, user: User = CurrentUser) -> Me:
+    """Who am I. The route a reloaded interface uses to find out it is signed in.
+
+    It also hands a reloaded page its CSRF token, which the page cannot keep:
+    anything a script can store, a script injected into the page can read.
+    """
+    token, by_cookie = session_token(request)
+    csrf = csrf_token(sessions.token_hash(token)) if token and by_cookie else None
+    return Me(**Account.of(user).model_dump(), csrf_token=csrf)
 
 
 @router.post("/password", status_code=status.HTTP_204_NO_CONTENT)
@@ -406,12 +455,15 @@ def _new_recovery_code(store: Store, user: User) -> str:
     return code
 
 
-def _sign_in(store: Store, user: User) -> SignedIn:
+def _sign_in(store: Store, user: User, request: Request, response: Response) -> SignedIn:
+    """Start a session: a cookie for a browser, a token for a client that asked."""
     token, session = sessions.start(store, user)
-    return SignedIn(token=token, expires_at=session.expires_at, account=Account.of(user))
-
-
-def _token_of(request: Request) -> str | None:
-    from .security import _bearer
-
-    return _bearer(request.headers.get("authorization"))
+    bearer = wants_bearer(request)
+    if not bearer:
+        set_session_cookie(response, token, int(sessions.SESSION_LIFETIME.total_seconds()))
+    return SignedIn(
+        token=token if bearer else None,
+        expires_at=session.expires_at,
+        account=Account.of(user),
+        csrf_token=csrf_token(session.token_hash),
+    )
