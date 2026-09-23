@@ -107,7 +107,7 @@ which carried the same content, was closed unmerged.)
 | Require Code Owner review | Yes |
 | Require approval of the most recent push | **No** — removed at the owner's request |
 | Require review threads resolved | Yes |
-| Allowed merge method | Squash only |
+| Allowed merge methods | Rebase and squash (rebase added 23 September 2026; see below) |
 | Required status check | `ci`, pinned to the GitHub Actions app (id `15368`) |
 | Require branch up to date before merge | Yes (strict policy) |
 | Block force pushes | Yes (`non_fast_forward`) |
@@ -191,9 +191,9 @@ members are administrators.
 
 | Setting | State |
 | --- | --- |
-| Squash merge | Enabled (only permitted method) |
+| Squash merge | Enabled |
 | Merge commits | Disabled |
-| Rebase merge | Disabled |
+| Rebase merge | Enabled |
 | Auto-merge | **Disabled**, deliberately — merging stays a human decision |
 | Delete branch on merge | Enabled |
 | Squash commit title / message | Pull request title / body |
@@ -203,8 +203,35 @@ members are administrators.
 | Dependabot automated security fixes | Enabled |
 | Wiki | Disabled (unused surface) |
 
-Squash-only merging with the pull request title and body keeps `main` linear and
-readable, and preserves the pull request author as the commit author.
+### Rebase and squash
+
+Both keep `main` linear, which the ruleset requires. They differ in what
+survives.
+
+- **Rebase and merge** is the default for this project. Our commits are written
+  to be read on their own, each saying *why*, and rebase keeps every one of them
+  with its own author. A pull request of four coherent commits lands as four.
+- **Squash and merge** is for a pull request whose history is not worth
+  keeping, such as fixups and "address review" commits. It lands as one commit,
+  titled and described by the pull request, with the pull request author as its
+  author.
+
+**What rebase-merge requires of a branch:** no merge commits, because linear
+history rejects them. So a branch that has fallen behind `main` is brought up
+to date by **rebasing onto `main` and force-pushing with `--force-with-lease`**,
+never by merging `main` into it. This applies only to one's own pull request
+branch. Force pushes to `main` itself stay blocked, and force-pushing a branch
+someone else is working on would discard their work. A force push after
+approval dismisses the approval, because stale approvals are dismissed on push,
+which is the intended behaviour.
+
+**How this changed.** Merging was squash-only until 23 September 2026. The
+repository setting already permitted rebase, but the ruleset allowed only
+squash, so the rebase button worked only through the administrator bypass. The
+owner added rebase to the ruleset's allowed methods instead of relying on the
+bypass for every merge. Read back from the API afterwards: the ruleset lists
+`["squash", "rebase"]` and records the change at 08:35 UTC. #80 merged shortly
+before that, through the bypass; #94 to #97 merged under the new rule.
 
 Not enabled: `secret_scanning_non_provider_patterns` was requested but reported
 back as `disabled`, and `secret_scanning_validity_checks` remains disabled. Push
