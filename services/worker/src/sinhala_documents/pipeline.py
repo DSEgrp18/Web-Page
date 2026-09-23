@@ -170,7 +170,9 @@ def _boxes_for(
     )
 
 
-def _document_version(source_digest: str, ocr: str | None = None) -> str:
+def _document_version(
+    source_digest: str, ocr: str | None = None, structure: str | None = None
+) -> str:
     """Identity of the text, not just of the file.
 
     The same PDF read with a different converter, or different number words, is
@@ -179,6 +181,13 @@ def _document_version(source_digest: str, ocr: str | None = None) -> str:
     ``ocr`` names the recognition mode and engine, when there is one. It is left
     out entirely when recognition is off, so a document prepared before OCR
     existed keeps its version and its cached audio.
+
+    ``structure`` names the structure provider, model and prompt, which CLAUDE.md
+    requires in the document version: a heading's role decides how its numbers
+    are spoken, so a different structuring is different speech. It follows the
+    same rule as ``ocr`` and is left out for the deterministic path, which is
+    what every document was prepared with before this, so none of them changes
+    version or loses its cached audio.
     """
     parts = [
         source_digest,
@@ -188,6 +197,8 @@ def _document_version(source_digest: str, ocr: str | None = None) -> str:
     ]
     if ocr:
         parts.append(f"ocr={ocr}")
+    if structure:
+        parts.append(f"structure={structure}")
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
@@ -329,8 +340,11 @@ def prepare_document(
     if recognising and media_type == "application/pdf":
         assert ocr is not None
         extraction = apply_ocr(extraction, source, ocr, ocr_mode)
+    from_a_provider = structure is not None and not isinstance(structure, DeterministicStructure)
     version = _document_version(
-        _digest(source), f"{ocr_mode.value}:{ocr.version}" if recognising and ocr else None
+        _digest(source),
+        f"{ocr_mode.value}:{ocr.version}" if recognising and ocr else None,
+        structure.version if from_a_provider else None,
     )
     pages = prepare_pages(extraction, limit=limit, structure=structure)
 

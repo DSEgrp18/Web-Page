@@ -13,16 +13,19 @@ from sinhala_documents.model import QualityState
 from sinhala_documents.pdf_extract import extract_document
 from sinhala_documents.pipeline import prepare_document, prepare_pages
 from sinhala_documents.structure import BlockRole
-from sinhala_documents.structuring import StructureAdapter
+from sinhala_documents.structuring import DeterministicStructure, StructureAdapter
 
 HEADING = "1.1 කාර්මික විප්ලවය"
 BODY = "කාර්මික විප්ලවය ඇරඹිණි."
 CAPTION = "රූපය 1.1 - කපු යන්ත්‍රය"
 
 
+def _pdf() -> bytes:
+    return build_pdf([Page((Text(HEADING, y=700), Text(BODY, y=680), Text(CAPTION, y=660)))])
+
+
 def _extraction():
-    pdf = build_pdf([Page((Text(HEADING, y=700), Text(BODY, y=680), Text(CAPTION, y=660)))])
-    return extract_document(pdf)
+    return extract_document(_pdf())
 
 
 class Structured(StructureAdapter):
@@ -132,3 +135,49 @@ def test_prepare_document_takes_a_structure_adapter_too() -> None:
     document = prepare_document(pdf, structure=Structured())
     assert any(s.role is BlockRole.CAPTION for s in document.segments)
     assert any(s.role is BlockRole.HEADING for s in document.segments)
+
+
+class TestDocumentVersion:
+    """Structure is provenance, so it belongs in the document version.
+
+    CLAUDE.md requires the structure provider, model and prompt "in the document
+    version and in every affected cache key". The version is what audio is cached
+    under, so without this, turning structure on - or revising its prompt - left
+    the old audio in place, spoken from text the new structuring would not write.
+    """
+
+    def test_a_structured_document_has_a_different_version(self) -> None:
+        plain = prepare_document(_pdf())
+        structured = prepare_document(_pdf(), structure=Structured())
+
+        assert plain.version != structured.version
+
+    def test_a_revised_prompt_is_a_new_version(self) -> None:
+        class Revised(Structured):
+            @property
+            def version(self) -> str:
+                return "fake-structure-2"
+
+        first = prepare_document(_pdf(), structure=Structured())
+        revised = prepare_document(_pdf(), structure=Revised())
+
+        assert first.version != revised.version
+
+    def test_the_same_structuring_gives_the_same_version(self) -> None:
+        """Or every preparation would miss the cache it just filled."""
+        first = prepare_document(_pdf(), structure=Structured())
+        again = prepare_document(_pdf(), structure=Structured())
+
+        assert first.version == again.version
+
+    def test_deterministic_structure_keeps_every_existing_version(self) -> None:
+        """Naming the default must change nothing.
+
+        Every book prepared before this was prepared deterministically. Were the
+        default written into the version, all of them - and all their cached
+        audio - would be invalidated to record something that was always true.
+        """
+        default = prepare_document(_pdf())
+        named = prepare_document(_pdf(), structure=DeterministicStructure())
+
+        assert default.version == named.version
