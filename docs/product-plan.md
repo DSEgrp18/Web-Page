@@ -243,11 +243,27 @@ stay unique.
 process doing it had died and nothing notices that. The interface kept saying "being
 prepared" for eight days. Pre-render and quiz jobs are longer, so this gets worse.
 
-**Fix** (`0007`).
-- Add `jobs.heartbeat_at`, `lease_expires_at`, `attempt`, `progress_done` and `progress_total`.
-- Preparation reports progress per page, which also gives the reader "page 12 of 168".
-- A reaper marks stale jobs `failed` with the reason `stalled` (and retryable). It runs at API start-up, every 60 s, and on Celery's `worker_ready`. The update is idempotent, so running it in several processes is harmless.
-- Set `broker_transport_options={"visibility_timeout": 2 * TASK_TIME_LIMIT}` in `queue.py`, so long tasks are not delivered twice.
+**Fix** (`0007`, landed).
+- A running job holds `jobs.lease_expires_at` (120 s). A heartbeat thread in the
+  preparing process renews it every 30 s. It is a thread rather than a callback
+  from the pipeline because the event to detect is the process dying, and the
+  thread dies with it.
+- A reaper fails any running job whose lease has passed, at stage `stalled`, with
+  a detail telling the reader what happened and what to do. It runs in the API
+  at start-up and every 60 s, in thread and queue mode alike, and it is one
+  idempotent statement, so several processes may reap at once. A job started
+  before leases existed gets the same 120 s grace from its last update.
+- A heartbeat can never revive a job the reaper has failed: the renewal checks
+  the state in the same statement.
+- A transient failure renews the lease before the queue retries, so a slow
+  broker cannot let the reaper fail a job that is only between attempts.
+
+**Still to do.**
+- Per-page progress ("page 12 of 168") and a retry action. Both need interface
+  work, so they are a separate increment.
+- The Celery visibility timeout. Today tasks are killed at 15 minutes against
+  a 1-hour default, so nothing is redelivered early. It matters once pre-render
+  tasks run long (Phase 2, §7.4), and is set there.
 
 ### 0.7 Every tab has the same title
 
