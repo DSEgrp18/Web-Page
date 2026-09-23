@@ -151,6 +151,10 @@ services:
         # The address the browser uses, which is the host's. A compose service
         # name would resolve inside this network and nowhere in a browser.
         NEXT_PUBLIC_READER_API: http://127.0.0.1:8000
+    environment:
+      # The same-origin pass-through at /api forwards here, from the server,
+      # read at run time: a compose service name works, since no browser sees it.
+      READER_API_URL: http://api:8000
     ports:
       - "3000:3000"
     depends_on:

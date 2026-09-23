@@ -88,6 +88,26 @@ in `X-Reader-User`, and the interface says plainly that it is not a login.
 Point it somewhere else with `NEXT_PUBLIC_READER_API`. That is an address, not a
 secret — no secret ever enters a browser bundle.
 
+### The same-origin pass-through
+
+`/api/...` on this site forwards to the API, from the server
+(`src/app/api/[...path]/route.ts`, with the logic in `src/lib/passThrough.ts`).
+It is what accounts use: the session is an httpOnly cookie on this origin, so
+no script in the page, where pdf.js renders untrusted PDFs, can read it, and
+there is no CORS to configure.
+
+| Variable | Where it is read | What it is |
+| --- | --- | --- |
+| `READER_API_URL` | the server, at run time | Where the API is, e.g. `http://api:8000`. Never sent to a browser. |
+| `READER_BEHIND_PROXY` | the server, at run time | `1` only behind a proxy that writes the reader's address into `X-Forwarded-For`. |
+
+It streams bodies (an upload may be 200 MB), gives up after 120 seconds (a study
+answer may take 90), and passes an allow-list of headers each way. Anything a
+browser sends to claim an identity (`X-Reader-User`, `Authorization`) or to ask
+for a readable token (`X-Session-Transport`) is dropped. A route handler rather
+than `rewrites()`: rewrites are fixed at build time, time out at 30 seconds, and
+buffer bodies to 10 MB.
+
 ## Checks
 
 ```bash
