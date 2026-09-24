@@ -21,6 +21,7 @@ import type {
   Page,
   Progress,
   PublicationDetail,
+  QuizDetail,
   ResetNotice,
   RightsBasis,
   Segment,
@@ -188,6 +189,8 @@ export class FakeServer {
   readonly issuedResets: string[] = [];
   /** What each reader is still to be told about a teacher's reset code. */
   resetNotices: Record<string, ResetNotice> = {};
+  /** Quizzes, with the answers the fake checks against. */
+  quizzes: (QuizDetail & { creator: string })[] = [];
   /** Books whose class audio has been voiced ahead of time. */
   readonly prerendered = new Set<string>();
   /** Each book's sharing, once it has been shared. */
@@ -244,6 +247,11 @@ export class FakeServer {
 
     const publish = /^\/documents\/([^/]+)\/publish$/.exec(path);
     if (method === "POST" && publish) return this.publish(publish[1]!, owner, init);
+
+    const quizzes = /^\/documents\/([^/]+)\/quizzes$/.exec(path);
+    if (quizzes) return this.quizzesRoute(method, quizzes[1]!, owner, init);
+    const quiz = /^\/quizzes\/([^/]+)(\/.*)?$/.exec(path);
+    if (quiz) return this.quizRoute(method, quiz[1]!, quiz[2] ?? "", owner, init);
 
     const prerender = /^\/documents\/([^/]+)\/prerender$/.exec(path);
     if (prerender) {
@@ -654,6 +662,121 @@ export class FakeServer {
       if (!member) return this.json({ detail: "No such member." }, 404);
       member.state = act[2] === "approve" ? "active" : "removed";
       return this.json(this.taught(room));
+    }
+    return this.notFound();
+  }
+
+  /** Two fixed questions, as the cloze generator would make them. */
+  private quizzesRoute(method: string, documentId: string, owner: string, init: RequestInit) {
+    const book = this.book(documentId);
+    if (!book) return this.notFound();
+    const view = (q: QuizDetail & { creator: string }) => this.quizView(q, owner);
+    if (method === "GET") {
+      return this.json(
+        this.quizzes
+          .filter(
+            (q) =>
+              q.document_id === documentId &&
+              (q.creator === owner || (q.status === "published" && q.for_class)),
+          )
+          .map((q) => {
+            const { questions: _q, answers: _a, ...summary } = view(q);
+            return summary;
+          }),
+      );
+    }
+    const body = JSON.parse(String(init.body)) as { for_class?: boolean };
+    if (body.for_class && !this.teachers.has(owner)) {
+      return this.json({ detail: "Only the book's teacher." }, 403);
+    }
+    this.counter += 1;
+    const made = {
+      quiz_id: `quiz-${this.counter}`,
+      document_id: documentId,
+      for_class: Boolean(body.for_class),
+      status: (body.for_class ? "draft" : "published") as "draft" | "published",
+      generator: "cloze",
+      question_count: 2,
+      stale: false,
+      mine: true,
+      created_at: "2026-09-10T00:00:00Z",
+      creator: owner,
+      answers: [],
+      questions: [
+        {
+          question_id: "q1",
+          question: "ශ්‍රී ලංකාවේ අගනුවර _____ වේ.",
+          options: ["කොළඹ", "කෝට්ටේ", "ගාල්ල", "මහනුවර"],
+          page_label: "1",
+          answer: 1,
+        },
+        {
+          question_id: "q2",
+          question: "_____ ප්‍රධාන වරාය නගරයයි.",
+          options: ["යාපනය", "ත්‍රිකුණාමලය", "කොළඹ", "මාතර"],
+          page_label: "1",
+          answer: 2,
+        },
+      ],
+    };
+    this.quizzes.push(made);
+    return this.json(view(made), 201);
+  }
+
+  private quizView(quiz: QuizDetail & { creator: string }, reader: string): QuizDetail {
+    const mine = quiz.creator === reader;
+    const { creator: _creator, ...rest } = quiz;
+    return {
+      ...rest,
+      mine,
+      question_count: quiz.questions.length,
+      questions: quiz.questions.map((q) => ({ ...q, answer: mine ? q.answer : null })),
+    };
+  }
+
+  private quizRoute(
+    method: string,
+    quizId: string,
+    rest: string,
+    owner: string,
+    init: RequestInit,
+  ): Response {
+    const quiz = this.quizzes.find((q) => q.quiz_id === quizId);
+    const visible =
+      quiz && (quiz.creator === owner || (quiz.for_class && quiz.status === "published"));
+    if (!quiz || !visible) return this.json({ detail: "No such quiz." }, 404);
+    if (method === "GET" && rest === "") return this.json(this.quizView(quiz, owner));
+    if (method === "POST" && rest === "/answers") {
+      const body = JSON.parse(String(init.body)) as { question_id: string; choice: number };
+      const question = quiz.questions.find((q) => q.question_id === body.question_id);
+      if (!question) return this.json({ detail: "No such question." }, 404);
+      const correct = body.choice === question.answer;
+      quiz.answers = [
+        ...quiz.answers.filter((a) => a.question_id !== body.question_id),
+        { question_id: body.question_id, choice: body.choice, correct },
+      ];
+      return this.json({
+        correct,
+        answer: question.answer,
+        quote: question.question.replace("_____", question.options[question.answer!]!),
+        page_index: 0,
+        page_label: "1",
+        segment_id: `0000-s${body.question_id === "q1" ? 0 : 1}`,
+      });
+    }
+    if (quiz.creator !== owner) return this.json({ detail: "No such quiz." }, 404);
+    if (method === "DELETE" && rest === "") {
+      this.quizzes = this.quizzes.filter((q) => q !== quiz);
+      return new Response(null, { status: 204 });
+    }
+    const drop = /^\/questions\/([^/]+)$/.exec(rest);
+    if (method === "DELETE" && drop) {
+      quiz.questions = quiz.questions.filter((q) => q.question_id !== drop[1]);
+      return this.json(this.quizView(quiz, owner));
+    }
+    if (method === "POST" && rest === "/publish") {
+      quiz.status = "published";
+      return this.json(this.quizView(quiz, owner));
     }
     return this.notFound();
   }

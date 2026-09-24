@@ -14,7 +14,7 @@ import { Reader } from "../src/components/Reader";
 import { ShareBook } from "../src/components/ShareBook";
 import { strings } from "../src/lib/strings";
 import { FakeServer, readablePage } from "./fakeApi";
-import { noticeText, renderApp } from "./render";
+import { noticeText, opensBook, renderApp } from "./render";
 
 /**
  * The accessibility smoke test CLAUDE.md's CI section asks for.
@@ -136,7 +136,7 @@ describe("no automatically detectable violations", () => {
       </AppFrame>,
       libraryServer(),
     );
-    await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
+    await screen.findByRole("link", { name: opensBook("ඉතිහාසය.pdf") });
     expect(await violationsIn(container)).toEqual([]);
   });
 

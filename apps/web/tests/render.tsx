@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { AnnouncerProvider } from "../src/components/Announcer";
 import { PreferencesProvider } from "../src/components/PreferencesProvider";
 import { ReaderProvider } from "../src/components/ReaderProvider";
+import { strings } from "../src/lib/strings";
 import type { FakeServer } from "./fakeApi";
 import { OWNER } from "./fakeApi";
 
@@ -48,4 +49,11 @@ export function assertiveText(): string {
  */
 export function noticeText(): string {
   return document.querySelector(".notice.notice-bad")?.textContent ?? "";
+}
+
+/** The name of the link that opens a book: "open" or "continue", then its title. */
+export function opensBook(title: string): RegExp {
+  const verbs = [strings.continueOrOpen(true), strings.continueOrOpen(false)];
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^(${verbs.join("|")}).*${escaped}`);
 }

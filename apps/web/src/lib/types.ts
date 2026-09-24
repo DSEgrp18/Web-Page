@@ -317,6 +317,50 @@ export interface Review {
 export type RightsBasis =
   "public_domain" | "government_textbook" | "publisher_permission" | "own_work" | "other";
 
+// -- practice -----------------------------------------------------------------
+
+export interface QuizSummary {
+  quiz_id: string;
+  document_id: string;
+  for_class: boolean;
+  status: "draft" | "published";
+  generator: string;
+  question_count: number;
+  /** True once the reader's version of the book has moved on. */
+  stale: boolean;
+  mine: boolean;
+  created_at: string;
+}
+
+export interface QuestionView {
+  question_id: string;
+  question: string;
+  options: string[];
+  page_label: string | null;
+  /** Only for the quiz's maker, who has to review it. */
+  answer: number | null;
+}
+
+export interface MyAnswer {
+  question_id: string;
+  choice: number;
+  correct: boolean;
+}
+
+export interface QuizDetail extends QuizSummary {
+  questions: QuestionView[];
+  answers: MyAnswer[];
+}
+
+export interface AnswerResult {
+  correct: boolean;
+  answer: number;
+  quote: string;
+  page_index: number;
+  page_label: string | null;
+  segment_id: string | null;
+}
+
 /** How much of the class's copy of a shared book is voiced already. */
 export interface PrerenderStatus {
   version: string;
