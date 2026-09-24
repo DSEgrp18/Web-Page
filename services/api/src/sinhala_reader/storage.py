@@ -361,6 +361,10 @@ class QuizStatus(StrEnum):
     """Human review is a status, never a paused graph (CLAUDE.md, "The agentic
     boundary"), so approval is a queryable fact deleted with the document."""
 
+    GENERATING = "generating"
+    """A model is drafting it, on the queue."""
+    FAILED = "failed"
+    """Drafting failed, and the reader is told so."""
     DRAFT = "draft"
     PUBLISHED = "published"
 
@@ -748,9 +752,19 @@ class Store(ABC):
     def _quizzes_on(self, document_id: str) -> list[Quiz]:
         """Unscoped. Only :meth:`quizzes_for` may call it."""
 
+    def quiz_for_worker(self, quiz_id: str) -> Quiz | None:
+        """Unscoped, for the worker drafting it, which has no reader."""
+        return self._get_quiz(quiz_id)
+
     @abstractmethod
     def update_quiz(
-        self, quiz_id: str, creator: str, *, status: QuizStatus, questions: str
+        self,
+        quiz_id: str,
+        creator: str,
+        *,
+        status: QuizStatus,
+        questions: str,
+        provenance: str | None = None,
     ) -> Quiz | None:
         """The creator changes their quiz. ``None`` for anyone else."""
 
@@ -1268,13 +1282,24 @@ class InMemoryStore(Store):
         return sorted(found, key=lambda q: (q.created_at, q.quiz_id))
 
     def update_quiz(
-        self, quiz_id: str, creator: str, *, status: QuizStatus, questions: str
+        self,
+        quiz_id: str,
+        creator: str,
+        *,
+        status: QuizStatus,
+        questions: str,
+        provenance: str | None = None,
     ) -> Quiz | None:
         with self._lock:
             quiz = self._quizzes.get(quiz_id)
             if quiz is None or quiz.creator != creator:
                 return None
-            quiz = replace(quiz, status=status, questions=questions)
+            quiz = replace(
+                quiz,
+                status=status,
+                questions=questions,
+                provenance=quiz.provenance if provenance is None else provenance,
+            )
             self._quizzes[quiz_id] = quiz
             return quiz
 

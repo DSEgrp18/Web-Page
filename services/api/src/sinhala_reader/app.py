@@ -40,6 +40,7 @@ from .accounts import router as accounts_router
 from .adapters import build_adapter, warm
 from .answers import build_answerer
 from .audio import SynthesisService
+from .practice import draft_quiz, offered_generators
 from .preparation import (
     PreparationService,
     in_thread,
@@ -47,7 +48,7 @@ from .preparation import (
     reap_periodically,
 )
 from .prerender import Prerenderer
-from .queue import build_app, send_prepare, send_prerender, uses_celery
+from .queue import build_app, send_draft_quiz, send_prepare, send_prerender, uses_celery
 from .ratelimit import RateLimiter, build_rate_limiter
 from .routes import classes, documents, operations, practice, publishing, reading, study
 from .routes.common import REAL_MODEL_HEADER
@@ -108,6 +109,9 @@ class Deps:
             self.store, dispatch=self._dispatcher(run_in_background)
         )
         self.synthesis = SynthesisService(self.adapter, self.store)
+        #: Model-drafted questions run on the queue, or inline in a test. Never
+        #: on a thread here: that would load LangGraph into the API process.
+        self.draft_quiz = self._quiz_dispatcher(run_in_background)
         #: Voicing a shared book ahead of time: inline for tests, on the queue's
         #: voice workers when there is a queue, otherwise on a thread here.
         self.prerender = Prerenderer(self.store, self.synthesis)
@@ -120,6 +124,20 @@ class Deps:
                 self.synthesis,
                 dispatch=lambda document_id, owner: send_prerender(celery, document_id, owner),
             )
+
+    def _quiz_dispatcher(self, run_in_background: bool):
+        if "graph" not in offered_generators():
+            return None
+        if not run_in_background:
+            store = self.store
+            return lambda quiz_id: draft_quiz(store, quiz_id)
+        if self.celery is None:
+            raise RuntimeError(
+                "SINHALA_READER_QUIZ=graph needs SINHALA_READER_QUEUE=celery: model-drafted "
+                "questions run only in the worker."
+            )
+        celery = self.celery
+        return lambda quiz_id: send_draft_quiz(celery, quiz_id)
 
     def _dispatcher(self, run_in_background: bool):
         if not run_in_background:

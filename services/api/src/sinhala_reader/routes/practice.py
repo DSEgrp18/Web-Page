@@ -19,54 +19,26 @@ see is absent (404).
 
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
-from sinhala_documents.model import QualityState
-from sinhala_documents.passages import build_passages
-from sinhala_documents.quiz import (
-    CLOZE_VERSION,
-    VERIFIER_VERSION,
-    Sentence,
-    SourcePassage,
-    cloze_questions,
-    verify,
-)
-from sinhala_documents.retrieval import LexicalIndex
 
+from ..practice import cloze_quiz, offered_generators, provenance
 from ..ratelimit import enforce
 from ..security import require_owner
-from ..storage import (
-    AuditEvent,
-    PageDecision,
-    Quiz,
-    QuizAnswer,
-    QuizStatus,
-    Reading,
-    Role,
-    new_id,
-)
-from .common import prepared_for_in, readable_in
+from ..storage import AuditEvent, Quiz, QuizAnswer, QuizStatus, Role, new_id
+from .common import readable_in
 
 if TYPE_CHECKING:
     from ..app import Deps
 
-#: Which generators this deployment offers. ``graph`` drafts questions with a
-#: model, in the worker; it is never switched to, or from, silently.
-QUIZ_ENV = "SINHALA_READER_QUIZ"
-
-#: Questions per quiz. A short set is one a student finishes.
-QUESTIONS_PER_QUIZ = 10
-
-#: Only prose grounds a question: a heading, caption or contents row blanked
-#: out is a question about layout, not about the book.
-_PROSE = {"paragraph", "list_item", "unknown"}
-
 NO_QUIZ = "No such quiz."
+
+
+class QuizGenerators(BaseModel):
+    generators: list[str] = Field(description="cloze always; graph where configured.")
 
 
 class NewQuiz(BaseModel):
@@ -94,7 +66,7 @@ class QuizSummary(BaseModel):
     quiz_id: str
     document_id: str
     for_class: bool
-    status: str
+    status: str = Field(description="generating, failed, draft or published.")
     generator: str
     question_count: int
     stale: bool
@@ -124,9 +96,6 @@ class AnswerResult(BaseModel):
 def register(app: FastAPI, deps: Deps) -> None:
     """Add the practice routes to ``app``, acting through ``deps``."""
     store = deps.store
-
-    def offered() -> set[str]:
-        return {"cloze", *(["graph"] if os.environ.get(QUIZ_ENV) == "graph" else [])}
 
     def current_version(quiz: Quiz, reader: str) -> str | None:
         reading = store.readable_document(quiz.document_id, reader)
@@ -172,44 +141,10 @@ def register(app: FastAPI, deps: Deps) -> None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NO_QUIZ)
         return quiz
 
-    def sources(reading: Reading) -> tuple[list[SourcePassage], list[Sentence], LexicalIndex]:
-        """The numbered passages a generator may use, and their prose sentences.
-
-        A page grounds a question only if it was read cleanly, or a teacher
-        accepted it on review. Withheld pages are already empty for a class.
-        """
-        prepared = prepared_for_in(deps, reading)
-        assert prepared is not None
-        document = reading.document
-        assert document.version is not None
-        reviewed = store.page_reviews(document.document_id, document.owner, document.version)
-        accepted = {
-            page.page_index
-            for page in prepared.pages
-            if page.quality == QualityState.ACCEPTED
-            or reviewed.get(page.page_index) == PageDecision.ACCEPTED
-        }
-        segments = {s.segment_id: s for page in prepared.pages for s in page.segments}
-        passages = build_passages(prepared)
-        numbered = [
-            SourcePassage(
-                number=number,
-                text=passage.text,
-                page_index=passage.page_index,
-                page_label=passage.page_label,
-                segment_ids=passage.segment_ids,
-                accepted=passage.page_index in accepted,
-            )
-            for number, passage in enumerate(passages, start=1)
-        ]
-        sentences = [
-            Sentence(passage=source.number, segment_id=sid, text=segments[sid].display_text)
-            for source in numbered
-            if source.accepted
-            for sid in source.segment_ids
-            if sid in segments and str(segments[sid].role) in _PROSE
-        ]
-        return numbered, sentences, LexicalIndex(passages)
+    @app.get("/quiz-generators", tags=["practice"])
+    def generators(reader: str = Depends(require_owner)) -> QuizGenerators:
+        """Which kinds of question this deployment can make."""
+        return QuizGenerators(generators=offered_generators())
 
     @app.post(
         "/documents/{document_id}/quizzes",
@@ -217,15 +152,21 @@ def register(app: FastAPI, deps: Deps) -> None:
         tags=["practice"],
     )
     def make_quiz(
-        document_id: str, body: NewQuiz, request: Request, reader: str = Depends(require_owner)
+        document_id: str,
+        body: NewQuiz,
+        request: Request,
+        response: Response,
+        reader: str = Depends(require_owner),
     ) -> QuizDetail:
         """Make practice questions from the book, each checked by the verifier.
 
-        ``graph`` is offered only where this deployment configured it, and is
-        refused otherwise rather than quietly replaced by fill-in-the-blank.
+        ``cloze`` is made here and now. ``graph`` is drafted by a model in the
+        worker: the quiz comes back ``generating`` (202) and is polled. It is
+        offered only where configured, and refused otherwise rather than
+        quietly replaced by fill-in-the-blank.
         """
         reading = readable_in(deps, document_id, reader)
-        if body.generator not in offered():
+        if body.generator not in offered_generators():
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 {"code": "generator_unavailable", "message": "That kind of question is off here."},
@@ -237,32 +178,27 @@ def register(app: FastAPI, deps: Deps) -> None:
                     status.HTTP_403_FORBIDDEN, "Only the book's teacher can make a class quiz."
                 )
         enforce(request, "quiz", reader)
-        numbered, sentences, index = sources(reading)
         version = reading.document.version
         assert version is not None
-        by_number = {source.number: source for source in numbered}
-        candidates = cloze_questions(
-            sentences, index, seed=f"{version}|{reader}|{new_id('q')}", limit=QUESTIONS_PER_QUIZ
-        )
-        kept = []
-        for candidate in candidates:
-            if verify(candidate, by_number) is not None:
-                continue  # Discarded, never repaired.
-            source = by_number[candidate.passage]
-            kept.append(
-                {
-                    "question_id": hashlib.sha256(
-                        f"{version}|{candidate.segment_id}|{candidate.question}".encode()
-                    ).hexdigest()[:12],
-                    "question": candidate.question,
-                    "options": list(candidate.options),
-                    "answer": candidate.answer,
-                    "quote": candidate.quote,
-                    "page_index": source.page_index,
-                    "page_label": source.page_label,
-                    "segment_id": candidate.segment_id,
-                }
+        quiz_id = new_id("quiz")
+        if body.generator == "graph":
+            quiz = store.put_quiz(
+                Quiz(
+                    quiz_id=quiz_id,
+                    document_id=document_id,
+                    creator=reader,
+                    version=version,
+                    for_class=body.for_class,
+                    status=QuizStatus.GENERATING,
+                    provenance=provenance("graph"),
+                    questions="[]",
+                )
             )
+            assert deps.draft_quiz is not None
+            deps.draft_quiz(quiz_id)
+            response.status_code = status.HTTP_202_ACCEPTED
+            return detail(store.quiz_for(quiz_id, reader) or quiz, reader)
+        kept, made_by = cloze_quiz(store, reading, seed=f"{version}|{reader}|{quiz_id}")
         if not kept:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -270,23 +206,13 @@ def register(app: FastAPI, deps: Deps) -> None:
             )
         quiz = store.put_quiz(
             Quiz(
-                quiz_id=new_id("quiz"),
+                quiz_id=quiz_id,
                 document_id=document_id,
                 creator=reader,
                 version=version,
                 for_class=body.for_class,
                 status=QuizStatus.DRAFT if body.for_class else QuizStatus.PUBLISHED,
-                provenance=json.dumps(
-                    {
-                        "generator": "cloze",
-                        "generator_version": CLOZE_VERSION,
-                        "verifier_version": VERIFIER_VERSION,
-                        "provider": None,
-                        "model": None,
-                        "prompt_version": None,
-                        "framework": None,
-                    }
-                ),
+                provenance=made_by,
                 questions=json.dumps(kept, ensure_ascii=False),
             )
         )

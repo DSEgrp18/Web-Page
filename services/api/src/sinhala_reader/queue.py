@@ -182,6 +182,13 @@ def _register(app) -> None:
         store, synthesis = _voice()
         run(store, synthesis, document_id, owner)
 
+    @app.task(name="sinhala_reader.draft_quiz", acks_late=True)
+    def draft_quiz_task(quiz_id: str) -> None:
+        """Draft a quiz's questions with the model. The only place LangGraph runs."""
+        from .practice import draft_quiz
+
+        draft_quiz(build_store(), quiz_id)
+
 
 #: One voice per worker process, loaded on its first pre-render.
 _VOICE = None
@@ -196,6 +203,10 @@ def _voice():
         store = build_store()
         _VOICE = (store, SynthesisService(build_adapter(), store))
     return _VOICE
+
+
+def send_draft_quiz(app, quiz_id: str) -> None:
+    app.send_task("sinhala_reader.draft_quiz", args=[quiz_id])
 
 
 def send_prerender(app, document_id: str, owner: str) -> None:

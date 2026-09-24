@@ -423,7 +423,8 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             creator     text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
             version     text NOT NULL,
             for_class   boolean NOT NULL,
-            status      text NOT NULL CHECK (status IN ('draft', 'published')),
+            status      text NOT NULL
+                CHECK (status IN ('generating', 'failed', 'draft', 'published')),
             provenance  text NOT NULL,
             questions   text NOT NULL,
             created_at  text NOT NULL
@@ -1025,16 +1026,23 @@ class PostgresStore(Store):
         return [_quiz(row) for row in rows]
 
     def update_quiz(
-        self, quiz_id: str, creator: str, *, status: QuizStatus, questions: str
+        self,
+        quiz_id: str,
+        creator: str,
+        *,
+        status: QuizStatus,
+        questions: str,
+        provenance: str | None = None,
     ) -> Quiz | None:
         with self._pool.connection() as connection:
             row = connection.execute(
                 """
-                UPDATE quizzes SET status = %s, questions = %s
+                UPDATE quizzes SET status = %s, questions = %s,
+                       provenance = COALESCE(%s, provenance)
                  WHERE quiz_id = %s AND creator = %s
                 RETURNING *
                 """,
-                (str(status), questions, quiz_id, creator),
+                (str(status), questions, provenance, quiz_id, creator),
             ).fetchone()
         return _quiz(row) if row else None
 

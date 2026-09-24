@@ -44,6 +44,8 @@ MAX_CALLS = 16
 DEADLINE_SECONDS = 240
 RECURSION_LIMIT = 50
 TARGET_QUESTIONS = 5
+#: Shortest passage worth drafting from: about one full sentence.
+MIN_SEED_CHARACTERS = 40
 
 MODEL_ENV = "SINHALA_READER_QUIZ_MODEL"
 DEFAULT_MODEL = "gemini-2.5-flash"
@@ -107,7 +109,7 @@ class _State(TypedDict, total=False):
 
 def _seeds(passages: Sequence[SourcePassage], target: int) -> list[int]:
     """Accepted passages with the most to ask about, spread through the book."""
-    usable = [p for p in passages if p.accepted and len(p.text) >= 80]
+    usable = [p for p in passages if p.accepted and len(p.text) >= MIN_SEED_CHARACTERS]
     if not usable:
         return []
     step = max(1, len(usable) // (target * 2))

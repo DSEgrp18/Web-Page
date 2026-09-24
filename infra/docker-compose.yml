@@ -77,6 +77,9 @@ services:
       # answer from the retrieved passages and labels it as written. Both are
       # grounded in this reader's document and neither can invent a citation.
       SINHALA_READER_ANSWERS: ${SINHALA_READER_ANSWERS:-extractive}
+      # cloze makes fill-in-the-blank questions here; graph adds model-drafted ones,
+      # run only by the worker. Off unless chosen: it sends pages to a model.
+      SINHALA_READER_QUIZ: ${SINHALA_READER_QUIZ:-cloze}
     # The repository-root .env, read at run time and injected as environment —
     # never copied into a layer, where a key would survive in the image history
     # even if a later layer deleted it.
@@ -130,6 +133,9 @@ services:
       # answer from the retrieved passages and labels it as written. Both are
       # grounded in this reader's document and neither can invent a citation.
       SINHALA_READER_ANSWERS: ${SINHALA_READER_ANSWERS:-extractive}
+      # cloze makes fill-in-the-blank questions here; graph adds model-drafted ones,
+      # run only by the worker. Off unless chosen: it sends pages to a model.
+      SINHALA_READER_QUIZ: ${SINHALA_READER_QUIZ:-cloze}
     # The repository-root .env, read at run time and injected as environment —
     # never copied into a layer, where a key would survive in the image history
     # even if a later layer deleted it.
