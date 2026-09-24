@@ -189,6 +189,8 @@ export class FakeServer {
   readonly issuedResets: string[] = [];
   /** What each reader is still to be told about a teacher's reset code. */
   resetNotices: Record<string, ResetNotice> = {};
+  /** True to offer model-drafted questions, as a deployment configured for them. */
+  draftingOffered = false;
   /** Quizzes, with the answers the fake checks against. */
   quizzes: (QuizDetail & { creator: string })[] = [];
   /** Books whose class audio has been voiced ahead of time. */
@@ -248,6 +250,9 @@ export class FakeServer {
     const publish = /^\/documents\/([^/]+)\/publish$/.exec(path);
     if (method === "POST" && publish) return this.publish(publish[1]!, owner, init);
 
+    if (method === "GET" && path === "/quiz-generators") {
+      return this.json({ generators: this.draftingOffered ? ["cloze", "graph"] : ["cloze"] });
+    }
     const quizzes = /^\/documents\/([^/]+)\/quizzes$/.exec(path);
     if (quizzes) return this.quizzesRoute(method, quizzes[1]!, owner, init);
     const quiz = /^\/quizzes\/([^/]+)(\/.*)?$/.exec(path);
@@ -685,7 +690,26 @@ export class FakeServer {
           }),
       );
     }
-    const body = JSON.parse(String(init.body)) as { for_class?: boolean };
+    const body = JSON.parse(String(init.body)) as { for_class?: boolean; generator?: string };
+    if (body.generator === "graph") {
+      this.counter += 1;
+      const drafting = {
+        quiz_id: `quiz-${this.counter}`,
+        document_id: documentId,
+        for_class: false,
+        status: "generating" as const,
+        generator: "graph",
+        question_count: 0,
+        stale: false,
+        mine: true,
+        created_at: "2026-09-10T00:00:00Z",
+        creator: owner,
+        answers: [],
+        questions: [],
+      };
+      this.quizzes.push(drafting);
+      return this.json(view(drafting), 202);
+    }
     if (body.for_class && !this.teachers.has(owner)) {
       return this.json({ detail: "Only the book's teacher." }, 403);
     }

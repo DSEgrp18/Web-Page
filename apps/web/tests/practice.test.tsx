@@ -144,3 +144,53 @@ describe("a teacher's class quiz", () => {
     expect(screen.queryByRole("button", { name: strings.makeClassQuiz })).toBeNull();
   });
 });
+
+describe("questions drafted by a model", () => {
+  it("are offered only where the deployment has them", async () => {
+    renderApp(<Practice documentId="doc-1" />, library());
+
+    await screen.findByRole("button", { name: strings.makeQuiz });
+    expect(screen.queryByRole("button", { name: strings.makeDraftedQuiz })).toBeNull();
+  });
+
+  it("say they are being drafted, and send the book only when asked", async () => {
+    const user = userEvent.setup();
+    const server = library();
+    server.draftingOffered = true;
+    renderApp(<Practice documentId="doc-1" />, server);
+
+    expect(await screen.findByText(strings.draftedHow)).toBeTruthy();
+    expect(server.quizzes).toEqual([]);
+    await user.click(screen.getByRole("button", { name: strings.makeDraftedQuiz }));
+
+    await waitFor(() => expect(politeText()).toContain(strings.quizGenerating));
+    expect(await screen.findByText(strings.quizDraftedLabel)).toBeTruthy();
+  });
+
+  it("say so when drafting failed, and offer fill-in-the-blank as a choice", async () => {
+    const user = userEvent.setup();
+    const server = library();
+    server.quizzes.push({
+      quiz_id: "quiz-x",
+      document_id: "doc-1",
+      for_class: false,
+      status: "failed",
+      generator: "graph",
+      question_count: 0,
+      stale: false,
+      mine: true,
+      created_at: "2026-09-10T00:00:00Z",
+      creator: "reader-one",
+      answers: [],
+      questions: [],
+    });
+    renderApp(<Practice documentId="doc-1" />, server);
+
+    const failed = await screen.findByText(strings.quizFailed);
+    expect(server.quizzes.some((q) => q.generator === "cloze")).toBe(false);
+    const item = failed.closest("li") as HTMLElement;
+    await user.click(within(item).getByRole("button", { name: strings.makeQuiz }));
+
+    await waitFor(() => expect(server.quizzes.some((q) => q.generator === "cloze")).toBe(true));
+  });
+});
