@@ -58,6 +58,9 @@ from .storage import (
     PageDecision,
     Progress,
     Publication,
+    Quiz,
+    QuizAnswer,
+    QuizStatus,
     Reading,
     RightsBasis,
     Role,
@@ -405,6 +408,37 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             expires_at text NOT NULL,
             used_at    text,
             seen_at    text
+        );
+        """,
+    ),
+    (
+        "0013_quizzes",
+        """
+        -- Practice questions on one version of one book. The questions are one
+        -- JSON document: they are made, reviewed and deleted together, and are
+        -- never queried one by one. Deleted with the book and with their maker.
+        CREATE TABLE quizzes (
+            quiz_id     text PRIMARY KEY,
+            document_id text NOT NULL REFERENCES documents (document_id) ON DELETE CASCADE,
+            creator     text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+            version     text NOT NULL,
+            for_class   boolean NOT NULL,
+            status      text NOT NULL CHECK (status IN ('draft', 'published')),
+            provenance  text NOT NULL,
+            questions   text NOT NULL,
+            created_at  text NOT NULL
+        );
+        CREATE INDEX quizzes_by_document ON quizzes (document_id);
+
+        -- Each reader's latest answer to each question.
+        CREATE TABLE quiz_answers (
+            quiz_id     text NOT NULL REFERENCES quizzes (quiz_id) ON DELETE CASCADE,
+            user_id     text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+            question_id text NOT NULL,
+            choice      integer NOT NULL,
+            correct     boolean NOT NULL,
+            answered_at text NOT NULL,
+            PRIMARY KEY (quiz_id, user_id, question_id)
         );
         """,
     ),
@@ -952,6 +986,94 @@ class PostgresStore(Store):
                 {"user_id": user_id, "now": now, "code_hash": code_hash},
             ).rowcount
         return spent == 1
+
+    def put_quiz(self, quiz: Quiz) -> Quiz:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO quizzes (quiz_id, document_id, creator, version, for_class,
+                                     status, provenance, questions, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    quiz.quiz_id,
+                    quiz.document_id,
+                    quiz.creator,
+                    quiz.version,
+                    quiz.for_class,
+                    str(quiz.status),
+                    quiz.provenance,
+                    quiz.questions,
+                    quiz.created_at,
+                ),
+            )
+        return quiz
+
+    def _get_quiz(self, quiz_id: str) -> Quiz | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM quizzes WHERE quiz_id = %s", (quiz_id,)
+            ).fetchone()
+        return _quiz(row) if row else None
+
+    def _quizzes_on(self, document_id: str) -> list[Quiz]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM quizzes WHERE document_id = %s ORDER BY created_at, quiz_id",
+                (document_id,),
+            ).fetchall()
+        return [_quiz(row) for row in rows]
+
+    def update_quiz(
+        self, quiz_id: str, creator: str, *, status: QuizStatus, questions: str
+    ) -> Quiz | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                """
+                UPDATE quizzes SET status = %s, questions = %s
+                 WHERE quiz_id = %s AND creator = %s
+                RETURNING *
+                """,
+                (str(status), questions, quiz_id, creator),
+            ).fetchone()
+        return _quiz(row) if row else None
+
+    def delete_quiz(self, quiz_id: str, creator: str) -> bool:
+        with self._pool.connection() as connection:
+            deleted = connection.execute(
+                "DELETE FROM quizzes WHERE quiz_id = %s AND creator = %s", (quiz_id, creator)
+            ).rowcount
+        return deleted == 1
+
+    def put_quiz_answer(self, answer: QuizAnswer) -> QuizAnswer:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO quiz_answers (quiz_id, user_id, question_id, choice, correct,
+                                          answered_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (quiz_id, user_id, question_id) DO UPDATE SET
+                    choice = EXCLUDED.choice, correct = EXCLUDED.correct,
+                    answered_at = EXCLUDED.answered_at
+                """,
+                (
+                    answer.quiz_id,
+                    answer.user_id,
+                    answer.question_id,
+                    answer.choice,
+                    answer.correct,
+                    answer.answered_at,
+                ),
+            )
+        return answer
+
+    def quiz_answers(self, quiz_id: str, user_id: str) -> list[QuizAnswer]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM quiz_answers WHERE quiz_id = %s AND user_id = %s",
+                (quiz_id, user_id),
+            ).fetchall()
+        return [QuizAnswer(**row) for row in rows]
 
     def put_teacher_reset(self, reset: TeacherReset) -> TeacherReset:
         with self._pool.connection() as connection:
@@ -1542,6 +1664,10 @@ def _bookmark(row: dict[str, Any]) -> Bookmark:
         note=row["note"],
         created_at=row["created_at"],
     )
+
+
+def _quiz(row: dict[str, Any]) -> Quiz:
+    return Quiz(**{**row, "status": QuizStatus(row["status"])})
 
 
 def _user(row: dict[str, Any]) -> User:

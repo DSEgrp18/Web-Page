@@ -357,6 +357,48 @@ class Reading:
     withheld: frozenset[int] = frozenset()
 
 
+class QuizStatus(StrEnum):
+    """Human review is a status, never a paused graph (CLAUDE.md, "The agentic
+    boundary"), so approval is a queryable fact deleted with the document."""
+
+    DRAFT = "draft"
+    PUBLISHED = "published"
+
+
+@dataclass(frozen=True)
+class Quiz:
+    """A set of practice questions on one version of one book.
+
+    A personal quiz is its creator's alone and usable at once. A class quiz is
+    made by the book's owner, a teacher, and reaches the class only once they
+    publish it, which is their approval of every question left in it.
+    """
+
+    quiz_id: str
+    document_id: str
+    creator: str
+    version: str
+    for_class: bool
+    status: QuizStatus
+    provenance: str
+    """JSON: generator, provider, model, prompt, verifier and framework versions."""
+    questions: str
+    """JSON: the questions that passed the verifier, answers included."""
+    created_at: str = field(default_factory=_now)
+
+
+@dataclass(frozen=True)
+class QuizAnswer:
+    """A reader's latest answer to one question. Theirs alone."""
+
+    quiz_id: str
+    user_id: str
+    question_id: str
+    choice: int
+    correct: bool
+    answered_at: str = field(default_factory=_now)
+
+
 @dataclass(frozen=True)
 class Classroom:
     """A teacher's class. ``join_code`` is eight digits, shown to the teacher."""
@@ -675,6 +717,54 @@ class Store(ABC):
         """The student has been told. ``False`` if there was nothing to tell."""
 
     @abstractmethod
+    def put_quiz(self, quiz: Quiz) -> Quiz: ...
+
+    def quiz_for(self, quiz_id: str, reader: str) -> Quiz | None:
+        """The quiz if this reader may see it: its creator, or, once published,
+        anyone who may read the book as a member of a class it is shared with."""
+        quiz = self._get_quiz(quiz_id)
+        if quiz is None:
+            return None
+        if quiz.creator == reader:
+            return quiz
+        if not quiz.for_class or quiz.status != QuizStatus.PUBLISHED:
+            return None
+        reading = self.readable_document(quiz.document_id, reader)
+        return quiz if reading is not None and not reading.as_owner else None
+
+    def quizzes_for(self, document_id: str, reader: str) -> list[Quiz]:
+        """Every quiz on this book the reader may see, oldest first."""
+        return [
+            quiz
+            for quiz in self._quizzes_on(document_id)
+            if self.quiz_for(quiz.quiz_id, reader) is not None
+        ]
+
+    @abstractmethod
+    def _get_quiz(self, quiz_id: str) -> Quiz | None:
+        """Unscoped. Only :meth:`quiz_for` may call it."""
+
+    @abstractmethod
+    def _quizzes_on(self, document_id: str) -> list[Quiz]:
+        """Unscoped. Only :meth:`quizzes_for` may call it."""
+
+    @abstractmethod
+    def update_quiz(
+        self, quiz_id: str, creator: str, *, status: QuizStatus, questions: str
+    ) -> Quiz | None:
+        """The creator changes their quiz. ``None`` for anyone else."""
+
+    @abstractmethod
+    def delete_quiz(self, quiz_id: str, creator: str) -> bool: ...
+
+    @abstractmethod
+    def put_quiz_answer(self, answer: QuizAnswer) -> QuizAnswer:
+        """Replace this reader's answer to this question."""
+
+    @abstractmethod
+    def quiz_answers(self, quiz_id: str, user_id: str) -> list[QuizAnswer]: ...
+
+    @abstractmethod
     def record(self, event: AuditEvent) -> None: ...
 
     @abstractmethod
@@ -839,6 +929,8 @@ class InMemoryStore(Store):
         self._users_by_email: dict[str, str] = {}
         self._invites: dict[str, TeacherInvite] = {}
         self._teacher_resets: dict[str, TeacherReset] = {}
+        self._quizzes: dict[str, Quiz] = {}
+        self._quiz_answers: dict[tuple[str, str, str], QuizAnswer] = {}
         self._audit: list[AuditEvent] = []
         self._classes: dict[str, Classroom] = {}
         self._members: dict[tuple[str, str], Membership] = {}
@@ -889,6 +981,10 @@ class InMemoryStore(Store):
                 del self._prepared_versions[key]
             for key in [k for k in self._page_reviews if k[0] == document_id]:
                 del self._page_reviews[key]
+            for quiz_id in [
+                q for q, quiz in self._quizzes.items() if quiz.document_id == document_id
+            ]:
+                self._drop_quiz(quiz_id)
             self._prepared.pop(document_id, None)
             self._progress.pop(self._progress_key(document_id, owner), None)
             for bookmark_id, bookmark in list(self._bookmarks.items()):
@@ -1119,6 +1215,10 @@ class InMemoryStore(Store):
                 if invite.used_by == user_id:
                     self._invites[code_hash] = replace(invite, used_by=None)
             self._teacher_resets.pop(user_id, None)
+            for quiz_id in [q for q, quiz in self._quizzes.items() if quiz.creator == user_id]:
+                self._drop_quiz(quiz_id)
+            for key in [k for k in self._quiz_answers if k[1] == user_id]:
+                del self._quiz_answers[key]
             for student, reset in list(self._teacher_resets.items()):
                 if reset.issued_by == user_id:
                     self._teacher_resets[student] = replace(reset, issued_by=None)
@@ -1152,6 +1252,55 @@ class InMemoryStore(Store):
                 return False
             self._invites[code_hash] = replace(invite, used_by=user_id, used_at=now)
             return True
+
+    def put_quiz(self, quiz: Quiz) -> Quiz:
+        with self._lock:
+            self._quizzes[quiz.quiz_id] = quiz
+        return quiz
+
+    def _get_quiz(self, quiz_id: str) -> Quiz | None:
+        with self._lock:
+            return self._quizzes.get(quiz_id)
+
+    def _quizzes_on(self, document_id: str) -> list[Quiz]:
+        with self._lock:
+            found = [q for q in self._quizzes.values() if q.document_id == document_id]
+        return sorted(found, key=lambda q: (q.created_at, q.quiz_id))
+
+    def update_quiz(
+        self, quiz_id: str, creator: str, *, status: QuizStatus, questions: str
+    ) -> Quiz | None:
+        with self._lock:
+            quiz = self._quizzes.get(quiz_id)
+            if quiz is None or quiz.creator != creator:
+                return None
+            quiz = replace(quiz, status=status, questions=questions)
+            self._quizzes[quiz_id] = quiz
+            return quiz
+
+    def delete_quiz(self, quiz_id: str, creator: str) -> bool:
+        with self._lock:
+            quiz = self._quizzes.get(quiz_id)
+            if quiz is None or quiz.creator != creator:
+                return False
+            self._drop_quiz(quiz_id)
+            return True
+
+    def _drop_quiz(self, quiz_id: str) -> None:
+        self._quizzes.pop(quiz_id, None)
+        for key in [k for k in self._quiz_answers if k[0] == quiz_id]:
+            del self._quiz_answers[key]
+
+    def put_quiz_answer(self, answer: QuizAnswer) -> QuizAnswer:
+        with self._lock:
+            self._quiz_answers[(answer.quiz_id, answer.user_id, answer.question_id)] = answer
+        return answer
+
+    def quiz_answers(self, quiz_id: str, user_id: str) -> list[QuizAnswer]:
+        with self._lock:
+            return [
+                a for (q, u, _), a in self._quiz_answers.items() if q == quiz_id and u == user_id
+            ]
 
     def put_teacher_reset(self, reset: TeacherReset) -> TeacherReset:
         with self._lock:
