@@ -532,6 +532,8 @@ SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 S
 
 # and a worker, in another terminal
 SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m celery -A sinhala_reader.celery_worker worker --loglevel=info
+# Model-drafted practice questions (SINHALA_READER_QUIZ=graph, off by default) also
+# run on this worker, and need GEMINI_API_KEY and the `quiz` extra (langgraph).
 # and, to voice shared books for their classes (POST /documents/{id}/prerender):
 SINHALA_READER_QUEUE=celery SINHALA_READER_REDIS_URL=redis://127.0.0.1:56379/0 SINHALA_READER_DATABASE_URL=postgresql://postgres:dev@127.0.0.1:55432/reader PYTHONPATH="src:../worker/src:../tts/src"   python -m celery -A sinhala_reader.celery_worker worker --loglevel=info --concurrency=1 -Q voice
 ```

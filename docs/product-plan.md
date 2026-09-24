@@ -514,11 +514,25 @@ stays quality-track item 34.
 - **Progress.** The teacher sees "412 of 3,120 sentences". It is announced politely at start, finish and failure only.
 - **Workers.** Compose gets a separate `voice-worker` (the tts image, `-Q audio --concurrency=1`), because two prefork processes would each load the 5.6 GB checkpoint.
 - **Cost.** On CPU the manifest measures 3.3–3.8× real time, which is **about 28 hours for one 168-page textbook**. That is workable overnight for one book, and not beyond. `SINHALA_READER_TTS=modal` adds a `ModalAdapter` that sends only spoken text, as `modal_app.py` already requires. It is blocked until the model upload to Modal succeeds.
-- **Storage** (`0013`): Opus at about 24 kbps. That is about 11 MB per hour against WAV's 173 MB, which matters for downloads on Tharindu's phone. Object storage (quality-track item 43) must land before production pre-render: one book stored as WAV in the database is about 1.7 GB.
+- **Storage** (`0014`): Opus at about 24 kbps. That is about 11 MB per hour against WAV's 173 MB, which matters for downloads on Tharindu's phone. Object storage (quality-track item 43) must land before production pre-render: one book stored as WAV in the database is about 1.7 GB.
 
 ---
 
 ## 8. Phase 3 — Practise
+
+> **Landed (#87, #88).** `sinhala_documents/quiz.py` (the verifier, with one
+> rejection code per check, and the cloze generator), `quiz_graph.py` (the
+> bounded LangGraph loop), `sinhala_reader/practice.py` and `routes/practice.py`,
+> migration `0013_quizzes`, the `sinhala_reader.draft_quiz` Celery task, and the
+> practice screen at `/library/[id]/practice`. Differences from the design below,
+> each deliberate: questions are stored as one JSON document per quiz rather than
+> a `quiz_questions` table, since they are made, reviewed and deleted together;
+> answers are each reader's latest per question (`quiz_answers`) rather than
+> attempts; the teacher's review is `draft → published`, with publishing as the
+> approval of every question left in, and review removes questions but never
+> edits them. `SINHALA_READER_QUIZ=graph` needs the queue: the API refuses to
+> start without it, and a subprocess test proves the API never imports
+> `langgraph` or `langchain_core`.
 
 ### 8.1 Two generators behind one adapter
 
@@ -640,7 +654,7 @@ LangGraph's interrupt feature was rejected for this, for five reasons:
 labelled either "fill-in-the-blank from the book" or "written by a model, checked by rules,
 not by a teacher". **A class quiz needs a teacher's approval.**
 
-### 8.6 Data and routes (migration `0014`)
+### 8.6 Data and routes (migration `0013`)
 
 - **Tables:**
   - `quizzes`: scope, generator, generator version, status, reason-code counts only, and approval fields.
@@ -760,8 +774,8 @@ as the hardening track. Each phase gate also checks the quality-track items it c
 | `0010_classes` | Classes with a join code, and members with state and progress consent (landed) |
 | `0011_publishing` | Published books, pinned versions, rights attestations, page reviews (landed) |
 | `0012_teacher_resets` | Thirty-minute reset codes a teacher makes for their own students, and whether the student has been told |
-| `0013_compact_audio` | Opus audio |
-| `0014_quizzes` | Quizzes, questions, attempts, responses |
+| `0013_quizzes` | Quizzes (questions as one JSON document per quiz) and each reader's latest answers (landed) |
+| `0014_compact_audio` | Opus audio |
 | `0015_tracking` | Heard segments, review cards |
 | `0016_feedback` | Problem reports |
 
