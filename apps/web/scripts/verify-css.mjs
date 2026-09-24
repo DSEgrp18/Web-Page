@@ -33,7 +33,6 @@ const src = join(root, "src");
  * Classes used without a rule when this check was added. Their buttons are
  * styled; what is missing is layout.
  * Bookmarks: the screen needs design work, tracked in its own issue.
- * Study: the orphaned `/study` route, deleted in Phase 1.
  */
 const KNOWN_UNSTYLED = new Map([
   [
@@ -51,22 +50,6 @@ const KNOWN_UNSTYLED = new Map([
       "bookmark-note",
       "bookmark-warning",
       "bookmark-actions",
-    ]),
-  ],
-  [
-    "src/components/Study.tsx",
-    new Set([
-      "study-page",
-      "study-topline",
-      "study-heading",
-      "study-form",
-      "primary",
-      "study-abstained",
-      "study-result",
-      "study-citations",
-      "study-citation",
-      "study-citation-place",
-      "button",
     ]),
   ],
 ]);
