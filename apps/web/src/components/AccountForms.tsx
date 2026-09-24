@@ -37,7 +37,7 @@ import type { SignedIn } from "@/lib/types";
 /** The password rule the API enforces, so the hint and the refusal agree. */
 export const MIN_PASSWORD_LENGTH = 10;
 
-function useFailure() {
+export function useFailure() {
   const [failure, setFailure] = useState<string | null>(null);
   const ref = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
@@ -52,7 +52,7 @@ function useFailure() {
 }
 
 /** What to say for a failed account request, given what each route refuses with. */
-function explain(error: unknown, when: Partial<Record<number, string>>): string {
+export function explain(error: unknown, when: Partial<Record<number, string>>): string {
   if (error instanceof ApiError) {
     const specific = when[error.status];
     if (specific) return specific;
@@ -84,18 +84,21 @@ function Field({
   );
 }
 
-function PasswordField({
+export function PasswordField({
   label,
   hint,
   autoComplete,
   value,
   onChange,
+  name = "password",
 }: {
   label: string;
   hint?: string;
   autoComplete: "current-password" | "new-password";
   value: string;
   onChange: (value: string) => void;
+  /** Distinct names when one page has several password fields. */
+  name?: string;
 }) {
   const [shown, setShown] = useState(false);
   const toggleId = useId();
@@ -104,7 +107,7 @@ function PasswordField({
       <Field
         label={label}
         hint={hint}
-        name="password"
+        name={name}
         type={shown ? "text" : "password"}
         autoComplete={autoComplete}
         required
@@ -353,7 +356,18 @@ export function RecoverForm() {
  * is safe. Moving on is a deliberate step: a code that scrolls away with the
  * next screen is a code nobody saved.
  */
-export function RecoveryCode({ email, code }: { email: string; code: string }) {
+export function RecoveryCode({
+  email,
+  code,
+  onDone,
+  doneLabel = strings.continueToLibrary,
+}: {
+  email: string;
+  code: string;
+  /** Where "continue" goes. The library, unless the caller says otherwise. */
+  onDone?: () => void;
+  doneLabel?: string;
+}) {
   const { say } = useAnnouncer();
   const router = useRouter();
   const [saved, setSaved] = useState(false);
@@ -415,9 +429,9 @@ export function RecoveryCode({ email, code }: { email: string; code: string }) {
           className="btn btn-primary"
           type="button"
           disabled={!saved}
-          onClick={() => router.replace("/")}
+          onClick={() => (onDone ? onDone() : router.replace("/"))}
         >
-          {strings.continueToLibrary}
+          {doneLabel}
         </button>
       </section>
     </div>

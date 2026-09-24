@@ -54,6 +54,35 @@ export const strings = {
   signedOut: "ඔබ පිටව ගියා.",
   signedIn: "ඔබ ඇතුළු වුණා.",
   loadingSession: "පූරණය වෙමින්…",
+  // The account page.
+  accountHeading: "මගේ ගිණුම",
+  accountDetails: "ගිණුමේ විස්තර",
+  roleTerm: "භූමිකාව",
+  roleName: (role: string) =>
+    role === "teacher" ? "ගුරු" : role === "admin" ? "පරිපාලක" : "ශිෂ්‍ය",
+  currentPasswordLabel: "වත්මන් මුරපදය",
+  changePasswordHeading: "මුරපදය වෙනස් කරන්න",
+  changePasswordAction: "මුරපදය වෙනස් කරන්න",
+  passwordChanged: "මුරපදය වෙනස් කළා. වෙනත් උපාංගවල ඔබ පිටවී ඇත.",
+  errorWrongPassword: "වත්මන් මුරපදය නිවැරදි නැත.",
+  recoveryHeading: "ප්‍රතිසාධන කේතය",
+  recoveryMissing:
+    "ඔබේ ගිණුමට ප්‍රතිසාධන කේතයක් නැත. මුරපදය අමතක වුවහොත් නැවත පිවිසීමට එකක් සාදන්න.",
+  recoveryReplaceIntro: "නව කේතයක් සෑදූ විට පැරණි කේතය තවදුරටත් ක්‍රියා නොකරයි.",
+  newRecoveryAction: "නව ප්‍රතිසාධන කේතයක් සාදන්න",
+  backToAccount: "මගේ ගිණුමට ආපසු",
+  everywhereHeading: "සියලු උපාංගවලින් පිටවන්න",
+  everywhereIntro: "හවුලේ හෝ නැති වූ දුරකථනයක ඔබ ඇතුළු වී සිටියේ නම්, මෙයින් එහිද මෙහිද ඔබ පිටවේ.",
+  everywhereAction: "සියලු උපාංගවලින් පිටවන්න",
+  signedOutEverywhere: "ඔබ සියලු උපාංගවලින් පිටව ගියා.",
+  deleteAccountHeading: "ගිණුම මකන්න",
+  deleteAccountIntro:
+    "ඔබේ ගිණුම සහ ඔබේ සියලු පොත්, හඬ, සටහන් හා පිටු සලකුණු ඉවත් වේ. මෙය ආපසු හැරවිය නොහැක.",
+  deleteAccountAction: "ගිණුම මකන්න",
+  deleteAccountConfirmTitle: "ඔබේ ගිණුම මකන්න ද?",
+  deleteAccountConfirmBody:
+    "ඔබේ සියලු පොත් සහ ඒවායින් සැකසූ සියල්ල සදහටම ඉවත් වේ. මෙය ආපසු හැරවිය නොහැක.",
+  accountDeleted: "ඔබේ ගිණුම මකා දැමුණා.",
   // Refusals, each saying what to do next.
   errorSignIn: "ඊමේල් ලිපිනය හෝ මුරපදය නිවැරදි නැත.",
   errorRecover: "ඊමේල් ලිපිනය හා ප්‍රතිසාධන කේතය නොගැළපේ.",

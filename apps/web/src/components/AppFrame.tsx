@@ -109,7 +109,12 @@ function AccountBadge() {
   const { say } = useAnnouncer();
   return (
     <p className="account-badge">
-      <span className="account-name">{account?.display_name}</span>
+      {/* The name is the way to the account page. The visible name stays
+          first in the accessible name, so a voice-control user can say it. */}
+      <Link className="account-name" href="/account">
+        {account?.display_name}
+        <span className="visually-hidden"> — {strings.accountHeading}</span>
+      </Link>
       <button
         type="button"
         className="btn btn-quiet btn-sm"

@@ -877,6 +877,31 @@ textarea {
   gap: var(--s4);
 }
 
+.account-page {
+  display: grid;
+  gap: var(--s5);
+  inline-size: min(40rem, 100%);
+  margin-inline: auto;
+}
+
+.account-section {
+  padding: var(--s5);
+  display: grid;
+  gap: var(--s4);
+}
+
+.account-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+}
+
+.account-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* A checkbox and its label, as one target at least --tap tall. */
 .check-row {
   display: flex;

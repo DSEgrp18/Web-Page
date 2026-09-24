@@ -34,6 +34,8 @@ interface FakeAccount {
   email: string;
   password: string;
   display_name: string;
+  /** False for an account made before recovery codes. */
+  has_recovery_code?: boolean;
 }
 
 export interface FakeBook {
@@ -346,7 +348,7 @@ export class FakeServer {
         email: found?.email ?? `${id}@example.lk`,
         display_name: found?.display_name ?? id,
         role: "student",
-        has_recovery_code: true,
+        has_recovery_code: found?.has_recovery_code ?? true,
         created_at: "2026-09-01T00:00:00Z",
       };
     };
@@ -398,6 +400,42 @@ export class FakeServer {
       }
       found.password = body.new_password ?? "";
       return signedIn(found.user_id, "TUVW-XYZ2-3456-789A");
+    }
+    // The routes a signed-in reader uses on the account page: all need the
+    // session and its CSRF token, and all but one the current password.
+    const current = this.accounts.find((a) => a.user_id === this.signedInAs);
+    const passwordOk = current !== undefined && body.current_password === current.password;
+    const needsSession = [
+      "/auth/password",
+      "/auth/recovery-code",
+      "/auth/logout-everywhere",
+      "/auth/account",
+    ];
+    if (needsSession.includes(path)) {
+      if (!this.signedInAs) return this.json({ detail: "Sign in to continue." }, 401);
+      if (headers.get("X-CSRF-Token") !== FAKE_CSRF) return this.json({ detail: "stale" }, 403);
+    }
+    if (method === "POST" && path === "/auth/password") {
+      if (!passwordOk) return this.json({ detail: "That password is not correct." }, 401);
+      if ((body.new_password ?? "").length < 10) return this.json({ detail: "Too short." }, 422);
+      current.password = body.new_password ?? "";
+      this.signedInAs = null; // every session ends, this one too
+      return new Response(null, { status: 204 });
+    }
+    if (method === "POST" && path === "/auth/recovery-code") {
+      if (!passwordOk) return this.json({ detail: "That password is not correct." }, 401);
+      return this.json({ recovery_code: "NEWC-ODE2-3456-789A" });
+    }
+    if (method === "POST" && path === "/auth/logout-everywhere") {
+      this.signedInAs = null;
+      return new Response(null, { status: 204 });
+    }
+    if (method === "DELETE" && path === "/auth/account") {
+      if (!passwordOk) return this.json({ detail: "That password is not correct." }, 401);
+      this.accounts.splice(this.accounts.indexOf(current), 1);
+      this.books = [];
+      this.signedInAs = null;
+      return new Response(null, { status: 204 });
     }
     if (method === "POST" && path === "/auth/logout") {
       if (headers.get("X-CSRF-Token") !== FAKE_CSRF) return this.json({ detail: "stale" }, 403);

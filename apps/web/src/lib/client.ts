@@ -183,6 +183,38 @@ export class AuthApi {
   async signOut(csrf: string): Promise<void> {
     await send(this.options, csrf, "/auth/logout", { method: "POST" });
   }
+
+  /** Change the password. The server ends every session, this one included. */
+  async changePassword(csrf: string, currentPassword: string, newPassword: string): Promise<void> {
+    await send(this.options, csrf, "/auth/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+  }
+
+  /** A new recovery code; the old one stops working. Shown once. */
+  async newRecoveryCode(csrf: string, currentPassword: string): Promise<string> {
+    const { recovery_code } = await this.post<{ recovery_code: string }>(
+      "/auth/recovery-code",
+      { current_password: currentPassword },
+      csrf,
+    );
+    return recovery_code;
+  }
+
+  async signOutEverywhere(csrf: string): Promise<void> {
+    await send(this.options, csrf, "/auth/logout-everywhere", { method: "POST" });
+  }
+
+  /** Every book and everything made from it, then the account. Not undoable. */
+  async deleteAccount(csrf: string, currentPassword: string): Promise<void> {
+    await send(this.options, csrf, "/auth/account", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: currentPassword }),
+    });
+  }
 }
 
 export class ReaderApi {

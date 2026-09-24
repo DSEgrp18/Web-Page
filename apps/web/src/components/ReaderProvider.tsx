@@ -27,6 +27,11 @@ interface ReaderValue {
   register: (email: string, password: string, displayName: string) => Promise<SignedIn>;
   recover: (email: string, recoveryCode: string, newPassword: string) => Promise<SignedIn>;
   signOut: () => Promise<void>;
+  /** Change the password, then sign straight back in with it. */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  newRecoveryCode: (currentPassword: string) => Promise<string>;
+  signOutEverywhere: () => Promise<void>;
+  deleteAccount: (currentPassword: string) => Promise<void>;
 }
 
 const ReaderContext = createContext<ReaderValue | null>(null);
@@ -109,6 +114,14 @@ export function ReaderProvider({
     [auth, begin],
   );
 
+  /** Forget the session here: token, account, and this phone's offline audio. */
+  const end = useCallback(async () => {
+    await clearOfflineCaches();
+    api.setCsrf(null);
+    setAccount(null);
+    setStatus("signed_out");
+  }, [api]);
+
   const signOut = useCallback(async () => {
     try {
       const csrf = api.csrfToken;
@@ -116,12 +129,43 @@ export function ReaderProvider({
     } finally {
       // Signed out here whatever the server said: a reader who pressed "sign
       // out" on a shared phone must not be left signed in by a network error.
-      await clearOfflineCaches();
-      api.setCsrf(null);
-      setAccount(null);
-      setStatus("signed_out");
+      await end();
     }
-  }, [auth, api]);
+  }, [auth, api, end]);
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      await auth.changePassword(api.csrfToken ?? "", currentPassword, newPassword);
+      // The change ended every session, this one too, which is its point
+      // elsewhere and only an obstacle here: the reader knows the new password.
+      const email = account?.email;
+      if (!email) return end();
+      try {
+        begin(await auth.signIn(email, newPassword));
+      } catch {
+        await end();
+      }
+    },
+    [auth, api, account, begin, end],
+  );
+
+  const newRecoveryCode = useCallback(
+    (currentPassword: string) => auth.newRecoveryCode(api.csrfToken ?? "", currentPassword),
+    [auth, api],
+  );
+
+  const signOutEverywhere = useCallback(async () => {
+    await auth.signOutEverywhere(api.csrfToken ?? "");
+    await end();
+  }, [auth, api, end]);
+
+  const deleteAccount = useCallback(
+    async (currentPassword: string) => {
+      await auth.deleteAccount(api.csrfToken ?? "", currentPassword);
+      await end();
+    },
+    [auth, api, end],
+  );
   const value = useMemo(
     () => ({
       status,
@@ -132,8 +176,24 @@ export function ReaderProvider({
       register,
       recover,
       signOut,
+      changePassword,
+      newRecoveryCode,
+      signOutEverywhere,
+      deleteAccount,
     }),
-    [status, account, api, signIn, register, recover, signOut],
+    [
+      status,
+      account,
+      api,
+      signIn,
+      register,
+      recover,
+      signOut,
+      changePassword,
+      newRecoveryCode,
+      signOutEverywhere,
+      deleteAccount,
+    ],
   );
 
   return <ReaderContext.Provider value={value}>{children}</ReaderContext.Provider>;
