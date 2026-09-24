@@ -286,6 +286,54 @@ class MemberState(StrEnum):
     REMOVED = "removed"
 
 
+class RightsBasis(StrEnum):
+    """Why a teacher may share a book with their class. They attest; we record."""
+
+    PUBLIC_DOMAIN = "public_domain"
+    GOVERNMENT_TEXTBOOK = "government_textbook"
+    PUBLISHER_PERMISSION = "publisher_permission"
+    OWN_WORK = "own_work"
+    OTHER = "other"
+
+
+class PageDecision(StrEnum):
+    """A teacher's call on a page flagged for review, for one version of a book."""
+
+    ACCEPTED = "accepted"
+    WITHHELD = "withheld"
+
+
+@dataclass(frozen=True)
+class Publication:
+    """A book a teacher has shared, pinned at one version, with their attestation.
+
+    The pin is per book, not per class, so a student in two of the teacher's
+    classes never meets two versions of the same book.
+    """
+
+    document_id: str
+    teacher_id: str
+    version: str
+    basis: RightsBasis
+    note: str | None = None
+    attested_at: str = field(default_factory=_now)
+    published_at: str = field(default_factory=_now)
+
+
+@dataclass(frozen=True)
+class Reading:
+    """A document as one reader may read it.
+
+    For its owner, the document as it stands. For a class member, the version
+    the teacher published, with the pages the teacher withheld listed so they
+    can be left out of narration, retrieval and quizzes.
+    """
+
+    document: Document
+    as_owner: bool
+    withheld: frozenset[int] = frozenset()
+
+
 @dataclass(frozen=True)
 class Classroom:
     """A teacher's class. ``join_code`` is eight digits, shown to the teacher."""
@@ -606,6 +654,56 @@ class Store(ABC):
         session keeps working.
         """
 
+    # -- publishing ----------------------------------------------------------
+    #
+    # Reading a document is allowed to its owner, or to an *active* member of
+    # a class it is published to, at the published version. Writing stays with
+    # the owner. This is the one place that predicate lives.
+
+    @abstractmethod
+    def readable_document(self, document_id: str, reader: str) -> Reading | None:
+        """The document as this reader may read it, or ``None``: absent to them."""
+
+    @abstractmethod
+    def put_page_review(
+        self, document_id: str, owner: str, version: str, page_index: int, decision: PageDecision
+    ) -> bool:
+        """Record the owner's decision on a flagged page. ``False`` if not theirs."""
+
+    @abstractmethod
+    def page_reviews(self, document_id: str, owner: str, version: str) -> dict[int, PageDecision]:
+        """The owner's decisions for one version; empty for anyone else."""
+
+    @abstractmethod
+    def publish(self, publication: Publication, class_ids: list[str], payload: str) -> bool:
+        """Pin the book and share it with these classes, all or nothing.
+
+        ``False``, changing nothing, unless the teacher owns the document and
+        teaches every one of the classes. ``payload`` is the prepared document
+        at the pinned version, kept so the owner can go on to a new version
+        while the class reads this one.
+        """
+
+    @abstractmethod
+    def unpublish(self, document_id: str, owner: str, class_id: str) -> bool:
+        """Stop sharing with one class. Effective on the class's next request."""
+
+    @abstractmethod
+    def publication(self, document_id: str, owner: str) -> tuple[Publication, list[str]] | None:
+        """The owner's view: the pin and attestation, and the classes it is in."""
+
+    @abstractmethod
+    def get_prepared_version(self, document_id: str, version: str) -> str | None:
+        """The prepared payload kept at publishing. Read only after readable_document."""
+
+    @abstractmethod
+    def class_books(self, reader: str) -> list[tuple[Classroom, Document]]:
+        """Books shared with the classes this reader is an active member of.
+
+        Each document carries its published version. A teacher's own books are
+        not included: they are in the teacher's own library already.
+        """
+
     # -- classes -----------------------------------------------------------
     #
     # Scoped like documents. Every read or change names who is asking: the
@@ -692,6 +790,10 @@ class InMemoryStore(Store):
         self._audit: list[AuditEvent] = []
         self._classes: dict[str, Classroom] = {}
         self._members: dict[tuple[str, str], Membership] = {}
+        self._publications: dict[str, Publication] = {}
+        self._class_books: set[tuple[str, str]] = set()
+        self._prepared_versions: dict[tuple[str, str], str] = {}
+        self._page_reviews: dict[tuple[str, str, int], PageDecision] = {}
         self._sessions: dict[str, Session] = {}
 
     # -- documents ---------------------------------------------------------
@@ -729,6 +831,12 @@ class InMemoryStore(Store):
                 return False
             del self._documents[document_id]
             self._sources.pop(document_id, None)
+            self._publications.pop(document_id, None)
+            self._class_books = {(c, d) for c, d in self._class_books if d != document_id}
+            for key in [k for k in self._prepared_versions if k[0] == document_id]:
+                del self._prepared_versions[key]
+            for key in [k for k in self._page_reviews if k[0] == document_id]:
+                del self._page_reviews[key]
             self._prepared.pop(document_id, None)
             self._progress.pop(self._progress_key(document_id, owner), None)
             for bookmark_id, bookmark in list(self._bookmarks.items()):
@@ -1018,6 +1126,114 @@ class InMemoryStore(Store):
                 del self._sessions[token_hash]
             return len(doomed)
 
+    # -- publishing ----------------------------------------------------------
+
+    def readable_document(self, document_id: str, reader: str) -> Reading | None:
+        with self._lock:
+            document = self._documents.get(document_id)
+            if document is None:
+                return None
+            if document.owner == reader:
+                return Reading(document=document, as_owner=True)
+            publication = self._publications.get(document_id)
+            if publication is None:
+                return None
+            member_of = {
+                class_id
+                for (class_id, user_id), m in self._members.items()
+                if user_id == reader and m.state is MemberState.ACTIVE
+            }
+            if not any((c, document_id) in self._class_books for c in member_of):
+                return None
+            withheld = frozenset(
+                page
+                for (doc, version, page), decision in self._page_reviews.items()
+                if doc == document_id
+                and version == publication.version
+                and decision is PageDecision.WITHHELD
+            )
+            return Reading(
+                document=replace(document, version=publication.version),
+                as_owner=False,
+                withheld=withheld,
+            )
+
+    def put_page_review(
+        self, document_id: str, owner: str, version: str, page_index: int, decision: PageDecision
+    ) -> bool:
+        with self._lock:
+            document = self._documents.get(document_id)
+            if document is None or document.owner != owner:
+                return False
+            self._page_reviews[(document_id, version, page_index)] = decision
+            return True
+
+    def page_reviews(self, document_id: str, owner: str, version: str) -> dict[int, PageDecision]:
+        with self._lock:
+            document = self._documents.get(document_id)
+            if document is None or document.owner != owner:
+                return {}
+            return {
+                page: decision
+                for (doc, ver, page), decision in self._page_reviews.items()
+                if doc == document_id and ver == version
+            }
+
+    def publish(self, publication: Publication, class_ids: list[str], payload: str) -> bool:
+        with self._lock:
+            document = self._documents.get(publication.document_id)
+            if document is None or document.owner != publication.teacher_id:
+                return False
+            for class_id in class_ids:
+                room = self._classes.get(class_id)
+                if room is None or room.teacher_id != publication.teacher_id:
+                    return False
+            self._publications[publication.document_id] = publication
+            self._prepared_versions[(publication.document_id, publication.version)] = payload
+            for class_id in class_ids:
+                self._class_books.add((class_id, publication.document_id))
+            return True
+
+    def unpublish(self, document_id: str, owner: str, class_id: str) -> bool:
+        with self._lock:
+            document = self._documents.get(document_id)
+            if document is None or document.owner != owner:
+                return False
+            if (class_id, document_id) not in self._class_books:
+                return False
+            self._class_books.discard((class_id, document_id))
+            return True
+
+    def publication(self, document_id: str, owner: str) -> tuple[Publication, list[str]] | None:
+        with self._lock:
+            document = self._documents.get(document_id)
+            publication = self._publications.get(document_id)
+            if document is None or document.owner != owner or publication is None:
+                return None
+            classes = sorted(c for c, d in self._class_books if d == document_id)
+            return publication, classes
+
+    def get_prepared_version(self, document_id: str, version: str) -> str | None:
+        with self._lock:
+            return self._prepared_versions.get((document_id, version))
+
+    def class_books(self, reader: str) -> list[tuple[Classroom, Document]]:
+        with self._lock:
+            found = []
+            for (class_id, user_id), m in self._members.items():
+                if user_id != reader or m.state is not MemberState.ACTIVE:
+                    continue
+                room = self._classes[class_id]
+                for c, document_id in sorted(self._class_books):
+                    document = self._documents.get(document_id)
+                    publication = self._publications.get(document_id)
+                    if c != class_id or document is None or publication is None:
+                        continue
+                    if document.owner == reader:
+                        continue
+                    found.append((room, replace(document, version=publication.version)))
+            return found
+
     # -- classes -----------------------------------------------------------
 
     def put_class(self, classroom: Classroom) -> Classroom:
@@ -1062,6 +1278,7 @@ class InMemoryStore(Store):
             del self._classes[class_id]
             for key in [k for k in self._members if k[0] == class_id]:
                 del self._members[key]
+            self._class_books = {(c, d) for c, d in self._class_books if c != class_id}
             return True
 
     def join_class(self, class_id: str, user_id: str) -> Membership:

@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from sinhala_tts.adapter import TextNotSpeakableError
 
-from ..preparation import get_prepared
 from ..schemas import (
     AudioManifest,
     BookmarkBody,
@@ -20,7 +19,7 @@ from ..schemas import (
 )
 from ..security import require_owner
 from ..storage import Bookmark, Progress, new_id
-from .common import REAL_MODEL_HEADER, owned_in, prepared_or_409_in
+from .common import REAL_MODEL_HEADER, prepared_for_in, readable_in
 
 if TYPE_CHECKING:
     from ..app import Deps
@@ -35,8 +34,8 @@ MAX_BOOKMARKS = 500
 
 def register(app: FastAPI, deps: Deps) -> None:
     """Add the reading routes to ``app``, acting through ``deps``."""
-    owned = partial(owned_in, deps)
-    prepared_or_409 = partial(prepared_or_409_in, deps)
+    readable = partial(readable_in, deps)
+    prepared_for = partial(prepared_for_in, deps)
 
     # -- structure ---------------------------------------------------------
 
@@ -45,8 +44,8 @@ def register(app: FastAPI, deps: Deps) -> None:
         document_id: str, page_index: int, owner: str = Depends(require_owner)
     ) -> PageDetail:
         """One page's segments, in reading order, with what cannot be read."""
-        document = owned(document_id, owner)
-        prepared = prepared_or_409(document)
+        reading = readable(document_id, owner)
+        prepared = prepared_for(reading)
         page = prepared.page(page_index)
         if page is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such page.")
@@ -56,8 +55,8 @@ def register(app: FastAPI, deps: Deps) -> None:
     def get_segment(
         document_id: str, segment_id: str, owner: str = Depends(require_owner)
     ) -> SegmentDetail:
-        document = owned(document_id, owner)
-        segment = prepared_or_409(document).segment(segment_id)
+        reading = readable(document_id, owner)
+        segment = prepared_for(reading).segment(segment_id)
         if segment is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
         return SegmentDetail.of(segment)
@@ -75,8 +74,9 @@ def register(app: FastAPI, deps: Deps) -> None:
         Concurrent requests for the same segment are deduplicated, so prefetch
         and playback cannot generate it twice.
         """
-        document = owned(document_id, owner)
-        prepared = prepared_or_409(document)
+        reading = readable(document_id, owner)
+        document = reading.document
+        prepared = prepared_for(reading)
         segment = prepared.segment(segment_id)
         if segment is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
@@ -86,7 +86,9 @@ def register(app: FastAPI, deps: Deps) -> None:
             record = deps.synthesis.synthesize(
                 text=segment.display_text,
                 document_id=document_id,
-                owner=owner,
+                # The book's audio, not this reader's: a class shares one copy,
+                # made once, rather than one per student.
+                owner=document.owner,
                 segment_id=segment_id,
                 document_version=document.version,
                 # The text the pipeline prepared knowing the segment's role, not a
@@ -114,8 +116,9 @@ def register(app: FastAPI, deps: Deps) -> None:
         document_id: str, segment_id: str, owner: str = Depends(require_owner)
     ) -> AudioManifest:
         """What produced this segment's audio, without downloading it."""
-        document = owned(document_id, owner)
-        segment = prepared_or_409(document).segment(segment_id)
+        reading = readable(document_id, owner)
+        document = reading.document
+        segment = prepared_for(reading).segment(segment_id)
         if segment is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
         assert document.version is not None
@@ -124,7 +127,7 @@ def register(app: FastAPI, deps: Deps) -> None:
             document.version,
             prepared=(segment.spoken_text, segment.model_text),
         )
-        record = deps.store.get_audio(key, document_id, owner)
+        record = deps.store.get_audio(key, document_id, document.owner)
         return AudioManifest(
             segment_id=segment_id,
             cache_key=key,
@@ -154,8 +157,9 @@ def register(app: FastAPI, deps: Deps) -> None:
         Answers 201 when the bookmark is new and 200 when it replaced one, so an
         interface can say which happened rather than guess.
         """
-        document = owned(document_id, owner)
-        prepared = prepared_or_409(document)
+        reading = readable(document_id, owner)
+        document = reading.document
+        prepared = prepared_for(reading)
         segment = prepared.segment(body.segment_id)
         if segment is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
@@ -200,11 +204,12 @@ def register(app: FastAPI, deps: Deps) -> None:
         leave a reader wondering what they had marked — but it is marked as not
         found rather than described with text that is not its own.
         """
-        document = owned(document_id, owner)
+        reading = readable(document_id, owner)
+        document = reading.document
         # Deliberately not prepared_or_409: a reader whose book is being
         # re-extracted should still be able to see what they marked, even if the
         # sentences cannot be filled in yet.
-        prepared = get_prepared(deps.store, document_id)
+        prepared = prepared_for(reading, required=False)
         bookmarks = deps.store.list_bookmarks(document_id, owner)
         details = [
             BookmarkDetail.of(
@@ -236,7 +241,7 @@ def register(app: FastAPI, deps: Deps) -> None:
     def delete_bookmark(
         document_id: str, bookmark_id: str, owner: str = Depends(require_owner)
     ) -> Response:
-        owned(document_id, owner)
+        readable(document_id, owner)
         bookmark = deps.store.get_bookmark(bookmark_id, owner)
         if bookmark is None or bookmark.document_id != document_id:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such bookmark.")
@@ -255,8 +260,9 @@ def register(app: FastAPI, deps: Deps) -> None:
         document, and dropping the reader at the same segment id in changed
         text would put them somewhere they never were.
         """
-        document = owned(document_id, owner)
-        prepared = prepared_or_409(document)
+        reading = readable(document_id, owner)
+        document = reading.document
+        prepared = prepared_for(reading)
         segment = prepared.segment(body.segment_id)
         if segment is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
@@ -278,7 +284,8 @@ def register(app: FastAPI, deps: Deps) -> None:
 
     @app.get("/documents/{document_id}/progress", tags=["reading"])
     def read_progress(document_id: str, owner: str = Depends(require_owner)) -> ProgressDetail:
-        document = owned(document_id, owner)
+        reading = readable(document_id, owner)
+        document = reading.document
         progress = deps.store.get_progress(document_id, owner)
         if progress is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No saved position.")
