@@ -201,7 +201,7 @@ jobs:
           SINHALA_READER_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reader_test
           SINHALA_READER_REDIS_URL: redis://localhost:6379/0
         run: |
-          python -m pytest tests/test_postgres_routes.py tests/test_store_contract.py             tests/test_queue.py -q --no-header -rs 2>&1 | tee /tmp/integration.log
+          python -m pytest tests/test_postgres_routes.py tests/test_store_contract.py             tests/test_queue.py tests/test_access_matrix.py -q --no-header -rs 2>&1 | tee /tmp/integration.log
           if grep -q "SKIPPED" /tmp/integration.log; then
             echo "::error::Database or queue tests were skipped. They must run in CI."
             exit 1

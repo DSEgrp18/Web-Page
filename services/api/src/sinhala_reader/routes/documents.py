@@ -14,7 +14,7 @@ from ..ratelimit import enforce
 from ..schemas import DocumentDetail, DocumentSummary, JobStatus, RenameBody
 from ..security import require_owner
 from ..storage import Document, Job, new_id
-from .common import _byte_range, _document_detail, owned_in
+from .common import _byte_range, _document_detail, owned_in, readable_in, reading_detail
 
 if TYPE_CHECKING:
     from ..app import Deps
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 def register(app: FastAPI, deps: Deps) -> None:
     """Add the document routes to ``app``, acting through ``deps``."""
     owned = partial(owned_in, deps)
+    readable = partial(readable_in, deps)
 
     # -- documents ---------------------------------------------------------
 
@@ -92,8 +93,8 @@ def register(app: FastAPI, deps: Deps) -> None:
 
     @app.get("/documents/{document_id}", tags=["documents"])
     def get_document(document_id: str, owner: str = Depends(require_owner)) -> DocumentDetail:
-        owned(document_id, owner)
-        return _document_detail(deps.store, document_id, owner)
+        """A book's detail, for its owner or for a member of a class it is shared with."""
+        return reading_detail(deps, readable(document_id, owner), owner)
 
     @app.patch("/documents/{document_id}", tags=["documents"])
     def rename_document(
@@ -135,7 +136,7 @@ def register(app: FastAPI, deps: Deps) -> None:
         the page, not downloaded. And ``private, no-store`` because a shared
         machine's disk cache is not a place for somebody's private textbook.
         """
-        document = owned(document_id, owner)
+        document = readable(document_id, owner).document
         data = deps.store.get_source(document_id)
         if data is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document.")
@@ -176,6 +177,14 @@ def register(app: FastAPI, deps: Deps) -> None:
         Anything left behind is private content that outlived the decision to
         delete it.
         """
+        published = deps.store.publication(document_id, owner)
+        if published is not None and published[1]:
+            # Deleting it would take it from a class mid-term without a word.
+            # Unsharing is a separate, deliberate step, and then this cascades.
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "This book is shared with a class. Stop sharing it before deleting it.",
+            )
         if not deps.store.delete_document(document_id, owner):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document.")
         forget_prepared(document_id)

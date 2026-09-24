@@ -332,6 +332,36 @@ A teacher sees a student's display name and membership, never their email,
 books, bookmarks or questions. Every read is scoped in the store to the class's
 teacher or the member; anyone else gets 404.
 
+### Publishing a book to a class
+
+A teacher shares a book with their classes in three steps, and every class
+member then reads the version that was shared.
+
+1. **Review** (`GET /documents/{id}/review`, `PUT …/review/{page}`): every page
+   flagged for checking, such as a scanned page, is accepted or withheld. A
+   withheld page is never read to the class, found by the assistant, or quizzed;
+   the class is told it was withheld. The owner still sees it.
+2. **Attest and share** (`POST /documents/{id}/publish`): the basis for sharing
+   (public domain, government textbook, publisher permission, own work, or
+   other with a note), recorded with who said so and when. Refused with 409
+   `unreviewed_pages` while a flagged page is undecided. Teachers only, own
+   books and own classes only. Publishing again moves the pin.
+3. **Stop sharing** (`DELETE /documents/{id}/classes/{class}`), per class,
+   effective on the class's next request. A shared book cannot be deleted
+   until it is unshared.
+
+**Who reads what** is decided in one place, `Store.readable_document`: a
+book's owner, or an *active* member of a class it is shared with, at the
+pinned version. Every reading route (pages, segments, audio, the file,
+questions, and the reader's own bookmarks and position) goes through it;
+writing stays with the owner. Anyone else gets 404, never 403.
+`tests/test_access_matrix.py` holds seven actors, three books and every route
+to that rule, against both stores. It is a release gate.
+
+A class hears **one recording**: audio is made and looked up under the book's
+owner, so the first student to press play makes it for everyone. `GET
+/class-books` lists the books shared with a reader's classes.
+
 ### Roles, and the admin command line
 
 Every account is a `student`, `teacher` or `admin`, and `GET /auth/me` says

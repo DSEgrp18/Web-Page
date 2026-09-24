@@ -12,7 +12,7 @@ from sinhala_documents.passages import build_passages
 from ..ratelimit import enforce
 from ..schemas import QuestionBody, StudyAnswer, StudyCitation
 from ..security import require_owner
-from .common import owned_in, prepared_or_409_in
+from .common import prepared_for_in, readable_in
 
 if TYPE_CHECKING:
     from ..app import Deps
@@ -20,8 +20,8 @@ if TYPE_CHECKING:
 
 def register(app: FastAPI, deps: Deps) -> None:
     """Add the study routes to ``app``, acting through ``deps``."""
-    owned = partial(owned_in, deps)
-    prepared_or_409 = partial(prepared_or_409_in, deps)
+    readable = partial(readable_in, deps)
+    prepared_for = partial(prepared_for_in, deps)
 
     # -- study -------------------------------------------------------------
 
@@ -36,11 +36,11 @@ def register(app: FastAPI, deps: Deps) -> None:
         citations, or abstains; it never calls a model with text from a document
         the caller does not own.
         """
-        document = owned(document_id, owner)
+        reading = readable(document_id, owner)
         # After the ownership check, so another reader's book stays absent
         # rather than rate limited; before any model is called.
         enforce(request, "question", owner)
-        prepared = prepared_or_409(document)
+        prepared = prepared_for(reading)
         result = answer_with_fallback(
             deps.answerer,
             deps.fallback_answerer,

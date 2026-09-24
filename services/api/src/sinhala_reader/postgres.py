@@ -55,7 +55,11 @@ from .storage import (
     JobState,
     Membership,
     MemberState,
+    PageDecision,
     Progress,
+    Publication,
+    Reading,
+    RightsBasis,
     Role,
     Session,
     Store,
@@ -335,6 +339,54 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             PRIMARY KEY (class_id, user_id)
         );
         CREATE INDEX class_members_by_user ON class_members (user_id);
+        """,
+    ),
+    (
+        "0011_publishing",
+        """
+        -- A book a teacher has shared, pinned at one version, with the basis
+        -- they attested for sharing it. One pin per book, so a student in two
+        -- of the teacher's classes never meets two versions of it.
+        CREATE TABLE published_books (
+            document_id  text PRIMARY KEY REFERENCES documents (document_id) ON DELETE CASCADE,
+            teacher_id   text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+            version      text NOT NULL,
+            basis        text NOT NULL CHECK (basis IN ('public_domain', 'government_textbook',
+                             'publisher_permission', 'own_work', 'other')),
+            note         text,
+            attested_at  text NOT NULL,
+            published_at text NOT NULL
+        );
+
+        -- The prepared pages at the pinned version, so the owner can go on to
+        -- a new version while the class reads this one.
+        CREATE TABLE prepared_versions (
+            document_id text NOT NULL REFERENCES documents (document_id) ON DELETE CASCADE,
+            version     text NOT NULL,
+            payload     text NOT NULL,
+            PRIMARY KEY (document_id, version)
+        );
+
+        -- Which classes a published book is shared with.
+        CREATE TABLE class_books (
+            class_id    text NOT NULL REFERENCES classes (class_id) ON DELETE CASCADE,
+            document_id text NOT NULL
+                REFERENCES published_books (document_id) ON DELETE CASCADE,
+            added_at    text NOT NULL,
+            PRIMARY KEY (class_id, document_id)
+        );
+        CREATE INDEX class_books_by_document ON class_books (document_id);
+
+        -- The teacher's decision on each page flagged for review, per version.
+        -- A withheld page is never read to the class, nor searched, nor quizzed.
+        CREATE TABLE page_reviews (
+            document_id text NOT NULL REFERENCES documents (document_id) ON DELETE CASCADE,
+            version     text NOT NULL,
+            page_index  integer NOT NULL,
+            decision    text NOT NULL CHECK (decision IN ('accepted', 'withheld')),
+            decided_at  text NOT NULL,
+            PRIMARY KEY (document_id, version, page_index)
+        );
         """,
     ),
 )
@@ -929,6 +981,207 @@ class PostgresStore(Store):
         with self._pool.connection() as connection:
             result = connection.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
             return result.rowcount
+
+    # -- publishing ----------------------------------------------------------
+
+    def readable_document(self, document_id: str, reader: str) -> Reading | None:
+        """The one reading predicate: the owner, or an active member of a class
+        the book is published to, at the published version."""
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT d.*, NULL AS pinned
+                  FROM documents d
+                 WHERE d.document_id = %(doc)s AND d.owner = %(reader)s
+                UNION ALL
+                SELECT d.*, p.version AS pinned
+                  FROM documents d
+                  JOIN published_books p ON p.document_id = d.document_id
+                  JOIN class_books cb ON cb.document_id = d.document_id
+                  JOIN class_members m ON m.class_id = cb.class_id
+                 WHERE d.document_id = %(doc)s
+                   AND m.user_id = %(reader)s AND m.state = 'active'
+                 LIMIT 1
+                """,
+                {"doc": document_id, "reader": reader},
+            ).fetchone()
+            if row is None:
+                return None
+            document = _document(row)
+            if row["pinned"] is None:
+                return Reading(document=document, as_owner=True)
+            withheld = connection.execute(
+                """
+                SELECT page_index FROM page_reviews
+                 WHERE document_id = %s AND version = %s AND decision = 'withheld'
+                """,
+                (document_id, row["pinned"]),
+            ).fetchall()
+        return Reading(
+            document=replace(document, version=row["pinned"]),
+            as_owner=False,
+            withheld=frozenset(r["page_index"] for r in withheld),
+        )
+
+    def put_page_review(
+        self, document_id: str, owner: str, version: str, page_index: int, decision: PageDecision
+    ) -> bool:
+        with self._pool.connection() as connection:
+            written = connection.execute(
+                """
+                INSERT INTO page_reviews (document_id, version, page_index, decision, decided_at)
+                SELECT d.document_id, %(version)s, %(page)s, %(decision)s, %(now)s
+                  FROM documents d WHERE d.document_id = %(doc)s AND d.owner = %(owner)s
+                ON CONFLICT (document_id, version, page_index) DO UPDATE SET
+                    decision = EXCLUDED.decision, decided_at = EXCLUDED.decided_at
+                """,
+                {
+                    "version": version,
+                    "page": page_index,
+                    "decision": str(decision),
+                    "now": _now(),
+                    "doc": document_id,
+                    "owner": owner,
+                },
+            ).rowcount
+        return written == 1
+
+    def page_reviews(self, document_id: str, owner: str, version: str) -> dict[int, PageDecision]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT r.page_index, r.decision
+                  FROM page_reviews r JOIN documents d USING (document_id)
+                 WHERE r.document_id = %s AND d.owner = %s AND r.version = %s
+                """,
+                (document_id, owner, version),
+            ).fetchall()
+        return {row["page_index"]: PageDecision(row["decision"]) for row in rows}
+
+    def publish(self, publication: Publication, class_ids: list[str], payload: str) -> bool:
+        with self._pool.connection() as connection, connection.transaction():
+            owns = connection.execute(
+                "SELECT 1 FROM documents WHERE document_id = %s AND owner = %s",
+                (publication.document_id, publication.teacher_id),
+            ).fetchone()
+            taught = connection.execute(
+                "SELECT count(*) AS n FROM classes WHERE class_id = ANY(%s) AND teacher_id = %s",
+                (class_ids, publication.teacher_id),
+            ).fetchone()
+            if owns is None or taught["n"] != len(set(class_ids)):
+                return False
+            connection.execute(
+                """
+                INSERT INTO published_books
+                    (document_id, teacher_id, version, basis, note, attested_at, published_at)
+                VALUES (%(doc)s, %(teacher)s, %(version)s, %(basis)s, %(note)s,
+                        %(attested)s, %(published)s)
+                ON CONFLICT (document_id) DO UPDATE SET
+                    version = EXCLUDED.version, basis = EXCLUDED.basis, note = EXCLUDED.note,
+                    attested_at = EXCLUDED.attested_at, published_at = EXCLUDED.published_at
+                """,
+                {
+                    "doc": publication.document_id,
+                    "teacher": publication.teacher_id,
+                    "version": publication.version,
+                    "basis": str(publication.basis),
+                    "note": publication.note,
+                    "attested": publication.attested_at,
+                    "published": publication.published_at,
+                },
+            )
+            connection.execute(
+                """
+                INSERT INTO prepared_versions (document_id, version, payload) VALUES (%s, %s, %s)
+                ON CONFLICT (document_id, version) DO UPDATE SET payload = EXCLUDED.payload
+                """,
+                (publication.document_id, publication.version, payload),
+            )
+            for class_id in class_ids:
+                connection.execute(
+                    """
+                    INSERT INTO class_books (class_id, document_id, added_at) VALUES (%s, %s, %s)
+                    ON CONFLICT (class_id, document_id) DO NOTHING
+                    """,
+                    (class_id, publication.document_id, publication.published_at),
+                )
+        return True
+
+    def unpublish(self, document_id: str, owner: str, class_id: str) -> bool:
+        with self._pool.connection() as connection:
+            deleted = connection.execute(
+                """
+                DELETE FROM class_books
+                 WHERE class_id = %s AND document_id = %s
+                   AND document_id IN (SELECT document_id FROM documents WHERE owner = %s)
+                """,
+                (class_id, document_id, owner),
+            ).rowcount
+        return deleted == 1
+
+    def publication(self, document_id: str, owner: str) -> tuple[Publication, list[str]] | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT p.* FROM published_books p JOIN documents d USING (document_id)
+                 WHERE p.document_id = %s AND d.owner = %s
+                """,
+                (document_id, owner),
+            ).fetchone()
+            if row is None:
+                return None
+            classes = connection.execute(
+                "SELECT class_id FROM class_books WHERE document_id = %s ORDER BY class_id",
+                (document_id,),
+            ).fetchall()
+        publication = Publication(
+            document_id=row["document_id"],
+            teacher_id=row["teacher_id"],
+            version=row["version"],
+            basis=RightsBasis(row["basis"]),
+            note=row["note"],
+            attested_at=row["attested_at"],
+            published_at=row["published_at"],
+        )
+        return publication, [r["class_id"] for r in classes]
+
+    def get_prepared_version(self, document_id: str, version: str) -> str | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT payload FROM prepared_versions WHERE document_id = %s AND version = %s",
+                (document_id, version),
+            ).fetchone()
+        return row["payload"] if row else None
+
+    def class_books(self, reader: str) -> list[tuple[Classroom, Document]]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT c.class_id, c.teacher_id, c.name, c.join_code, c.created_at AS class_created,
+                       d.*, p.version AS pinned
+                  FROM class_members m
+                  JOIN classes c ON c.class_id = m.class_id
+                  JOIN class_books cb ON cb.class_id = m.class_id
+                  JOIN published_books p ON p.document_id = cb.document_id
+                  JOIN documents d ON d.document_id = cb.document_id
+                 WHERE m.user_id = %s AND m.state = 'active' AND d.owner <> m.user_id
+                 ORDER BY c.class_id, cb.document_id
+                """,
+                (reader,),
+            ).fetchall()
+        return [
+            (
+                Classroom(
+                    class_id=row["class_id"],
+                    teacher_id=row["teacher_id"],
+                    name=row["name"],
+                    join_code=row["join_code"],
+                    created_at=row["class_created"],
+                ),
+                replace(_document(row), version=row["pinned"]),
+            )
+            for row in rows
+        ]
 
     # -- classes -----------------------------------------------------------
 

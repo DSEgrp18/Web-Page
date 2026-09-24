@@ -39,7 +39,10 @@ from sinhala_reader.storage import (
     Job,
     JobState,
     MemberState,
+    PageDecision,
     Progress,
+    Publication,
+    RightsBasis,
     Role,
     Session,
     Store,
@@ -1205,3 +1208,172 @@ class TestClasses:
 
         assert store.class_by_code("12345678") is None
         assert store.membership(room.class_id, student.user_id) is None
+
+
+# --- publishing ----------------------------------------------------------------
+
+PAYLOAD = '{"payload": true}'
+
+
+class TestPublishing:
+    """The reading predicate: the owner, or an active member of a class the
+    book is shared with, at the shared version, without withheld pages."""
+
+    def _world(self, store: Store):
+        teacher = store.put_user(a_user("teacher@school.lk"))
+        student = store.put_user(a_user("student@school.lk"))
+        stranger = store.put_user(a_user("stranger@example.lk"))
+        room = store.put_class(
+            Classroom(
+                class_id=new_id("cls"), teacher_id=teacher.user_id, name="A", join_code="12345678"
+            )
+        )
+        store.join_class(room.class_id, student.user_id)
+        store.set_member_state(room.class_id, teacher.user_id, student.user_id, MemberState.ACTIVE)
+        document = store.put_document(a_document(owner=teacher.user_id, version="v1"))
+        return teacher, student, stranger, room, document
+
+    def _publish(self, store: Store, teacher, document, room, version: str = "v1") -> bool:
+        return store.publish(
+            Publication(
+                document_id=document.document_id,
+                teacher_id=teacher.user_id,
+                version=version,
+                basis=RightsBasis.OWN_WORK,
+            ),
+            [room.class_id],
+            PAYLOAD,
+        )
+
+    def test_the_owner_reads_their_book_as_it_stands(self, store: Store) -> None:
+        teacher, _, _, _, document = self._world(store)
+
+        reading = store.readable_document(document.document_id, teacher.user_id)
+
+        assert reading is not None and reading.as_owner
+        assert reading.document.version == "v1"
+
+    def test_nobody_else_reads_an_unshared_book(self, store: Store) -> None:
+        _, student, stranger, _, document = self._world(store)
+
+        assert store.readable_document(document.document_id, student.user_id) is None
+        assert store.readable_document(document.document_id, stranger.user_id) is None
+
+    def test_an_active_member_reads_the_pinned_version(self, store: Store) -> None:
+        from dataclasses import replace
+
+        teacher, student, stranger, room, document = self._world(store)
+        assert self._publish(store, teacher, document, room)
+        store.put_document(replace(document, version="v2"))  # the owner moves on
+
+        reading = store.readable_document(document.document_id, student.user_id)
+
+        assert reading is not None and not reading.as_owner
+        assert reading.document.version == "v1"
+        assert store.get_prepared_version(document.document_id, "v1") == PAYLOAD
+        assert store.readable_document(document.document_id, stranger.user_id) is None
+
+    def test_a_pending_or_removed_member_reads_nothing(self, store: Store) -> None:
+        teacher, student, _, room, document = self._world(store)
+        self._publish(store, teacher, document, room)
+
+        for state in (MemberState.PENDING, MemberState.REMOVED):
+            store.set_member_state(room.class_id, teacher.user_id, student.user_id, state)
+            assert store.readable_document(document.document_id, student.user_id) is None
+
+    def test_withheld_pages_travel_with_the_reading(self, store: Store) -> None:
+        teacher, student, _, room, document = self._world(store)
+        doc = document.document_id
+        store.put_page_review(doc, teacher.user_id, "v1", 3, PageDecision.WITHHELD)
+        store.put_page_review(doc, teacher.user_id, "v1", 4, PageDecision.ACCEPTED)
+        self._publish(store, teacher, document, room)
+
+        reading = store.readable_document(doc, student.user_id)
+
+        assert reading is not None and reading.withheld == frozenset({3})
+        assert store.page_reviews(doc, teacher.user_id, "v1") == {
+            3: PageDecision.WITHHELD,
+            4: PageDecision.ACCEPTED,
+        }
+        # Only the owner records or reads decisions.
+        assert not store.put_page_review(doc, student.user_id, "v1", 3, PageDecision.ACCEPTED)
+        assert store.page_reviews(doc, student.user_id, "v1") == {}
+
+    def test_publishing_is_all_or_nothing(self, store: Store) -> None:
+        teacher, student, _, room, document = self._world(store)
+        other = store.put_user(a_user("other@school.lk"))
+        theirs = store.put_class(
+            Classroom(
+                class_id=new_id("cls"), teacher_id=other.user_id, name="B", join_code="87654321"
+            )
+        )
+
+        shared = store.publish(
+            Publication(
+                document_id=document.document_id,
+                teacher_id=teacher.user_id,
+                version="v1",
+                basis=RightsBasis.OWN_WORK,
+            ),
+            [room.class_id, theirs.class_id],
+            "{}",
+        )
+
+        assert not shared
+        assert store.publication(document.document_id, teacher.user_id) is None
+        assert store.readable_document(document.document_id, student.user_id) is None
+
+    def test_only_the_owner_publishes_their_own_book(self, store: Store) -> None:
+        teacher, student, _, room, _ = self._world(store)
+        mine = store.put_document(a_document(owner=student.user_id, version="v1"))
+
+        assert not self._publish(store, teacher, mine, room)
+
+    def test_the_owner_sees_where_it_is_shared(self, store: Store) -> None:
+        teacher, student, _, room, document = self._world(store)
+        self._publish(store, teacher, document, room)
+
+        found = store.publication(document.document_id, teacher.user_id)
+
+        assert found is not None
+        publication, classes = found
+        assert (publication.version, publication.basis, classes) == (
+            "v1",
+            RightsBasis.OWN_WORK,
+            [room.class_id],
+        )
+        assert store.publication(document.document_id, student.user_id) is None
+
+    def test_class_books_lists_what_a_member_may_read(self, store: Store) -> None:
+        teacher, student, stranger, room, document = self._world(store)
+        self._publish(store, teacher, document, room)
+
+        (listed,) = store.class_books(student.user_id)
+
+        assert listed[0].class_id == room.class_id
+        assert listed[1].document_id == document.document_id and listed[1].version == "v1"
+        assert store.class_books(stranger.user_id) == []
+        assert store.class_books(teacher.user_id) == []
+
+    def test_unpublishing_ends_access_and_is_the_owners_to_do(self, store: Store) -> None:
+        teacher, student, _, room, document = self._world(store)
+        self._publish(store, teacher, document, room)
+
+        assert not store.unpublish(document.document_id, student.user_id, room.class_id)
+        assert store.unpublish(document.document_id, teacher.user_id, room.class_id)
+        assert store.readable_document(document.document_id, student.user_id) is None
+        assert store.class_books(student.user_id) == []
+
+    def test_deleting_the_book_or_the_class_takes_the_sharing(self, store: Store) -> None:
+        teacher, student, _, room, document = self._world(store)
+        self._publish(store, teacher, document, room)
+
+        store.delete_document(document.document_id, teacher.user_id)
+
+        assert store.class_books(student.user_id) == []
+        assert store.get_prepared_version(document.document_id, "v1") is None
+
+        again = store.put_document(a_document(owner=teacher.user_id, version="v1"))
+        self._publish(store, teacher, again, room)
+        store.delete_class(room.class_id, teacher.user_id)
+        assert store.readable_document(again.document_id, student.user_id) is None
