@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -183,6 +183,41 @@ describe("no automatically detectable violations", () => {
       "usr-teacher",
     );
     await screen.findByRole("table");
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
+  it("on a class, showing a student's new recovery code", async () => {
+    const user = userEvent.setup();
+    const server = classServer();
+    server.classes[0]!.members[0]!.state = "active";
+    const { container } = renderApp(
+      <AppFrame>
+        <ClassDetail classId="cls-a" />
+      </AppFrame>,
+      server,
+      "usr-teacher",
+    );
+    await user.click(await screen.findByRole("button", { name: strings.resetNamed("නිමලි") }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: strings.resetConfirmAction }));
+    await screen.findByRole("heading", { name: strings.resetCodeHeading("නිමලි") });
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
+  it("on the library, telling a student about a teacher's reset code", async () => {
+    const server = libraryServer();
+    server.resetNotices["reader-one"] = {
+      teacher_name: "සුනිල්",
+      issued_at: "2026-09-10T08:00:00Z",
+      used: false,
+    };
+    const { container } = renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      server,
+    );
+    await screen.findByRole("heading", { name: strings.resetNoticeHeading });
     expect(await violationsIn(container)).toEqual([]);
   });
 

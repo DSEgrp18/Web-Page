@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
 import { strings } from "@/lib/strings";
-import type { JoinedClass, TaughtClass } from "@/lib/types";
+import type { IssuedReset, JoinedClass, MemberDetail, TaughtClass } from "@/lib/types";
 
 function isTaught(room: TaughtClass | JoinedClass): room is TaughtClass {
   return "join_code" in room;
@@ -33,6 +33,10 @@ export function ClassDetail({ classId }: { classId: string }) {
   const [confirming, setConfirming] = useState(false);
   const { setFailure, notice } = useFailure();
   const deleteButton = useRef<HTMLButtonElement>(null);
+  const [resetFor, setResetFor] = useState<MemberDetail | null>(null);
+  const [issued, setIssued] = useState<IssuedReset | null>(null);
+  /** The row's button that asked for a code: where focus goes back to. */
+  const resetReturn = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +60,15 @@ export function ClassDetail({ classId }: { classId: string }) {
       const next = await work();
       if (next) setRoom(next);
       say(said);
+    } catch (error) {
+      setFailure(explain(error, {}));
+    }
+  }
+
+  async function reset(member: MemberDetail) {
+    try {
+      setIssued(await api.issueReset(classId, member.user_id));
+      say(strings.resetIssued(member.display_name));
     } catch (error) {
       setFailure(explain(error, {}));
     }
@@ -111,7 +124,38 @@ export function ClassDetail({ classId }: { classId: string }) {
             </div>
           </section>
 
-          <Members room={room} act={act} />
+          {issued ? (
+            <IssuedCode
+              issued={issued}
+              onDone={() => {
+                setIssued(null);
+                resetReturn.current?.focus();
+              }}
+            />
+          ) : null}
+
+          <Members
+            room={room}
+            act={act}
+            onReset={(member, button) => {
+              resetReturn.current = button;
+              setResetFor(member);
+            }}
+          />
+          <ConfirmDialog
+            open={resetFor !== null}
+            title={strings.resetConfirmTitle(resetFor?.display_name ?? "")}
+            body={strings.resetConfirmBody}
+            cancelLabel={strings.deleteConfirmCancel}
+            confirmLabel={strings.resetConfirmAction}
+            onCancel={() => setResetFor(null)}
+            onConfirm={() => {
+              const member = resetFor;
+              setResetFor(null);
+              if (member) void reset(member);
+            }}
+            returnFocusRef={resetReturn}
+          />
 
           <RenameClass
             room={room}
@@ -153,12 +197,44 @@ export function ClassDetail({ classId }: { classId: string }) {
   );
 }
 
+/**
+ * A student's new recovery code, shown once, with focus on its heading so a
+ * screen reader starts there. It stays until the teacher says they are done.
+ */
+function IssuedCode({ issued, onDone }: { issued: IssuedReset; onDone: () => void }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const id = useId();
+
+  useEffect(() => {
+    heading.current?.focus();
+  }, [issued]);
+
+  return (
+    <section className="account-section card" aria-labelledby={id}>
+      <h2 id={id} ref={heading} tabIndex={-1}>
+        {strings.resetCodeHeading(issued.display_name)}
+      </h2>
+      <p>{strings.resetCodeIntro}</p>
+      <p className="recovery-code latin" translate="no">
+        {issued.recovery_code}
+      </p>
+      <div className="notice-actions">
+        <button className="btn btn-primary" type="button" onClick={onDone}>
+          {strings.resetDone}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function Members({
   room,
   act,
+  onReset,
 }: {
   room: TaughtClass;
   act: (work: () => Promise<TaughtClass | void>, said: string) => Promise<void>;
+  onReset: (member: MemberDetail, button: HTMLButtonElement) => void;
 }) {
   const { api } = useReader();
   const shown = room.members.filter((m) => m.state !== "removed");
@@ -199,7 +275,15 @@ function Members({
                       >
                         {strings.approveNamed(member.display_name)}
                       </button>
-                    ) : null}
+                    ) : (
+                      <button
+                        className="btn btn-sm"
+                        type="button"
+                        onClick={(event) => onReset(member, event.currentTarget)}
+                      >
+                        {strings.resetNamed(member.display_name)}
+                      </button>
+                    )}
                     <button
                       className="btn btn-quiet btn-sm"
                       type="button"

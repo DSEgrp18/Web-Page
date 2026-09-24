@@ -50,6 +50,8 @@ const MAPPING = {
   MemberDetail: "MemberDetail",
   TaughtClass: "TaughtClass",
   JoinedClass: "JoinedClass",
+  IssuedReset: "IssuedReset",
+  ResetNotice: "ResetNotice",
   MyClasses: "MyClasses",
   ClassBook: "ClassBook",
   FlaggedPage: "FlaggedPage",

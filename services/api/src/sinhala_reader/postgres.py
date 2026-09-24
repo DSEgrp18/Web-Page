@@ -64,6 +64,7 @@ from .storage import (
     Session,
     Store,
     TeacherInvite,
+    TeacherReset,
     User,
     _now,
 )
@@ -386,6 +387,24 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             decision    text NOT NULL CHECK (decision IN ('accepted', 'withheld')),
             decided_at  text NOT NULL,
             PRIMARY KEY (document_id, version, page_index)
+        );
+        """,
+    ),
+    (
+        "0012_teacher_resets",
+        """
+        -- A thirty-minute, single-use code a teacher made for one of their
+        -- students. Beside the student's own recovery code, never in place of
+        -- it. One per student: a new one replaces the last. Kept after use
+        -- until the student has been told about it.
+        CREATE TABLE teacher_resets (
+            user_id    text PRIMARY KEY REFERENCES users (user_id) ON DELETE CASCADE,
+            code_hash  text NOT NULL,
+            issued_by  text REFERENCES users (user_id) ON DELETE SET NULL,
+            issued_at  text NOT NULL,
+            expires_at text NOT NULL,
+            used_at    text,
+            seen_at    text
         );
         """,
     ),
@@ -925,6 +944,62 @@ class PostgresStore(Store):
                 {"user_id": user_id, "now": now, "code_hash": code_hash},
             ).rowcount
         return spent == 1
+
+    def put_teacher_reset(self, reset: TeacherReset) -> TeacherReset:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO teacher_resets
+                    (user_id, code_hash, issued_by, issued_at, expires_at, used_at, seen_at)
+                VALUES (%(user_id)s, %(code_hash)s, %(issued_by)s, %(issued_at)s,
+                        %(expires_at)s, %(used_at)s, %(seen_at)s)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    code_hash = EXCLUDED.code_hash, issued_by = EXCLUDED.issued_by,
+                    issued_at = EXCLUDED.issued_at, expires_at = EXCLUDED.expires_at,
+                    used_at = EXCLUDED.used_at, seen_at = EXCLUDED.seen_at
+                """,
+                {
+                    "user_id": reset.user_id,
+                    "code_hash": reset.code_hash,
+                    "issued_by": reset.issued_by,
+                    "issued_at": reset.issued_at,
+                    "expires_at": reset.expires_at,
+                    "used_at": reset.used_at,
+                    "seen_at": reset.seen_at,
+                },
+            )
+        return reset
+
+    def teacher_reset(self, user_id: str) -> TeacherReset | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM teacher_resets WHERE user_id = %s", (user_id,)
+            ).fetchone()
+        return TeacherReset(**row) if row else None
+
+    def spend_teacher_reset(self, user_id: str, code_hash: str, now: str) -> bool:
+        """See ``Store.spend_teacher_reset``. One statement: check and spend together."""
+        with self._pool.connection() as connection:
+            spent = connection.execute(
+                """
+                UPDATE teacher_resets SET used_at = %(now)s
+                 WHERE user_id = %(user_id)s AND code_hash = %(code_hash)s
+                   AND used_at IS NULL AND expires_at > %(now)s
+                """,
+                {"user_id": user_id, "code_hash": code_hash, "now": now},
+            ).rowcount
+        return spent == 1
+
+    def acknowledge_teacher_reset(self, user_id: str, now: str) -> bool:
+        with self._pool.connection() as connection:
+            seen = connection.execute(
+                """
+                UPDATE teacher_resets SET seen_at = %s
+                 WHERE user_id = %s AND seen_at IS NULL
+                """,
+                (now, user_id),
+            ).rowcount
+        return seen == 1
 
     def record(self, event: AuditEvent) -> None:
         with self._pool.connection() as connection:

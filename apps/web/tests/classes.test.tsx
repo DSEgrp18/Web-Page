@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
+import { AppFrame } from "../src/components/AppFrame";
 import { ClassDetail } from "../src/components/ClassDetail";
 import { Classes } from "../src/components/Classes";
 import { Library } from "../src/components/Library";
@@ -179,6 +180,55 @@ describe("one class, as its teacher", () => {
     await waitFor(() => expect(server.classes[0]!.members[0]!.state).toBe("active"));
     expect(politeText()).toContain(strings.memberApproved("නිමලි"));
     expect(within(row).queryByRole("button", { name: strings.approveNamed("නිමලි") })).toBeNull();
+  });
+
+  it("gives an approved student a new recovery code, after asking", async () => {
+    const user = userEvent.setup();
+    const server = school();
+    server.classes.push(room({ members: [member("active")] }));
+    renderApp(<ClassDetail classId="cls-a" />, server, TEACHER);
+
+    const ask = await screen.findByRole("button", { name: strings.resetNamed("නිමලි") });
+    await user.click(ask);
+    const dialog = await screen.findByRole("dialog", {
+      name: strings.resetConfirmTitle("නිමලි"),
+    });
+    expect(server.issuedResets).toEqual([]);
+    await user.click(within(dialog).getByRole("button", { name: strings.resetConfirmAction }));
+
+    const heading = await screen.findByRole("heading", {
+      name: strings.resetCodeHeading("නිමලි"),
+    });
+    expect(server.issuedResets).toEqual([STUDENT]);
+    expect(screen.getByText("RSET-CODE-2345-6789")).toBeTruthy();
+    expect(politeText()).toContain(strings.resetIssued("නිමලි"));
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+
+    await user.click(screen.getByRole("button", { name: strings.resetDone }));
+    expect(screen.queryByText("RSET-CODE-2345-6789")).toBeNull();
+    expect(document.activeElement).toBe(ask);
+  });
+
+  it("does not issue a code when the teacher cancels", async () => {
+    const user = userEvent.setup();
+    const server = school();
+    server.classes.push(room({ members: [member("active")] }));
+    renderApp(<ClassDetail classId="cls-a" />, server, TEACHER);
+
+    await user.click(await screen.findByRole("button", { name: strings.resetNamed("නිමලි") }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: strings.deleteConfirmCancel }));
+
+    expect(server.issuedResets).toEqual([]);
+  });
+
+  it("offers no code to a student still waiting", async () => {
+    const server = school();
+    server.classes.push(room({ members: [member("pending")] }));
+    renderApp(<ClassDetail classId="cls-a" />, server, TEACHER);
+
+    await screen.findByRole("button", { name: strings.approveNamed("නිමලි") });
+    expect(screen.queryByRole("button", { name: strings.resetNamed("නිමලි") })).toBeNull();
   });
 
   it("takes a student out", async () => {
@@ -392,5 +442,83 @@ describe("the library", () => {
 
     await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
     expect(screen.queryByRole("link", { name: new RegExp(strings.shareBook) })).toBeNull();
+  });
+});
+
+describe("a student whose teacher made a reset code", () => {
+  function told(used = false) {
+    const server = school();
+    server.resetNotices[STUDENT] = {
+      teacher_name: "සුනිල්",
+      issued_at: "2026-09-10T08:00:00Z",
+      used,
+    };
+    renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      server,
+      STUDENT,
+    );
+    return server;
+  }
+
+  it("is told, by name, before anything else on the screen", async () => {
+    told();
+
+    const notice = await region(strings.resetNoticeHeading);
+    expect(notice.getByText(/සුනිල් ගුරුවරයා/)).toBeTruthy();
+    const main = document.querySelector("main")!;
+    expect(main.firstElementChild?.querySelector("h2")?.textContent).toBe(
+      strings.resetNoticeHeading,
+    );
+  });
+
+  it("says whether the code was used", async () => {
+    told(true);
+
+    const notice = await region(strings.resetNoticeHeading);
+    expect(notice.getByText(/එම කේතයෙන් මුරපදය වෙනස් කර ඇත/)).toBeTruthy();
+  });
+
+  it("stays until they say they have seen it, then leaves focus on the screen", async () => {
+    const user = userEvent.setup();
+    const server = told();
+
+    const notice = await region(strings.resetNoticeHeading);
+    await user.click(notice.getByRole("button", { name: strings.resetNoticeSeen }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: strings.resetNoticeHeading })).toBeNull(),
+    );
+    expect(server.resetNotices[STUDENT]).toBeUndefined();
+    expect(document.activeElement?.tagName).toBe("H1");
+  });
+
+  it("says nothing when there is nothing to tell", async () => {
+    renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      school(),
+      STUDENT,
+    );
+
+    await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
+    expect(screen.queryByRole("region", { name: strings.resetNoticeHeading })).toBeNull();
+  });
+
+  it("is told once the teacher has made one", async () => {
+    const user = userEvent.setup();
+    const server = school();
+    server.classes.push(room({ members: [member("active")] }));
+    renderApp(<ClassDetail classId="cls-a" />, server, TEACHER);
+
+    await user.click(await screen.findByRole("button", { name: strings.resetNamed("නිමලි") }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: strings.resetConfirmAction }));
+
+    await screen.findByRole("heading", { name: strings.resetCodeHeading("නිමලි") });
+    expect(server.resetNotices[STUDENT]?.teacher_name).toBe("සුනිල්");
   });
 });

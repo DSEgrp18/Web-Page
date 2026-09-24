@@ -24,7 +24,9 @@ import type {
   Account,
   AudioClip,
   ClassBook,
+  IssuedReset,
   JoinedClass,
+  ResetNotice,
   MyClasses,
   PublicationDetail,
   Review,
@@ -436,6 +438,21 @@ export class ReaderApi {
       `/classes/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}/${action}`,
       "POST",
     );
+  }
+
+  issueReset(id: string, userId: string): Promise<IssuedReset> {
+    return this.send<IssuedReset>(
+      `/classes/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}/reset`,
+      "POST",
+    );
+  }
+
+  resetNotice(): Promise<ResetNotice | null> {
+    return this.json<ResetNotice | null>("/auth/reset-notice");
+  }
+
+  async resetNoticeSeen(): Promise<void> {
+    await this.request("/auth/reset-notice/seen", { method: "POST" });
   }
 
   joinClass(code: string): Promise<JoinedClass> {
