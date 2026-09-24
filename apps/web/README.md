@@ -96,9 +96,9 @@ It is what accounts use: the session is an httpOnly cookie on this origin, so
 no script in the page, where pdf.js renders untrusted PDFs, can read it, and
 there is no CORS to configure.
 
-| Variable | Where it is read | What it is |
-| --- | --- | --- |
-| `READER_API_URL` | the server, at run time | Where the API is, e.g. `http://api:8000`. Never sent to a browser. |
+| Variable              | Where it is read        | What it is                                                                       |
+| --------------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| `READER_API_URL`      | the server, at run time | Where the API is, e.g. `http://api:8000`. Never sent to a browser.               |
 | `READER_BEHIND_PROXY` | the server, at run time | `1` only behind a proxy that writes the reader's address into `X-Forwarded-For`. |
 
 It streams bodies (an upload may be 200 MB), gives up after 120 seconds (a study
