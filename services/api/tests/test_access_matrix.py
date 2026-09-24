@@ -58,6 +58,8 @@ ROUTES = [
     ("bookmarks", "GET", "/documents/{doc}/bookmarks", None, "read"),
     ("bookmark", "POST", "/documents/{doc}/bookmarks", {"segment_id": "{seg}"}, "read"),
     ("save position", "PUT", "/documents/{doc}/progress", {"segment_id": "{seg}"}, "read"),
+    ("quizzes", "GET", "/documents/{doc}/quizzes", None, "read"),
+    ("make a quiz", "POST", "/documents/{doc}/quizzes", {}, "read"),
     ("rename", "PATCH", "/documents/{doc}", {"title": "නව නම"}, "write"),
     ("job", "GET", "/documents/{doc}/jobs/{job}", None, "write"),
     ("retry", "POST", "/documents/{doc}/retry", None, "write"),

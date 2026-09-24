@@ -49,7 +49,7 @@ from .preparation import (
 from .prerender import Prerenderer
 from .queue import build_app, send_prepare, send_prerender, uses_celery
 from .ratelimit import RateLimiter, build_rate_limiter
-from .routes import classes, documents, operations, publishing, reading, study
+from .routes import classes, documents, operations, practice, publishing, reading, study
 from .routes.common import REAL_MODEL_HEADER
 from .security import (
     OWNER_HEADER,
@@ -190,6 +190,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
     study.register(app, deps)
     classes.register(app, deps)
     publishing.register(app, deps)
+    practice.register(app, deps)
 
     return app
 

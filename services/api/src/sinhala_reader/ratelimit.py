@@ -67,6 +67,8 @@ LIMITS: dict[str, Limit] = {
     "teacher-reset": Limit(30, 60 * 60),
     # Starting is cheap to repeat, since voiced sentences are kept; the voice is not.
     "prerender": Limit(10, 60 * 60),
+    # Each quiz walks the whole book; a student needs a few an hour, not hundreds.
+    "quiz": Limit(20, 60 * 60),
     "question": Limit(60, 60 * 60),
     "upload": Limit(30, 24 * 60 * 60),
 }
