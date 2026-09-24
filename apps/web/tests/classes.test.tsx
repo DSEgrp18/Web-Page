@@ -522,3 +522,44 @@ describe("a student whose teacher made a reset code", () => {
     expect(server.resetNotices[STUDENT]?.teacher_name).toBe("සුනිල්");
   });
 });
+
+describe("voicing a shared book for the class", () => {
+  function shared() {
+    const server = school();
+    server.classes.push(room());
+    server.publications["doc-1"] = {
+      version: "v1",
+      basis: "own_work",
+      note: null,
+      attested_at: "2026-09-10T00:00:00Z",
+      published_at: "2026-09-10T00:00:00Z",
+      class_ids: ["cls-a"],
+      stale: false,
+    };
+    renderApp(<ShareBook documentId="doc-1" />, server, TEACHER);
+    return server;
+  }
+
+  it("says how much is ready, and voices the rest on request", async () => {
+    const user = userEvent.setup();
+    const server = shared();
+
+    const section = await region(strings.prerenderHeading);
+    expect(await section.findByText(strings.prerenderProgress(0, 12))).toBeTruthy();
+    await user.click(section.getByRole("button", { name: strings.prerenderAction }));
+
+    expect(await section.findByText(strings.prerenderDone)).toBeTruthy();
+    expect(server.prerendered.has("doc-1")).toBe(true);
+    expect(politeText()).toContain(strings.prerenderDone);
+    expect(section.queryByRole("button", { name: strings.prerenderAction })).toBeNull();
+  });
+
+  it("is not offered before the book is shared", async () => {
+    const server = school();
+    server.classes.push(room());
+    renderApp(<ShareBook documentId="doc-1" />, server, TEACHER);
+
+    await region(strings.sharedWithHeading);
+    expect(screen.queryByRole("region", { name: strings.prerenderHeading })).toBeNull();
+  });
+});

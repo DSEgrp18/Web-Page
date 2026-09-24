@@ -5,6 +5,7 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 
 import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
+import { PrerenderSection } from "@/components/PrerenderSection";
 import { useReader } from "@/components/ReaderProvider";
 import { strings } from "@/lib/strings";
 import type {
@@ -161,6 +162,10 @@ export function ShareBook({ documentId }: { documentId: string }) {
           </ul>
         )}
       </section>
+
+      {publication && publication.class_ids.length > 0 ? (
+        <PrerenderSection documentId={documentId} />
+      ) : null}
 
       <form className="account-page" onSubmit={publish} noValidate>
         <section className="account-section card" aria-labelledby="review-heading">

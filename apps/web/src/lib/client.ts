@@ -28,6 +28,7 @@ import type {
   JoinedClass,
   ResetNotice,
   MyClasses,
+  PrerenderStatus,
   PublicationDetail,
   Review,
   RightsBasis,
@@ -507,6 +508,17 @@ export class ReaderApi {
       `/documents/${encodeURIComponent(documentId)}/publish`,
       "POST",
       { class_ids: classIds, basis, note },
+    );
+  }
+
+  getPrerender(documentId: string): Promise<PrerenderStatus> {
+    return this.json<PrerenderStatus>(`/documents/${encodeURIComponent(documentId)}/prerender`);
+  }
+
+  startPrerender(documentId: string): Promise<PrerenderStatus> {
+    return this.send<PrerenderStatus>(
+      `/documents/${encodeURIComponent(documentId)}/prerender`,
+      "POST",
     );
   }
 

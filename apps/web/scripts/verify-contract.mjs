@@ -52,6 +52,7 @@ const MAPPING = {
   JoinedClass: "JoinedClass",
   IssuedReset: "IssuedReset",
   ResetNotice: "ResetNotice",
+  PrerenderStatus: "PrerenderStatus",
   MyClasses: "MyClasses",
   ClassBook: "ClassBook",
   FlaggedPage: "FlaggedPage",

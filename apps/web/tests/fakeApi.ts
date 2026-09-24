@@ -188,6 +188,8 @@ export class FakeServer {
   readonly issuedResets: string[] = [];
   /** What each reader is still to be told about a teacher's reset code. */
   resetNotices: Record<string, ResetNotice> = {};
+  /** Books whose class audio has been voiced ahead of time. */
+  readonly prerendered = new Set<string>();
   /** Each book's sharing, once it has been shared. */
   publications: Record<string, PublicationDetail> = {};
 
@@ -242,6 +244,17 @@ export class FakeServer {
 
     const publish = /^\/documents\/([^/]+)\/publish$/.exec(path);
     if (method === "POST" && publish) return this.publish(publish[1]!, owner, init);
+
+    const prerender = /^\/documents\/([^/]+)\/prerender$/.exec(path);
+    if (prerender) {
+      const shared = this.publications[prerender[1]!];
+      if (!this.book(prerender[1]!)) return this.notFound();
+      if (!shared) return this.json({ detail: "Share it first." }, 409);
+      const total = 12;
+      if (method === "POST") this.prerendered.add(prerender[1]!);
+      const ready = this.prerendered.has(prerender[1]!) ? total : 0;
+      return this.json({ version: shared.version, total, ready }, method === "POST" ? 202 : 200);
+    }
 
     const unpublish = /^\/documents\/([^/]+)\/classes\/([^/]+)$/.exec(path);
     if (method === "DELETE" && unpublish) {
