@@ -169,6 +169,38 @@ def _register(app) -> None:
                 countdown=RETRY_BACKOFF * (2**self.request.retries),
             ) from failure
 
+    @app.task(name="sinhala_reader.prerender_book", acks_late=True)
+    def prerender_book(document_id: str, owner: str) -> None:
+        """Voice a shared book for its class. Resumable: a redelivery finds the
+        sentences already voiced in the cache and carries on from there.
+
+        Meant for a worker started with ``-Q voice --concurrency 1``, so the
+        model is loaded once and never twice on one GPU.
+        """
+        from .prerender import run
+
+        store, synthesis = _voice()
+        run(store, synthesis, document_id, owner)
+
+
+#: One voice per worker process, loaded on its first pre-render.
+_VOICE = None
+
+
+def _voice():
+    global _VOICE
+    if _VOICE is None:
+        from .adapters import build_adapter
+        from .audio import SynthesisService
+
+        store = build_store()
+        _VOICE = (store, SynthesisService(build_adapter(), store))
+    return _VOICE
+
+
+def send_prerender(app, document_id: str, owner: str) -> None:
+    app.send_task("sinhala_reader.prerender_book", args=[document_id, owner], queue="voice")
+
 
 def send_prepare(app, document_id: str, job_id: str) -> None:
     app.send_task("sinhala_reader.prepare_document", args=[document_id, job_id])

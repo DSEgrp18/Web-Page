@@ -21,12 +21,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, model_validator
 from sinhala_documents import media_type_for
 from sinhala_documents.model import QualityState
 from sinhala_documents.serialise import to_json
 
+from ..prerender import progress
+from ..ratelimit import enforce
 from ..schemas import DocumentSummary
 from ..security import require_owner, require_user
 from ..storage import (
@@ -77,6 +79,14 @@ class Review(BaseModel):
     pages: list[FlaggedPage]
     undecided: int
     ready_to_publish: bool
+
+
+class PrerenderStatus(BaseModel):
+    """How much of the class's copy of a shared book is voiced already."""
+
+    version: str
+    total: int = Field(description="Sentences the class will hear.")
+    ready: int = Field(description="Of those, how many already have audio.")
 
 
 class PublicationDetail(BaseModel):
@@ -232,6 +242,40 @@ def register(app: FastAPI, deps: Deps) -> None:
             )
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    def prerender_status(document_id: str, owner: str) -> PrerenderStatus:
+        found = progress(store, deps.synthesis, document_id, owner)
+        if found is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "Share the book with a class before preparing its audio."
+            )
+        return PrerenderStatus(version=found.version, total=found.total, ready=found.ready)
+
+    @app.get("/documents/{document_id}/prerender", tags=["publishing"])
+    def get_prerender(document_id: str, owner: str = Depends(require_owner)) -> PrerenderStatus:
+        """How much of the class's copy of the book is already voiced."""
+        owned_in(deps, document_id, owner)
+        return prerender_status(document_id, owner)
+
+    @app.post(
+        "/documents/{document_id}/prerender",
+        status_code=status.HTTP_202_ACCEPTED,
+        tags=["publishing"],
+    )
+    def start_prerender(
+        document_id: str, request: Request, owner: str = Depends(require_owner)
+    ) -> PrerenderStatus:
+        """Voice every sentence the class will hear, once, ahead of time.
+
+        Only for a shared book, and only by its owner. Starting it again is how
+        a stopped run is resumed: what is already voiced is kept.
+        """
+        owned_in(deps, document_id, owner)
+        # Voicing a book is the costliest thing a reader can ask for.
+        enforce(request, "prerender", owner)
+        prerender_status(document_id, owner)
+        deps.prerender.start(document_id, owner)
+        return prerender_status(document_id, owner)
 
     @app.get("/class-books", tags=["publishing"])
     def class_books(owner: str = Depends(require_owner)) -> list[ClassBook]:
