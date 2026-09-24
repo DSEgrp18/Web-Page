@@ -47,10 +47,14 @@ from .storage import (
     AudioRecord,
     AuditEvent,
     Bookmark,
+    Classroom,
+    CodeTaken,
     Document,
     EmailTaken,
     Job,
     JobState,
+    Membership,
+    MemberState,
     Progress,
     Role,
     Session,
@@ -300,6 +304,37 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             at       text NOT NULL
         );
         CREATE INDEX audit_by_subject ON audit_events (subject, at);
+        """,
+    ),
+    (
+        "0010_classes",
+        """
+        -- A teacher's class. The join code is eight digits, easiest on a phone
+        -- keypad and with a screen reader, and can be replaced by the teacher.
+        CREATE TABLE classes (
+            class_id   text PRIMARY KEY,
+            teacher_id text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+            name       text NOT NULL,
+            join_code  text NOT NULL UNIQUE,
+            created_at text NOT NULL
+        );
+        CREATE INDEX classes_by_teacher ON classes (teacher_id);
+
+        -- One student in one class. Joining makes it pending; the teacher's
+        -- approval, not the code, is what lets them in. Progress sharing is
+        -- off unless the student turns it on.
+        CREATE TABLE class_members (
+            class_id       text NOT NULL REFERENCES classes (class_id) ON DELETE CASCADE,
+            user_id        text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+            state          text NOT NULL DEFAULT 'pending'
+                CHECK (state IN ('pending', 'active', 'removed')),
+            share_progress boolean NOT NULL DEFAULT false,
+            consented_at   text,
+            joined_at      text NOT NULL,
+            updated_at     text NOT NULL,
+            PRIMARY KEY (class_id, user_id)
+        );
+        CREATE INDEX class_members_by_user ON class_members (user_id);
         """,
     ),
 )
@@ -895,6 +930,173 @@ class PostgresStore(Store):
             result = connection.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
             return result.rowcount
 
+    # -- classes -----------------------------------------------------------
+
+    def put_class(self, classroom: Classroom) -> Classroom:
+        try:
+            with self._pool.connection() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO classes (class_id, teacher_id, name, join_code, created_at)
+                    VALUES (%(class_id)s, %(teacher_id)s, %(name)s, %(join_code)s, %(created_at)s)
+                    ON CONFLICT (class_id) DO UPDATE SET
+                        name = EXCLUDED.name, join_code = EXCLUDED.join_code
+                    """,
+                    {
+                        "class_id": classroom.class_id,
+                        "teacher_id": classroom.teacher_id,
+                        "name": classroom.name,
+                        "join_code": classroom.join_code,
+                        "created_at": classroom.created_at,
+                    },
+                )
+        except UniqueViolation as clash:
+            raise CodeTaken(classroom.join_code) from clash
+        return classroom
+
+    def class_taught(self, class_id: str, teacher_id: str) -> Classroom | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM classes WHERE class_id = %s AND teacher_id = %s",
+                (class_id, teacher_id),
+            ).fetchone()
+        return _classroom(row) if row else None
+
+    def classes_taught(self, teacher_id: str) -> list[Classroom]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM classes WHERE teacher_id = %s ORDER BY created_at", (teacher_id,)
+            ).fetchall()
+        return [_classroom(row) for row in rows]
+
+    def class_by_code(self, join_code: str) -> Classroom | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM classes WHERE join_code = %s", (join_code,)
+            ).fetchone()
+        return _classroom(row) if row else None
+
+    def set_join_code(self, class_id: str, teacher_id: str, join_code: str) -> bool:
+        try:
+            with self._pool.connection() as connection:
+                changed = connection.execute(
+                    "UPDATE classes SET join_code = %s WHERE class_id = %s AND teacher_id = %s",
+                    (join_code, class_id, teacher_id),
+                ).rowcount
+        except UniqueViolation as clash:
+            raise CodeTaken(join_code) from clash
+        return changed == 1
+
+    def delete_class(self, class_id: str, teacher_id: str) -> bool:
+        with self._pool.connection() as connection:
+            deleted = connection.execute(
+                "DELETE FROM classes WHERE class_id = %s AND teacher_id = %s",
+                (class_id, teacher_id),
+            ).rowcount
+        return deleted == 1
+
+    def join_class(self, class_id: str, user_id: str) -> Membership:
+        now = _now()
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                """
+                INSERT INTO class_members (class_id, user_id, state, joined_at, updated_at)
+                VALUES (%(class_id)s, %(user_id)s, 'pending', %(now)s, %(now)s)
+                ON CONFLICT (class_id, user_id) DO UPDATE SET
+                    -- A removed member asking again starts over as pending;
+                    -- anyone else is left exactly as they were.
+                    state = CASE WHEN class_members.state = 'removed' THEN 'pending'
+                                 ELSE class_members.state END,
+                    share_progress = CASE WHEN class_members.state = 'removed' THEN false
+                                          ELSE class_members.share_progress END,
+                    consented_at = CASE WHEN class_members.state = 'removed' THEN NULL
+                                        ELSE class_members.consented_at END,
+                    joined_at = CASE WHEN class_members.state = 'removed' THEN EXCLUDED.joined_at
+                                     ELSE class_members.joined_at END,
+                    updated_at = EXCLUDED.updated_at
+                RETURNING *
+                """,
+                {"class_id": class_id, "user_id": user_id, "now": now},
+            ).fetchone()
+        return _membership(row)
+
+    def membership(self, class_id: str, user_id: str) -> Membership | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM class_members WHERE class_id = %s AND user_id = %s",
+                (class_id, user_id),
+            ).fetchone()
+        return _membership(row) if row else None
+
+    def classes_joined(self, user_id: str) -> list[tuple[Classroom, Membership]]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT c.class_id, c.teacher_id, c.name, c.join_code, c.created_at,
+                       m.user_id, m.state, m.share_progress, m.consented_at,
+                       m.joined_at, m.updated_at
+                  FROM class_members m JOIN classes c USING (class_id)
+                 WHERE m.user_id = %s AND m.state <> 'removed'
+                 ORDER BY m.joined_at
+                """,
+                (user_id,),
+            ).fetchall()
+        return [(_classroom(row), _membership(row)) for row in rows]
+
+    def members(self, class_id: str, teacher_id: str) -> list[Membership]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT m.* FROM class_members m JOIN classes c USING (class_id)
+                 WHERE m.class_id = %s AND c.teacher_id = %s
+                 ORDER BY m.joined_at
+                """,
+                (class_id, teacher_id),
+            ).fetchall()
+        return [_membership(row) for row in rows]
+
+    def set_member_state(
+        self, class_id: str, teacher_id: str, user_id: str, state: MemberState
+    ) -> bool:
+        with self._pool.connection() as connection:
+            changed = connection.execute(
+                """
+                UPDATE class_members SET state = %(state)s, updated_at = %(now)s
+                 WHERE class_id = %(class_id)s AND user_id = %(user_id)s
+                   AND class_id IN (SELECT class_id FROM classes WHERE teacher_id = %(teacher)s)
+                """,
+                {
+                    "state": str(state),
+                    "now": _now(),
+                    "class_id": class_id,
+                    "user_id": user_id,
+                    "teacher": teacher_id,
+                },
+            ).rowcount
+        return changed == 1
+
+    def leave_class(self, class_id: str, user_id: str) -> bool:
+        with self._pool.connection() as connection:
+            deleted = connection.execute(
+                "DELETE FROM class_members WHERE class_id = %s AND user_id = %s",
+                (class_id, user_id),
+            ).rowcount
+        return deleted == 1
+
+    def set_share_progress(self, class_id: str, user_id: str, share: bool) -> bool:
+        now = _now()
+        with self._pool.connection() as connection:
+            changed = connection.execute(
+                """
+                UPDATE class_members
+                   SET share_progress = %(share)s, updated_at = %(now)s,
+                       consented_at = CASE WHEN %(share)s THEN %(now)s ELSE NULL END
+                 WHERE class_id = %(class_id)s AND user_id = %(user_id)s AND state <> 'removed'
+                """,
+                {"share": share, "now": now, "class_id": class_id, "user_id": user_id},
+            ).rowcount
+        return changed == 1
+
     # -- tests -------------------------------------------------------------
 
     def reset_for_tests(self) -> None:
@@ -910,6 +1112,28 @@ class PostgresStore(Store):
 
 
 # --- rows to dataclasses ---------------------------------------------------
+
+
+def _classroom(row: dict[str, Any]) -> Classroom:
+    return Classroom(
+        class_id=row["class_id"],
+        teacher_id=row["teacher_id"],
+        name=row["name"],
+        join_code=row["join_code"],
+        created_at=row["created_at"],
+    )
+
+
+def _membership(row: dict[str, Any]) -> Membership:
+    return Membership(
+        class_id=row["class_id"],
+        user_id=row["user_id"],
+        state=MemberState(row["state"]),
+        share_progress=row["share_progress"],
+        consented_at=row["consented_at"],
+        joined_at=row["joined_at"],
+        updated_at=row["updated_at"],
+    )
 
 
 def _document(row: dict[str, Any]) -> Document:
