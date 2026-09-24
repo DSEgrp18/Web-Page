@@ -54,6 +54,7 @@ const MAPPING = {
   ResetNotice: "ResetNotice",
   PrerenderStatus: "PrerenderStatus",
   QuizSummary: "QuizSummary",
+  QuizGenerators: "QuizGenerators",
   QuizDetail: "QuizDetail",
   QuestionView: "QuestionView",
   MyAnswer: "MyAnswer",

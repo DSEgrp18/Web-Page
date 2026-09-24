@@ -323,13 +323,17 @@ export interface QuizSummary {
   quiz_id: string;
   document_id: string;
   for_class: boolean;
-  status: "draft" | "published";
+  status: "generating" | "failed" | "draft" | "published";
   generator: string;
   question_count: number;
   /** True once the reader's version of the book has moved on. */
   stale: boolean;
   mine: boolean;
   created_at: string;
+}
+
+export interface QuizGenerators {
+  generators: string[];
 }
 
 export interface QuestionView {

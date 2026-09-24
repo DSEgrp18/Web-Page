@@ -12,6 +12,9 @@ import type { AnswerResult, QuizDetail, QuizSummary } from "@/lib/types";
 /** What stands for the missing word in a question, as the API writes it. */
 const BLANK = "_____";
 
+/** How often to look again while a model drafts, in milliseconds. */
+const POLL_MS = 10_000;
+
 /** A right answer is plain news; a wrong one is set apart. */
 const RESULT = { right: "notice", wrong: "notice notice-warn" } as const;
 
@@ -31,12 +34,19 @@ export function Practice({ documentId }: { documentId: string }) {
   const [open, setOpen] = useState<QuizDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
+  const [drafting, setDrafting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     api.getDocument(documentId).then(
       (book) => {
         if (!cancelled) setTitle(book.title?.trim() || book.filename);
+      },
+      () => {},
+    );
+    api.quizGenerators().then(
+      (offered) => {
+        if (!cancelled) setDrafting(offered.generators.includes("graph"));
       },
       () => {},
     );
@@ -57,14 +67,29 @@ export function Practice({ documentId }: { documentId: string }) {
     setQuizzes(await api.listQuizzes(documentId));
   }
 
-  async function make(forClass: boolean) {
+  // While a model drafts, look again now and then. Not announced as it
+  // goes: the list says "being drafted" until it is done.
+  const waiting = quizzes?.some((quiz) => quiz.status === "generating") ?? false;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setInterval(() => {
+      api.listQuizzes(documentId).then(setQuizzes, () => {});
+    }, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [api, documentId, waiting]);
+
+  async function make(forClass: boolean, generator: "cloze" | "graph" = "cloze") {
     if (busy) return;
     setBusy(true);
     try {
-      const made = await api.makeQuiz(documentId, forClass);
+      const made = await api.makeQuiz(documentId, forClass, generator);
       setFailure(null);
-      say(strings.quizMade);
       await refresh();
+      if (made.status === "generating") {
+        say(strings.quizGenerating);
+        return;
+      }
+      say(strings.quizMade);
       setOpen(made);
     } catch (error) {
       setFailure(explain(error, { 422: strings.errorNoQuestions }));
@@ -126,7 +151,18 @@ export function Practice({ documentId }: { documentId: string }) {
             {strings.makeClassQuiz}
           </button>
         ) : null}
+        {drafting ? (
+          <button
+            className="btn"
+            type="button"
+            aria-busy={busy}
+            onClick={() => void make(false, "graph")}
+          >
+            {strings.makeDraftedQuiz}
+          </button>
+        ) : null}
       </div>
+      {drafting ? <p className="hint">{strings.draftedHow}</p> : null}
 
       <section className="account-section card" aria-labelledby="quizzes-heading">
         <h2 id="quizzes-heading">{strings.quizzesHeading}</h2>
@@ -144,17 +180,39 @@ export function Practice({ documentId }: { documentId: string }) {
               return (
                 <li key={quiz.quiz_id} className="class-item">
                   <h3>{name}</h3>
+                  {quiz.generator === "graph" ? (
+                    <p className="hint">{strings.quizDraftedLabel}</p>
+                  ) : null}
                   {draft ? <p className="hint">{strings.quizDraft}</p> : null}
+                  {quiz.status === "generating" ? (
+                    <p className="hint">{strings.quizGenerating}</p>
+                  ) : null}
+                  {quiz.status === "failed" ? (
+                    <>
+                      <p className="notice notice-warn">{strings.quizFailed}</p>
+                      <div className="notice-actions">
+                        <button
+                          className="btn btn-sm"
+                          type="button"
+                          onClick={() => void make(quiz.for_class)}
+                        >
+                          {strings.makeQuiz}
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                   {quiz.stale ? <p className="hint">{strings.quizStale}</p> : null}
                   <div className="notice-actions">
-                    <button
-                      className="btn btn-primary btn-sm"
-                      type="button"
-                      onClick={() => void openQuiz(quiz.quiz_id)}
-                    >
-                      {draft ? strings.reviewQuiz : strings.startQuiz}
-                      <span className="visually-hidden"> — {name}</span>
-                    </button>
+                    {quiz.question_count > 0 ? (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        type="button"
+                        onClick={() => void openQuiz(quiz.quiz_id)}
+                      >
+                        {draft ? strings.reviewQuiz : strings.startQuiz}
+                        <span className="visually-hidden"> — {name}</span>
+                      </button>
+                    ) : null}
                     {quiz.mine ? (
                       <button
                         className="btn btn-quiet btn-sm"

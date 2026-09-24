@@ -31,6 +31,7 @@ import type {
   AnswerResult,
   PrerenderStatus,
   QuizDetail,
+  QuizGenerators,
   QuizSummary,
   PublicationDetail,
   Review,
@@ -520,9 +521,17 @@ export class ReaderApi {
     return this.json<QuizSummary[]>(`/documents/${encodeURIComponent(documentId)}/quizzes`);
   }
 
-  makeQuiz(documentId: string, forClass = false): Promise<QuizDetail> {
+  quizGenerators(): Promise<QuizGenerators> {
+    return this.json<QuizGenerators>("/quiz-generators");
+  }
+
+  makeQuiz(
+    documentId: string,
+    forClass = false,
+    generator: "cloze" | "graph" = "cloze",
+  ): Promise<QuizDetail> {
     return this.send<QuizDetail>(`/documents/${encodeURIComponent(documentId)}/quizzes`, "POST", {
-      generator: "cloze",
+      generator,
       for_class: forClass,
     });
   }
