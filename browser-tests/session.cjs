@@ -24,15 +24,18 @@ function apiUrl(request) {
   return url;
 }
 
-async function mockApi(page, handler) {
+/** The same reader, as a teacher: for the screens only a teacher sees. */
+const TEACHER = { ...ACCOUNT, role: "teacher" };
+
+async function mockApi(page, handler, account = ACCOUNT) {
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     if (!new URL(request.url()).pathname.startsWith("/api/")) return route.continue();
     if (apiUrl(request).pathname === "/auth/me") {
-      return route.fulfill({ status: 200, json: { ...ACCOUNT, csrf_token: CSRF } });
+      return route.fulfill({ status: 200, json: { ...account, csrf_token: CSRF } });
     }
     return handler(route);
   });
 }
 
-module.exports = { ACCOUNT, CSRF, apiUrl, mockApi };
+module.exports = { ACCOUNT, CSRF, TEACHER, apiUrl, mockApi };

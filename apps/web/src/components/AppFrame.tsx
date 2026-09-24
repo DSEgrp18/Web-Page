@@ -63,6 +63,13 @@ export function AppFrame({ children }: { children: ReactNode }) {
                   >
                     {strings.bookmarksNav}
                   </Link>
+                  <Link
+                    className="nav-link"
+                    href="/classes"
+                    aria-current={pathname.startsWith("/classes") ? "page" : undefined}
+                  >
+                    {strings.classesNav}
+                  </Link>
                 </nav>
                 <div className="shell-actions">
                   <Settings />

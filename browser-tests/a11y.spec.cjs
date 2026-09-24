@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { apiUrl, mockApi } = require("./session.cjs");
+const { TEACHER, apiUrl, mockApi } = require("./session.cjs");
 const { default: AxeBuilder } = require("@axe-core/playwright");
 
 /**
@@ -54,8 +54,26 @@ const BOOKMARK = {
   segment_found: true, created_at: "2026-09-20T00:00:00Z",
 };
 
-/** A signed-in reader with one prepared book, and nothing else on the API. */
-async function withOneBook(page) {
+const MEMBER = {
+  user_id: "usr-2", display_name: "නිමලි", state: "pending", share_progress: false,
+  joined_at: "2026-09-20T00:00:00Z",
+};
+
+const CLASS = {
+  class_id: "cls-a", name: "10 ශ්‍රේණිය", join_code: "12345678",
+  created_at: "2026-09-20T00:00:00Z", members: [MEMBER],
+};
+
+const REVIEW = {
+  version: "v1", undecided: 1, ready_to_publish: false,
+  pages: [{ page_index: 0, page_label: "1", quality: "needs_review", notes: [], decision: null }],
+};
+
+/**
+ * A signed-in reader with one prepared book, and nothing else on the API.
+ * As a teacher, they also teach one class, and the book has a page to decide.
+ */
+async function withOneBook(page, account) {
   await mockApi(page, async (route) => {
     const request = route.request();
     if (request.method() === "OPTIONS") {
@@ -68,13 +86,18 @@ async function withOneBook(page) {
       "/documents/doc-1": BOOK,
       "/documents/doc-1/pages/0": PAGE,
       "/documents/doc-1/bookmarks": [BOOKMARK],
+      "/classes": { teaching: [CLASS], joined: [] },
+      "/classes/cls-a": CLASS,
+      "/class-books": [],
+      "/documents/doc-1/review": REVIEW,
+      "/documents/doc-1/publication": null,
     }[pathname];
     await route.fulfill({
-      status: body ? 200 : 404,
+      status: body !== undefined ? 200 : 404,
       headers: HEADERS,
-      body: JSON.stringify(body ?? { detail: "not found" }),
+      body: JSON.stringify(body === undefined ? { detail: "not found" } : body),
     });
-  });
+  }, account);
 }
 
 const FLAT = "*, *::before, *::after { background-image: none !important; }";
@@ -201,6 +224,24 @@ const SCREENS = [
     ready: (page) => page.getByRole("heading", { name: "මගේ ගිණුම", level: 1 }),
   },
   {
+    name: "the classes screen",
+    path: "/classes",
+    account: TEACHER,
+    ready: (page) => page.getByRole("link", { name: "10 ශ්‍රේණිය" }),
+  },
+  {
+    name: "a class",
+    path: "/classes/cls-a",
+    account: TEACHER,
+    ready: (page) => page.getByRole("table"),
+  },
+  {
+    name: "sharing a book",
+    path: "/library/doc-1/share",
+    account: TEACHER,
+    ready: (page) => page.getByRole("radio").first(),
+  },
+  {
     name: "making an account",
     path: "/register",
     ready: (page) => page.getByRole("heading", { name: "ගිණුමක් සාදන්න" }),
@@ -211,7 +252,7 @@ for (const scheme of ["light", "dark"]) {
   for (const screen of SCREENS) {
     test(`${screen.name} has no detectable violations in the ${scheme} theme`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-      await withOneBook(page);
+      await withOneBook(page, screen.account);
       await page.goto(screen.path);
       await expect(screen.ready(page)).toBeVisible();
       if (screen.open) await screen.open(page);

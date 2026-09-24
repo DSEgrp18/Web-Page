@@ -47,6 +47,14 @@ const MAPPING = {
   StudyAnswer: "StudyAnswer",
   Account: "Account",
   SignedIn: "SignedIn",
+  MemberDetail: "MemberDetail",
+  TaughtClass: "TaughtClass",
+  JoinedClass: "JoinedClass",
+  MyClasses: "MyClasses",
+  ClassBook: "ClassBook",
+  FlaggedPage: "FlaggedPage",
+  Review: "Review",
+  PublicationDetail: "PublicationDetail",
 };
 
 /**

@@ -23,6 +23,13 @@
 import type {
   Account,
   AudioClip,
+  ClassBook,
+  JoinedClass,
+  MyClasses,
+  PublicationDetail,
+  Review,
+  RightsBasis,
+  TaughtClass,
   AudioManifest,
   Bookmark,
   DocumentDetail,
@@ -387,6 +394,110 @@ export class ReaderApi {
 
   getProgress(documentId: string): Promise<Progress> {
     return this.json<Progress>(`/documents/${encodeURIComponent(documentId)}/progress`);
+  }
+
+  // -- classes -----------------------------------------------------------
+
+  private send<T>(path: string, method: string, body?: unknown): Promise<T> {
+    return this.json<T>(path, {
+      method,
+      ...(body === undefined
+        ? {}
+        : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    });
+  }
+
+  myClasses(): Promise<MyClasses> {
+    return this.json<MyClasses>("/classes");
+  }
+
+  getClass(id: string): Promise<TaughtClass | JoinedClass> {
+    return this.json<TaughtClass | JoinedClass>(`/classes/${encodeURIComponent(id)}`);
+  }
+
+  createClass(name: string): Promise<TaughtClass> {
+    return this.send<TaughtClass>("/classes", "POST", { name });
+  }
+
+  renameClass(id: string, name: string): Promise<TaughtClass> {
+    return this.send<TaughtClass>(`/classes/${encodeURIComponent(id)}`, "PATCH", { name });
+  }
+
+  async deleteClass(id: string): Promise<void> {
+    await this.request(`/classes/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  newJoinCode(id: string): Promise<TaughtClass> {
+    return this.send<TaughtClass>(`/classes/${encodeURIComponent(id)}/code`, "POST");
+  }
+
+  setMember(id: string, userId: string, action: "approve" | "remove"): Promise<TaughtClass> {
+    return this.send<TaughtClass>(
+      `/classes/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}/${action}`,
+      "POST",
+    );
+  }
+
+  joinClass(code: string): Promise<JoinedClass> {
+    return this.send<JoinedClass>("/classes/join", "POST", { code });
+  }
+
+  shareProgress(id: string, share: boolean): Promise<JoinedClass> {
+    return this.send<JoinedClass>(`/classes/${encodeURIComponent(id)}/share-progress`, "PUT", {
+      share,
+    });
+  }
+
+  async leaveClass(id: string): Promise<void> {
+    await this.request(`/classes/${encodeURIComponent(id)}/membership`, { method: "DELETE" });
+  }
+
+  classBooks(): Promise<ClassBook[]> {
+    return this.json<ClassBook[]>("/class-books");
+  }
+
+  // -- sharing a book ------------------------------------------------------
+
+  getReview(documentId: string): Promise<Review> {
+    return this.json<Review>(`/documents/${encodeURIComponent(documentId)}/review`);
+  }
+
+  decidePage(
+    documentId: string,
+    pageIndex: number,
+    decision: "accepted" | "withheld",
+  ): Promise<Review> {
+    return this.send<Review>(
+      `/documents/${encodeURIComponent(documentId)}/review/${pageIndex}`,
+      "PUT",
+      { decision },
+    );
+  }
+
+  getPublication(documentId: string): Promise<PublicationDetail | null> {
+    return this.json<PublicationDetail | null>(
+      `/documents/${encodeURIComponent(documentId)}/publication`,
+    );
+  }
+
+  publish(
+    documentId: string,
+    classIds: string[],
+    basis: RightsBasis,
+    note: string | null,
+  ): Promise<PublicationDetail> {
+    return this.send<PublicationDetail>(
+      `/documents/${encodeURIComponent(documentId)}/publish`,
+      "POST",
+      { class_ids: classIds, basis, note },
+    );
+  }
+
+  async unpublish(documentId: string, classId: string): Promise<void> {
+    await this.request(
+      `/documents/${encodeURIComponent(documentId)}/classes/${encodeURIComponent(classId)}`,
+      { method: "DELETE" },
+    );
   }
 
   // -- operations --------------------------------------------------------

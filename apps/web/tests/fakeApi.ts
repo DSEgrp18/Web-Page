@@ -14,11 +14,17 @@ import type {
   Bookmark,
   Chapter,
   DocumentDetail,
+  FlaggedPage,
+  JoinedClass,
   Job,
+  MemberDetail,
   Page,
   Progress,
+  PublicationDetail,
+  RightsBasis,
   Segment,
   StudyAnswer,
+  TaughtClass,
 } from "../src/lib/types";
 
 export const OWNER = "reader-one";
@@ -63,6 +69,15 @@ export interface FakeBook {
    * succeeded once there is a version, and is running before.
    */
   job?: Partial<Job>;
+}
+
+/** A class as the fake keeps it: the teacher's view, plus who teaches it. */
+export interface FakeClass {
+  class_id: string;
+  name: string;
+  join_code: string;
+  teacher: string;
+  members: MemberDetail[];
 }
 
 export interface FakeServerOptions {
@@ -163,6 +178,13 @@ export class FakeServer {
   readonly accounts: FakeAccount[] = [];
   /** Set to make every account request answer 429, as the rate limiter would. */
   throttleAccounts = false;
+  /** Readers who are teachers; everyone else is a student, as registration makes them. */
+  readonly teachers = new Set<string>();
+  classes: FakeClass[] = [];
+  /** The flagged pages of each book, as its owner decides on them. */
+  reviews: Record<string, FlaggedPage[]> = {};
+  /** Each book's sharing, once it has been shared. */
+  publications: Record<string, PublicationDetail> = {};
 
   constructor(options: FakeServerOptions = {}) {
     this.books = options.books ?? [];
@@ -197,6 +219,32 @@ export class FakeServer {
     if (!owner) return this.json({ detail: "Sign in to continue." }, 401);
     if (UNSAFE.has(method) && headers.get("X-CSRF-Token") !== FAKE_CSRF) {
       return this.json({ detail: "This page is out of date." }, 403);
+    }
+
+    if (path === "/classes" || path.startsWith("/classes/")) {
+      return this.classRoute(method, path, owner, init);
+    }
+    if (method === "GET" && path === "/class-books") return this.classBooks(owner);
+
+    const review = /^\/documents\/([^/]+)\/review(?:\/(\d+))?$/.exec(path);
+    if (review) return this.review(method, review[1]!, review[2], init);
+
+    const publication = /^\/documents\/([^/]+)\/publication$/.exec(path);
+    if (method === "GET" && publication) {
+      if (!this.book(publication[1]!)) return this.notFound();
+      return this.json(this.publications[publication[1]!] ?? null);
+    }
+
+    const publish = /^\/documents\/([^/]+)\/publish$/.exec(path);
+    if (method === "POST" && publish) return this.publish(publish[1]!, owner, init);
+
+    const unpublish = /^\/documents\/([^/]+)\/classes\/([^/]+)$/.exec(path);
+    if (method === "DELETE" && unpublish) {
+      const shared = this.publications[unpublish[1]!];
+      if (!shared?.class_ids.includes(unpublish[2]!)) return this.notFound();
+      shared.class_ids = shared.class_ids.filter((id) => id !== unpublish[2]);
+      if (shared.class_ids.length === 0) delete this.publications[unpublish[1]!];
+      return new Response(null, { status: 204 });
     }
 
     if (method === "GET" && path === "/documents") return this.listDocuments();
@@ -347,7 +395,7 @@ export class FakeServer {
         user_id: id,
         email: found?.email ?? `${id}@example.lk`,
         display_name: found?.display_name ?? id,
-        role: "student",
+        role: this.teachers.has(id) ? "teacher" : "student",
         has_recovery_code: found?.has_recovery_code ?? true,
         created_at: "2026-09-01T00:00:00Z",
       };
@@ -443,6 +491,203 @@ export class FakeServer {
       return new Response(null, { status: 204 });
     }
     return this.notFound();
+  }
+
+  private nameOf(userId: string): string {
+    return this.accounts.find((a) => a.user_id === userId)?.display_name ?? userId;
+  }
+
+  private taught(room: FakeClass): TaughtClass {
+    return {
+      class_id: room.class_id,
+      name: room.name,
+      join_code: room.join_code,
+      created_at: "2026-09-01T00:00:00Z",
+      members: room.members.map((member) => ({ ...member })),
+    };
+  }
+
+  private joined(room: FakeClass, member: MemberDetail): JoinedClass {
+    return {
+      class_id: room.class_id,
+      name: room.name,
+      teacher_name: this.nameOf(room.teacher),
+      state: member.state === "active" ? "active" : "pending",
+      share_progress: member.share_progress,
+    };
+  }
+
+  private membership(room: FakeClass, userId: string): MemberDetail | undefined {
+    return room.members.find((m) => m.user_id === userId && m.state !== "removed");
+  }
+
+  /** The `/classes` routes. Anything the reader may not see is 404, as the API has it. */
+  private classRoute(method: string, path: string, owner: string, init: RequestInit): Response {
+    const body = init.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+    const noClass = () => this.json({ detail: "No such class." }, 404);
+
+    if (path === "/classes") {
+      if (method === "GET") {
+        return this.json({
+          teaching: this.classes.filter((c) => c.teacher === owner).map((c) => this.taught(c)),
+          joined: this.classes.flatMap((c) => {
+            const member = this.membership(c, owner);
+            return member ? [this.joined(c, member)] : [];
+          }),
+        });
+      }
+      if (method === "POST") {
+        if (!this.teachers.has(owner)) return this.json({ detail: "Only a teacher." }, 403);
+        this.counter += 1;
+        const room: FakeClass = {
+          class_id: `cls-${this.counter}`,
+          name: String(body.name),
+          join_code: String(10000000 + this.counter),
+          teacher: owner,
+          members: [],
+        };
+        this.classes.push(room);
+        return this.json(this.taught(room), 201);
+      }
+    }
+    if (method === "POST" && path === "/classes/join") {
+      const code = String(body.code).replace(/\D/g, "");
+      const room = this.classes.find((c) => c.join_code === code && c.teacher !== owner);
+      if (!room) return this.json({ detail: "No class has that code." }, 404);
+      let member = room.members.find((m) => m.user_id === owner);
+      if (!member) {
+        member = {
+          user_id: owner,
+          display_name: this.nameOf(owner),
+          state: "pending",
+          share_progress: false,
+          joined_at: "2026-09-10T00:00:00Z",
+        };
+        room.members.push(member);
+      } else if (member.state === "removed") {
+        member.state = "pending";
+      }
+      return this.json(this.joined(room, member));
+    }
+
+    const match = /^\/classes\/([^/]+)(\/.*)?$/.exec(path);
+    const room = match && this.classes.find((c) => c.class_id === match[1]);
+    if (!match || !room) return noClass();
+    const rest = match[2] ?? "";
+    const teaches = room.teacher === owner;
+
+    if (rest === "/share-progress" && method === "PUT") {
+      const member = this.membership(room, owner);
+      if (!member) return noClass();
+      member.share_progress = Boolean(body.share);
+      return this.json(this.joined(room, member));
+    }
+    if (rest === "/membership" && method === "DELETE") {
+      const member = this.membership(room, owner);
+      if (!member) return noClass();
+      member.state = "removed";
+      member.share_progress = false;
+      return new Response(null, { status: 204 });
+    }
+    if (rest === "" && method === "GET") {
+      if (teaches) return this.json(this.taught(room));
+      const member = this.membership(room, owner);
+      return member ? this.json(this.joined(room, member)) : noClass();
+    }
+    if (!teaches) return noClass();
+    if (rest === "" && method === "PATCH") {
+      room.name = String(body.name);
+      return this.json(this.taught(room));
+    }
+    if (rest === "" && method === "DELETE") {
+      this.classes = this.classes.filter((c) => c !== room);
+      return new Response(null, { status: 204 });
+    }
+    if (rest === "/code" && method === "POST") {
+      room.join_code = String(Number(room.join_code) + 1111);
+      return this.json(this.taught(room));
+    }
+    const act = /^\/members\/([^/]+)\/(approve|remove)$/.exec(rest);
+    if (act && method === "POST") {
+      const member = this.membership(room, act[1]!);
+      if (!member) return this.json({ detail: "No such member." }, 404);
+      member.state = act[2] === "approve" ? "active" : "removed";
+      return this.json(this.taught(room));
+    }
+    return this.notFound();
+  }
+
+  private classBooks(owner: string): Response {
+    const found = Object.entries(this.publications).flatMap(([documentId, shared]) => {
+      const book = this.book(documentId);
+      if (!book) return [];
+      return this.classes
+        .filter(
+          (c) =>
+            shared.class_ids.includes(c.class_id) &&
+            c.members.some((m) => m.user_id === owner && m.state === "active"),
+        )
+        .map((c) => ({ class_id: c.class_id, class_name: c.name, book: this.summarise(book) }));
+    });
+    return this.json(found);
+  }
+
+  private reviewOf(documentId: string, version: string) {
+    const pages = this.reviews[documentId] ?? [];
+    const undecided = pages.filter((p) => p.decision === null).length;
+    return { version, pages, undecided, ready_to_publish: undecided === 0 };
+  }
+
+  private review(
+    method: string,
+    documentId: string,
+    page: string | undefined,
+    init: RequestInit,
+  ): Response {
+    const book = this.book(documentId);
+    if (!book?.version) return this.notFound();
+    if (method === "GET" && page === undefined) {
+      return this.json(this.reviewOf(documentId, book.version));
+    }
+    if (method === "PUT" && page !== undefined) {
+      const flagged = (this.reviews[documentId] ?? []).find((p) => p.page_index === Number(page));
+      if (!flagged) return this.json({ detail: "No such flagged page." }, 404);
+      const body = JSON.parse(String(init.body)) as { decision: FlaggedPage["decision"] };
+      flagged.decision = body.decision;
+      return this.json(this.reviewOf(documentId, book.version));
+    }
+    return this.notFound();
+  }
+
+  private publish(documentId: string, owner: string, init: RequestInit): Response {
+    const book = this.book(documentId);
+    if (!book?.version) return this.notFound();
+    if (!this.teachers.has(owner)) return this.json({ detail: "Only a teacher." }, 403);
+    if (!this.reviewOf(documentId, book.version).ready_to_publish) {
+      return this.json({ detail: { code: "unreviewed_pages", message: "Decide first." } }, 409);
+    }
+    const body = JSON.parse(String(init.body)) as {
+      class_ids: string[];
+      basis: RightsBasis;
+      note: string | null;
+    };
+    for (const id of body.class_ids) {
+      if (!this.classes.some((c) => c.class_id === id && c.teacher === owner)) {
+        return this.json({ detail: "No such class." }, 404);
+      }
+    }
+    const before = this.publications[documentId]?.class_ids ?? [];
+    const shared: PublicationDetail = {
+      version: book.version,
+      basis: body.basis,
+      note: body.note,
+      attested_at: "2026-09-10T00:00:00Z",
+      published_at: "2026-09-10T00:00:00Z",
+      class_ids: [...new Set([...before, ...body.class_ids])].sort(),
+      stale: false,
+    };
+    this.publications[documentId] = shared;
+    return this.json(shared);
   }
 
   /** As the API: a new job, queued, and only when the last one may be retried. */
