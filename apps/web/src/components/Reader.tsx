@@ -438,7 +438,7 @@ export function Reader({
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- mouseup/keyup here only *observe* a selection the reader made with the platform's own text selection. There is no interaction to trigger and nothing to give keyboard access to; the handlers read window.getSelection() and nothing else.
     <div className="workspace" onMouseUp={captureSelection} onKeyUp={captureSelection}>
       <header className="workspace-bar">
-        <Link className="btn btn-quiet btn-sm" href="/">
+        <Link className="btn btn-quiet btn-sm" href="/library">
           <span aria-hidden="true">‹ </span>
           {strings.backToLibrary}
         </Link>

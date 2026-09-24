@@ -359,7 +359,7 @@ src/app/
 
 - **A signed-in visitor to `/` is redirected to `/library` before render.** This keeps the rule `Library.tsx` states in its own header, that a returning reader should never have to scroll past a marketing page. The welcome strip stays in the library for new readers.
 - **Old URLs:** `/documents/:id` gets a 308 redirect to `/library/:id`, with `?segment=` kept, so bookmark links keep working.
-- **`/documents/[id]/study` is deleted.** Nothing links to it since `AssistantDrawer` replaced it. Its test coverage moves to the drawer.
+- **`/documents/[id]/study` is deleted.** Nothing links to it since `AssistantDrawer` replaced it. Its test coverage moves to the drawer. (Done: the route redirects to the book, and the drawer's tests now cover cited sentences and abstention.)
 
 ### 6.2 Sessions: an httpOnly cookie through a same-origin pass-through
 

@@ -6,6 +6,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
 import { BrandMark } from "@/components/BrandMark";
+import { SiteFooter } from "@/components/PublicFrame";
 import { useReader } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
 import { strings } from "@/lib/strings";
@@ -27,16 +28,12 @@ import { strings } from "@/lib/strings";
  * "signed out" state of its own. The account pages are the exception: they are
  * where a reader who is signed out goes.
  */
-/** The pages a signed-out reader can see: where they sign in. */
-const ACCOUNT_PATHS = new Set(["/sign-in", "/register", "/recover"]);
-
 export function AppFrame({ children }: { children: ReactNode }) {
   const { status } = useReader();
-  const pathname = usePathname() ?? "/";
+  const pathname = usePathname() ?? "/library";
 
   // The workspace manages its own full-height layout and its own back link.
-  const isWorkspace = /^\/documents\/[^/]+$/.test(pathname);
-  const isAccountPage = ACCOUNT_PATHS.has(pathname);
+  const isWorkspace = /^\/library\/[^/]+$/.test(pathname);
   const signedIn = status === "signed_in";
 
   return (
@@ -47,15 +44,15 @@ export function AppFrame({ children }: { children: ReactNode }) {
       <div className="shell">
         <header className="shell-header">
           <div className="shell-header-inner">
-            <BrandMark />
+            <BrandMark href={signedIn ? "/library" : "/"} />
 
             {signedIn ? (
               <>
                 <nav className="shell-nav" aria-label={strings.primaryNavigation}>
                   <Link
                     className="nav-link"
-                    href="/"
-                    aria-current={pathname === "/" ? "page" : undefined}
+                    href="/library"
+                    aria-current={pathname === "/library" ? "page" : undefined}
                   >
                     {strings.libraryHeading}
                   </Link>
@@ -81,7 +78,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
         </header>
 
         <main id="main" className={isWorkspace ? "shell-main shell-main-wide" : "shell-main"}>
-          {isAccountPage || signedIn ? (
+          {signedIn ? (
             children
           ) : status === "loading" ? (
             // Short, and not announced: a reader who hears "loading" on every
@@ -94,11 +91,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
           )}
         </main>
 
-        {isWorkspace ? null : (
-          <footer className="shell-footer">
-            <p>{strings.footerNote}</p>
-          </footer>
-        )}
+        {isWorkspace ? null : <SiteFooter />}
       </div>
     </>
   );
@@ -141,7 +134,8 @@ function SignedOut({ pathname }: { pathname: string }) {
     if (document.activeElement === document.body) heading.current?.focus();
   }, []);
 
-  const next = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname)}`;
+  const next =
+    pathname === "/library" || pathname === "/" ? "" : `?next=${encodeURIComponent(pathname)}`;
   return (
     <div className="account-screen">
       <img

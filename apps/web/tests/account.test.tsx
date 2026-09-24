@@ -48,7 +48,7 @@ describe("signing in", () => {
     await user.type(screen.getByLabelText(strings.passwordLabel), PASSWORD);
     await user.click(screen.getByRole("button", { name: strings.signInAction }));
 
-    await waitFor(() => expect(navigations).toEqual(["/"]));
+    await waitFor(() => expect(navigations).toEqual(["/library"]));
     expect(politeText()).toContain(strings.signedIn);
   });
 
@@ -114,10 +114,10 @@ describe("signing in", () => {
 describe("where signing in may lead", () => {
   it.each([
     ["?next=%2Fbookmarks", "/bookmarks"],
-    ["", "/"],
-    ["?next=https%3A%2F%2Fevil.test", "/"],
-    ["?next=%2F%2Fevil.test", "/"],
-    ["?next=%2F%5Cevil.test", "/"],
+    ["", "/library"],
+    ["?next=https%3A%2F%2Fevil.test", "/library"],
+    ["?next=%2F%2Fevil.test", "/library"],
+    ["?next=%2F%5Cevil.test", "/library"],
   ])("%s goes to %s", (search, expected) => {
     expect(nextPath(search)).toBe(expected);
   });
@@ -147,7 +147,7 @@ describe("making an account", () => {
     await user.click(screen.getByLabelText(strings.savedCodeConfirm));
     await user.click(onward);
 
-    expect(navigations).toEqual(["/"]);
+    expect(navigations).toEqual(["/library"]);
   });
 
   it("offers the code as a copy and as a file", async () => {

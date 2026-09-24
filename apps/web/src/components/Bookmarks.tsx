@@ -129,7 +129,7 @@ export function Bookmarks() {
         <section className="bookmarks-empty panel" aria-labelledby="bookmarks-empty-heading">
           <h2 id="bookmarks-empty-heading">{strings.bookmarksEmptyTitle}</h2>
           <p>{strings.bookmarksEmptyBody}</p>
-          <Link className="btn btn-primary" href="/">
+          <Link className="btn btn-primary" href="/library">
             {strings.libraryHeading}
           </Link>
         </section>
@@ -170,7 +170,7 @@ export function Bookmarks() {
                         {canOpen ? (
                           <Link
                             className="btn"
-                            href={`/documents/${encodeURIComponent(bookmark.document_id)}?segment=${encodeURIComponent(bookmark.segment_id)}`}
+                            href={`/library/${encodeURIComponent(bookmark.document_id)}?segment=${encodeURIComponent(bookmark.segment_id)}`}
                           >
                             {strings.bookmarkOpen}
                           </Link>

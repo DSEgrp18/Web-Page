@@ -140,13 +140,13 @@ function AccountScreen({ heading, children }: { heading: string; children: React
   );
 }
 
-/** Where to go after signing in: back where the reader was sent from, or home. */
+/** Where to go after signing in: back where the reader was sent from, or their books. */
 export function nextPath(search: string): string {
   const asked = new URLSearchParams(search).get("next");
   // Only a path on this site; never somewhere a crafted link names.
   return asked && asked.startsWith("/") && !asked.startsWith("//") && !asked.includes("\\")
     ? asked
-    : "/";
+    : "/library";
 }
 
 export function SignInForm() {
@@ -429,7 +429,7 @@ export function RecoveryCode({
           className="btn btn-primary"
           type="button"
           disabled={!saved}
-          onClick={() => (onDone ? onDone() : router.replace("/"))}
+          onClick={() => (onDone ? onDone() : router.replace("/library"))}
         >
           {doneLabel}
         </button>

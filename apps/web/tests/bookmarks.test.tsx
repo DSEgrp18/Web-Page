@@ -43,7 +43,7 @@ describe("bookmarks screen", () => {
     expect(await screen.findByRole("heading", { name: strings.bookmarksHeading })).toBeTruthy();
     expect(screen.getByText(bookmark.display_text!)).toBeTruthy();
     expect(screen.getByRole("link", { name: strings.bookmarkOpen }).getAttribute("href")).toBe(
-      "/documents/doc-1?segment=0000-s0",
+      "/library/doc-1?segment=0000-s0",
     );
   });
 

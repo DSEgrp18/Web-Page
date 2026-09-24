@@ -48,7 +48,7 @@ describe("the shelf", () => {
   it("names the book inside the link that opens it", async () => {
     renderApp(<Library />, new FakeServer({ books: [book()] }));
     const link = await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
-    expect(link.getAttribute("href")).toBe("/documents/doc-1");
+    expect(link.getAttribute("href")).toBe("/library/doc-1");
   });
 
   it("prefers the reader's own name for a book over the filename", async () => {

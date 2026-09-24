@@ -129,9 +129,9 @@ async function contrastAudit(page, overlay) {
   return { violations, undecided, measured };
 }
 
-const LIBRARY = { path: "/", ready: (page) => page.getByRole("heading", { name: "පොත.pdf" }) };
+const LIBRARY = { path: "/library", ready: (page) => page.getByRole("heading", { name: "පොත.pdf" }) };
 const READER = {
-  path: "/documents/doc-1",
+  path: "/library/doc-1",
   ready: (page) => page.getByRole("button", { name: "සිංහල පොත කියවන්න." }),
 };
 
@@ -176,6 +176,20 @@ const SCREENS = [
     overlay: ".assistant",
   },
   { name: "bookmarks", path: "/bookmarks", ready: (page) => page.getByText("පාඩම") },
+  // The public site: each page has exactly one h1.
+  ...[
+    ["the front door", "/"],
+    ["how it works", "/how-it-works"],
+    ["for teachers", "/for-teachers"],
+    ["help", "/help"],
+    ["the accessibility statement", "/accessibility"],
+    ["the privacy notice", "/privacy"],
+    ["the terms", "/terms"],
+  ].map(([name, path]) => ({
+    name,
+    path,
+    ready: (page) => page.getByRole("heading", { level: 1 }),
+  })),
   {
     name: "signing in",
     path: "/sign-in",
@@ -212,7 +226,7 @@ for (const scheme of ["light", "dark"]) {
 
 test("the contrast check fails on text a reader could not see", async ({ page }) => {
   await withOneBook(page);
-  await page.goto("/");
+  await page.goto("/library");
   await expect(LIBRARY.ready(page)).toBeVisible();
   await page.evaluate(() => {
     const faint = document.createElement("p");
