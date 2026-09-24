@@ -66,27 +66,25 @@ in jsdom.
 
 ## Run it
 
-The API must be running, and must be told this origin is allowed:
+The API must be running with real accounts, and the web app told where it is:
 
 ```bash
 # terminal 1 — the API
 cd services/api
-SINHALA_READER_AUTH=development \
-SINHALA_READER_ORIGINS=http://localhost:3000 \
+SINHALA_READER_AUTH=sessions \
+SINHALA_READER_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
 PYTHONPATH="src:../worker/src:../tts/src" \
   python -m uvicorn sinhala_reader.serve:app --reload
 
 # terminal 2 — the reader
 cd apps/web
 npm install
-npm run dev
+READER_API_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-Then `http://localhost:3000`. It asks for a name; that name is the identity sent
-in `X-Reader-User`, and the interface says plainly that it is not a login.
-
-Point it somewhere else with `NEXT_PUBLIC_READER_API`. That is an address, not a
-secret — no secret ever enters a browser bundle.
+Then `http://localhost:3000`, and make an account. Without a database the API
+keeps accounts in memory, so a restart means registering again; set
+`SINHALA_READER_DATABASE_URL` to keep them.
 
 ### The same-origin pass-through
 

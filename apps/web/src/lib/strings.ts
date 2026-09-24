@@ -27,13 +27,50 @@ export const strings = {
   appNameLatin: "Swara",
   appTagline: "සිංහල පොත් කියවන්න, අසන්න, තේරුම් ගන්න",
 
-  // -- identity ----------------------------------------------------------
-  identityHeading: "ඔබ කවුද?",
-  identityLabel: "කියවන්නාගේ නම",
-  identityHelp:
-    "මෙය තාවකාලික සංවර්ධන ක්‍රමයකි. සැබෑ පිවිසුම් ක්‍රමයක් තවම සකසා නැත; ඔබගේ ලේඛන පෞද්ගලික බව මෙයින් සහතික නොවේ.",
-  identitySave: "ඉදිරියට",
-  identityChange: "කියවන්නා වෙනස් කරන්න",
+  // -- account -----------------------------------------------------------
+  signInHeading: "ඇතුළු වන්න",
+  signInAction: "ඇතුළු වන්න",
+  registerHeading: "ගිණුමක් සාදන්න",
+  registerAction: "ගිණුම සාදන්න",
+  recoverHeading: "ගිණුම නැවත ලබා ගන්න",
+  recoverIntro:
+    "ගිණුම සාදන විට ඔබට ලැබුණු ප්‍රතිසාධන කේතයෙන් නව මුරපදයක් සකසන්න. ඊමේල් පණිවිඩයක් අවශ්‍ය නැත.",
+  recoverAction: "නව මුරපදය සකසන්න",
+  emailLabel: "ඊමේල් ලිපිනය",
+  passwordLabel: "මුරපදය",
+  newPasswordLabel: "නව මුරපදය",
+  passwordHint: (min: number) => `අවම වශයෙන් අකුරු ${min} ක්.`,
+  showPassword: "මුරපදය පෙන්වන්න",
+  displayNameLabel: "ඔබේ නම",
+  displayNameHint: "ස්වර ඔබට ආමන්ත්‍රණය කරන නම.",
+  recoveryCodeLabel: "ප්‍රතිසාධන කේතය",
+  recoveryCodeHint: "අකුරු අතර ඉඩ හෝ ඉරි තිබුණත් කමක් නැත. කැපිටල් හෝ සිම්පල් අකුරු දෙකම පිළිගනී.",
+  signedOutHeading: "ඔබේ පොත් කියවීමට ඇතුළු වන්න",
+  signedOutBody: "ඔබේ පොත් ඔබට පමණක් පෙනේ. ඒවා විවෘත කිරීමට ඔබේ ගිණුමෙන් ඇතුළු වන්න.",
+  noAccountYet: "ගිණුමක් නැද්ද?",
+  haveAccount: "දැනටමත් ගිණුමක් තිබේද?",
+  forgotPassword: "මුරපදය අමතකද?",
+  signOut: "පිටවන්න",
+  signedOut: "ඔබ පිටව ගියා.",
+  signedIn: "ඔබ ඇතුළු වුණා.",
+  loadingSession: "පූරණය වෙමින්…",
+  // Refusals, each saying what to do next.
+  errorSignIn: "ඊමේල් ලිපිනය හෝ මුරපදය නිවැරදි නැත.",
+  errorRecover: "ඊමේල් ලිපිනය හා ප්‍රතිසාධන කේතය නොගැළපේ.",
+  errorEmailTaken: "මෙම ඊමේල් ලිපිනයට දැනටමත් ගිණුමක් ඇත. ඇතුළු වන්න, නැතහොත් ගිණුම නැවත ලබා ගන්න.",
+  errorWeakPassword: (min: number) => `මුරපදය අවම වශයෙන් අකුරු ${min} ක් විය යුතුය.`,
+  // The recovery code, shown once.
+  recoveryCodeHeading: "ඔබේ ප්‍රතිසාධන කේතය",
+  recoveryCodeIntro:
+    "මුරපදය අමතක වුවහොත් ඔබේ ගිණුමට නැවත පිවිසිය හැකි ක්‍රමය මෙයයි. මෙය නැවත පෙන්වන්නේ නැත. පිටපත් කර හෝ ගොනුවක් ලෙස බාගෙන ආරක්ෂිත තැනක තබා ගන්න.",
+  copyCode: "කේතය පිටපත් කරන්න",
+  codeCopied: "කේතය පිටපත් කළා.",
+  downloadCode: "ගොනුවක් ලෙස බාගන්න",
+  savedCodeConfirm: "මම මෙම කේතය ආරක්ෂිතව තබා ගත්තෙමි",
+  continueToLibrary: "මගේ පොත් වෙත යන්න",
+  recoveryFileName: "swara-recovery-code.txt",
+  recoveryFileText: (email: string, code: string) =>
+    `ස්වර ප්‍රතිසාධන කේතය\n\nගිණුම: ${email}\nකේතය: ${code}\n\nමුරපදය අමතක වුවහොත් "ගිණුම නැවත ලබා ගන්න" පිටුවේ මෙය භාවිත කරන්න. භාවිත කළ පසු නව කේතයක් ලැබේ.\n`,
 
   // -- library -----------------------------------------------------------
   libraryHeading: "මගේ පොත්",
@@ -232,7 +269,9 @@ export const strings = {
   // -- failures ----------------------------------------------------------
   errorHeading: "දෝෂයක්",
   errorOffline: "සේවාදායකයට සම්බන්ධ විය නොහැක. සම්බන්ධතාවය පරීක්ෂා කර නැවත උත්සාහ කරන්න.",
-  errorIdentity: "ඔබව හඳුනාගත නොහැක. නම නැවත ඇතුළත් කරන්න.",
+  errorSignedOut: "ඔබ ගිණුමෙන් ඉවත් වී ඇත. නැවත ඇතුළු වන්න.",
+  errorForbidden: "මෙම පිටුව යල් පැන ගොස් ඇත. පිටුව නැවත පූරණය කර නැවත උත්සාහ කරන්න.",
+  errorThrottled: "උත්සාහයන් බොහෝය. මඳ වේලාවකින් නැවත උත්සාහ කරන්න.",
   errorNotFound: "එවැනි පොතක් හෝ පිටුවක් හමු නොවීය.",
   errorNotReady: "පොත තවම සූදානම් නැත. මොහොතකින් නැවත උත්සාහ කරන්න.",
   errorRejected: "මෙම ගොනුව පිළිගත නොහැක.",
@@ -403,8 +442,12 @@ export function messageFor(kind: string): string {
   switch (kind) {
     case "offline":
       return strings.errorOffline;
-    case "identity":
-      return strings.errorIdentity;
+    case "signed_out":
+      return strings.errorSignedOut;
+    case "forbidden":
+      return strings.errorForbidden;
+    case "throttled":
+      return strings.errorThrottled;
     case "not_found":
       return strings.errorNotFound;
     case "not_ready":

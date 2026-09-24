@@ -52,10 +52,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      SINHALA_READER_AUTH: development
-      # The origins a browser may call from. Both spellings, because which one
-      # a person types decides whether the browser sends the request at all.
-      SINHALA_READER_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # Real accounts. The browser talks only to the web app, whose /api
+      # pass-through forwards here, so there is no browser origin to allow.
+      # Needs SINHALA_READER_SECRET in the repository-root .env (see
+      # .env.example); without it the API refuses to start and says how to
+      # make one.
+      SINHALA_READER_AUTH: sessions
       SINHALA_READER_DATABASE_URL: postgresql://reader:dev@postgres:5432/reader
       SINHALA_READER_QUEUE: celery
       SINHALA_READER_REDIS_URL: redis://redis:6379/0
@@ -147,10 +149,6 @@ services:
     build:
       context: ..
       dockerfile: infra/web.Dockerfile
-      args:
-        # The address the browser uses, which is the host's. A compose service
-        # name would resolve inside this network and nowhere in a browser.
-        NEXT_PUBLIC_READER_API: http://127.0.0.1:8000
     environment:
       # The same-origin pass-through at /api forwards here, from the server,
       # read at run time: a compose service name works, since no browser sees it.

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
+import { useAnnouncer } from "@/components/Announcer";
 import { BrandMark } from "@/components/BrandMark";
 import { useReader } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
@@ -21,16 +22,22 @@ import { strings } from "@/lib/strings";
  * (`shell-main-wide`), because a PDF constrained to 76rem on a wide monitor is
  * the one thing this redesign exists to stop doing.
  *
- * It also holds the identity step. Nothing is fetched before there is an
- * identity to fetch it as, so gating here means no screen has to handle a
- * "signed out" state of its own.
+ * It also holds the session gate. Nothing is fetched before there is a
+ * session to fetch it with, so gating here means no screen has to handle a
+ * "signed out" state of its own. The account pages are the exception: they are
+ * where a reader who is signed out goes.
  */
+/** The pages a signed-out reader can see: where they sign in. */
+const ACCOUNT_PATHS = new Set(["/sign-in", "/register", "/recover"]);
+
 export function AppFrame({ children }: { children: ReactNode }) {
-  const { owner } = useReader();
-  const pathname = usePathname();
+  const { status } = useReader();
+  const pathname = usePathname() ?? "/";
 
   // The workspace manages its own full-height layout and its own back link.
-  const isWorkspace = /^\/documents\/[^/]+$/.test(pathname ?? "");
+  const isWorkspace = /^\/documents\/[^/]+$/.test(pathname);
+  const isAccountPage = ACCOUNT_PATHS.has(pathname);
+  const signedIn = status === "signed_in";
 
   return (
     <>
@@ -42,7 +49,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
           <div className="shell-header-inner">
             <BrandMark />
 
-            {owner ? (
+            {signedIn ? (
               <>
                 <nav className="shell-nav" aria-label={strings.primaryNavigation}>
                   <Link
@@ -62,7 +69,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
                 </nav>
                 <div className="shell-actions">
                   <Settings />
-                  <IdentityBadge />
+                  <AccountBadge />
                 </div>
               </>
             ) : (
@@ -74,10 +81,17 @@ export function AppFrame({ children }: { children: ReactNode }) {
         </header>
 
         <main id="main" className={isWorkspace ? "shell-main shell-main-wide" : "shell-main"}>
-          {/* The identity comes from an external store, so a returning reader
-              gets their own screen in the first client render rather than a
-              flash of the sign-in form stealing the announcement. */}
-          {owner ? children : <IdentityForm />}
+          {isAccountPage || signedIn ? (
+            children
+          ) : status === "loading" ? (
+            // Short, and not announced: a reader who hears "loading" on every
+            // visit learns to ignore the word.
+            <p className="hint" aria-busy="true">
+              {strings.loadingSession}
+            </p>
+          ) : (
+            <SignedOut pathname={pathname} />
+          )}
         </main>
 
         {isWorkspace ? null : (
@@ -90,33 +104,43 @@ export function AppFrame({ children }: { children: ReactNode }) {
   );
 }
 
-function IdentityBadge() {
-  const { owner, setOwner } = useReader();
+function AccountBadge() {
+  const { account, signOut } = useReader();
+  const { say } = useAnnouncer();
   return (
-    <p className="identity-badge">
-      <span className="identity-name">{owner}</span>
-      <button type="button" className="btn btn-quiet btn-sm" onClick={() => setOwner("")}>
-        {strings.identityChange}
+    <p className="account-badge">
+      <span className="account-name">{account?.display_name}</span>
+      <button
+        type="button"
+        className="btn btn-quiet btn-sm"
+        onClick={() => {
+          void signOut().then(() => say(strings.signedOut));
+        }}
+      >
+        {strings.signOut}
       </button>
     </p>
   );
 }
 
 /**
- * Not a login, and it says so where a reader will read it rather than in fine
- * print. A student uploading a private textbook must not think a name in a box
- * protects them.
+ * Where a signed-out reader lands, on any page. Sign-in brings them back
+ * here, to the page they asked for.
  */
-function IdentityForm() {
-  const { setOwner } = useReader();
-  const [value, setValue] = useState("");
-  const inputId = useId();
-  const helpId = useId();
+function SignedOut({ pathname }: { pathname: string }) {
+  const heading = useRef<HTMLHeadingElement>(null);
 
+  useEffect(() => {
+    // After "sign out", the button that was pressed is gone; without this,
+    // focus falls to the top of the page and the reader is nowhere.
+    if (document.activeElement === document.body) heading.current?.focus();
+  }, []);
+
+  const next = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname)}`;
   return (
-    <div className="identity-screen">
+    <div className="account-screen">
       <img
-        className="identity-art"
+        className="account-art"
         src="/brand/swara-book.webp"
         alt=""
         width={700}
@@ -124,32 +148,20 @@ function IdentityForm() {
         loading="eager"
         decoding="async"
       />
-      <form
-        className="identity-form card"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (value.trim()) setOwner(value);
-        }}
-      >
-        <h2>{strings.identityHeading}</h2>
-        <div className="field">
-          <label htmlFor={inputId}>{strings.identityLabel}</label>
-          <input
-            id={inputId}
-            name="owner"
-            value={value}
-            autoComplete="username"
-            aria-describedby={helpId}
-            onChange={(event) => setValue(event.target.value)}
-          />
-          <p className="hint" id={helpId}>
-            {strings.identityHelp}
-          </p>
+      <section className="account-form card" aria-labelledby="signed-out-heading">
+        <h1 id="signed-out-heading" ref={heading} tabIndex={-1}>
+          {strings.signedOutHeading}
+        </h1>
+        <p>{strings.signedOutBody}</p>
+        <div className="notice-actions">
+          <Link className="btn btn-primary" href={`/sign-in${next}`}>
+            {strings.signInAction}
+          </Link>
+          <Link className="btn" href="/register">
+            {strings.registerHeading}
+          </Link>
         </div>
-        <button className="btn btn-primary" type="submit" disabled={!value.trim()}>
-          {strings.identitySave}
-        </button>
-      </form>
+      </section>
     </div>
   );
 }

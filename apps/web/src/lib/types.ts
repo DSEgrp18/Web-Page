@@ -217,6 +217,31 @@ export interface StudyAnswer {
   generated: boolean;
 }
 
+export type Role = "student" | "teacher" | "admin";
+
+/** Who is signed in. Never a password, a hash, or the session itself. */
+export interface Account {
+  user_id: string;
+  email: string;
+  display_name: string;
+  role: Role;
+  /** False for accounts made before recovery codes, until they make one. */
+  has_recovery_code: boolean;
+  created_at: string;
+}
+
+/** A new session. The session is a cookie; this is what the page may know. */
+export interface SignedIn {
+  /** Always null for a browser: the session is an httpOnly cookie. */
+  token: string | null;
+  expires_at: string;
+  account: Account;
+  /** Sent back in X-CSRF-Token on every change. */
+  csrf_token: string;
+  /** Only when an account is made or recovered, and shown once. */
+  recovery_code: string | null;
+}
+
 export interface Readiness {
   alive: boolean;
   serving: boolean;

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { AppFrame } from "../src/components/AppFrame";
 import { Library } from "../src/components/Library";
 import { strings } from "../src/lib/strings";
-import { FakeServer, readablePage, type FakeBook } from "./fakeApi";
+import { FakeServer, OWNER, readablePage, type FakeBook } from "./fakeApi";
 import { assertiveText, politeText, renderApp } from "./render";
 
 function pdf(name = "ඉතිහාසය.pdf"): File {
@@ -274,6 +274,8 @@ describe("adding a book", () => {
   it("retries only files that did not upload", async () => {
     const user = userEvent.setup();
     const server = new FakeServer();
+    // The wrapper below answers from `server`, so that is the one signed in.
+    server.signedInAs = OWNER;
     const flaky = new FakeServer();
     let postAttempts = 0;
     Object.defineProperty(flaky, "fetch", {
@@ -479,9 +481,9 @@ describe("deleting a book", () => {
   });
 });
 
-describe("identity", () => {
-  it("asks who the reader is before fetching anything", async () => {
-    const server = new FakeServer();
+describe("signed out", () => {
+  it("asks the reader to sign in, and fetches no books", async () => {
+    const server = new FakeServer({ books: [book()] });
     renderApp(
       <AppFrame>
         <Library />
@@ -490,11 +492,15 @@ describe("identity", () => {
       "",
     );
 
-    expect(screen.getByRole("heading", { name: strings.identityHeading })).toBeTruthy();
-    expect(server.calls).toHaveLength(0);
+    expect(await screen.findByRole("heading", { name: strings.signedOutHeading })).toBeTruthy();
+    expect(screen.getByRole("link", { name: strings.signInAction }).getAttribute("href")).toBe(
+      "/sign-in",
+    );
+    expect(server.calls.filter((call) => !call.path.startsWith("/auth/"))).toEqual([]);
   });
 
-  it("says plainly that this is not a login", () => {
+  it("sends the reader back to the page they asked for after signing in", async () => {
+    window.history.replaceState(null, "", "/bookmarks");
     renderApp(
       <AppFrame>
         <Library />
@@ -502,26 +508,21 @@ describe("identity", () => {
       new FakeServer(),
       "",
     );
-    // A student uploading a private textbook must not believe a name in a text
-    // box is protecting it.
-    expect(screen.getByText(strings.identityHelp)).toBeTruthy();
+
+    const link = await screen.findByRole("link", { name: strings.signInAction });
+    expect(link.getAttribute("href")).toBe("/sign-in?next=%2Fbookmarks");
   });
 
-  it("gets out of the way once there is one", async () => {
-    const user = userEvent.setup();
+  it("gets out of the way for a reader with a session", async () => {
     const server = new FakeServer();
     renderApp(
       <AppFrame>
         <Library />
       </AppFrame>,
       server,
-      "",
     );
 
-    await user.type(screen.getByLabelText(strings.identityLabel), "sithara");
-    await user.click(screen.getByRole("button", { name: strings.identitySave }));
-
     await screen.findByRole("heading", { name: strings.welcomeHeading });
-    expect(server.calls[0]?.owner).toBe("sithara");
+    expect(screen.queryByRole("heading", { name: strings.signedOutHeading })).toBeNull();
   });
 });

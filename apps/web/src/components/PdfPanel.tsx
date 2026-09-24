@@ -146,7 +146,7 @@ function PdfDocumentPanel({
   pageCount: number;
   onPageChange: (index: number) => void;
 }) {
-  const { owner } = useReader();
+  const { signedIn } = useReader();
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
   const [zoom, setZoom] = useState<number | "fit">("fit");
@@ -159,14 +159,14 @@ function PdfDocumentPanel({
   // -- open the document once --------------------------------------------
 
   useEffect(() => {
-    if (!owner) return;
+    if (!signedIn) return;
     let cancelled = false;
     let close: (() => void) | null = null;
 
     void (async () => {
       setState("loading");
       try {
-        const opened = await openDocument(documentId, owner);
+        const opened = await openDocument(documentId);
         close = () => {
           opened.cancel();
           void opened.pdf.destroy();
@@ -187,7 +187,7 @@ function PdfDocumentPanel({
       setPdf(null);
       close?.();
     };
-  }, [documentId, owner]);
+  }, [documentId, signedIn]);
 
   // -- draw the current page ---------------------------------------------
 

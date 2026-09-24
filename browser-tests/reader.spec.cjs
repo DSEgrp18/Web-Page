@@ -1,11 +1,11 @@
 const { test, expect } = require("@playwright/test");
+const { apiUrl, mockApi } = require("./session.cjs");
 
 test("reader shows the current sentence as words without autoplay", async ({ page }) => {
   let audioRequests = 0;
-  await page.addInitScript(() => localStorage.setItem("sinhala-reader.identity", "browser-tester"));
-  await page.route("http://127.0.0.1:8000/**", async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
-    const url = new URL(request.url());
+    const url = apiUrl(request);
     if (url.pathname.endsWith("/audio")) audioRequests += 1;
     const headers = {
       "access-control-allow-origin": "*",
@@ -50,10 +50,9 @@ test("reader shows the current sentence as words without autoplay", async ({ pag
 test("library uploads PDF and DOCX files together", async ({ page }) => {
   let uploads = 0;
   const documents = [];
-  await page.addInitScript(() => localStorage.setItem("sinhala-reader.identity", "browser-tester"));
-  await page.route("http://127.0.0.1:8000/**", async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
-    const url = new URL(request.url());
+    const url = apiUrl(request);
     const headers = {
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "*",

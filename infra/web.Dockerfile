@@ -15,12 +15,9 @@ RUN npm ci
 
 COPY apps/web ./
 
-# NEXT_PUBLIC_* is inlined at build time, not read at run time, so the API
-# address has to be known now. It is the address the **browser** will use, which
-# is the host's, not a compose service name: the page runs on somebody's laptop,
-# not inside this network.
-ARG NEXT_PUBLIC_READER_API=http://127.0.0.1:8000
-ENV NEXT_PUBLIC_READER_API=$NEXT_PUBLIC_READER_API
+# No API address is built in. The browser only calls this app's own /api, and
+# the server forwards that to READER_API_URL, read at run time, so one image
+# serves any environment.
 
 RUN npm run build
 
