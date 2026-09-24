@@ -6,6 +6,7 @@ import { Reader } from "../src/components/Reader";
 import { strings } from "../src/lib/strings";
 import { FakeServer, readablePage, type FakeBook } from "./fakeApi";
 import { politeText, renderApp } from "./render";
+import { playCalls } from "./setup";
 
 const FIRST = "පළමු වාක්‍යය.";
 const SECOND = "දෙවන වාක්‍යය.";
@@ -208,6 +209,73 @@ describe("the assistant", () => {
     expect(await screen.findByText(strings.answerFromAi)).toBeTruthy();
     expect(screen.getByText(strings.assistantGenerated)).toBeTruthy();
     expect(screen.queryByText(strings.assistantExtractive)).toBeNull();
+  });
+
+  // Carried over from the study page this drawer replaced.
+  it("cues a cited sentence without starting audio", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({
+      books: [book()],
+      studyAnswer: {
+        document_id: "doc-1",
+        answer: FIRST,
+        citations: [
+          {
+            passage_id: "passage-1",
+            page_index: 0,
+            page_label: "12",
+            section: null,
+            segment_ids: ["0000-s0"],
+            quote: FIRST,
+          },
+        ],
+        abstained: false,
+        generated: false,
+      },
+    });
+    open(server);
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+    await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+
+    const citation = await waitFor(() => {
+      const found = document.querySelector<HTMLButtonElement>(".assistant .citation");
+      if (!found) throw new Error("no citation yet");
+      return found;
+    });
+    await user.click(citation);
+
+    // Cued, not played: nothing speaks over a screen reader unasked.
+    const sentence = screen.getByRole("button", { name: FIRST });
+    await waitFor(() => expect(sentence.getAttribute("aria-current")).toBe("true"));
+    expect(playCalls).toHaveLength(0);
+  });
+
+  it("does not invent an answer when the book has none", async () => {
+    const user = userEvent.setup();
+    open(
+      new FakeServer({
+        books: [book()],
+        studyAnswer: {
+          document_id: "doc-1",
+          answer: null,
+          citations: [],
+          abstained: true,
+          generated: false,
+        },
+      }),
+    );
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+    await user.type(screen.getByLabelText(strings.questionLabel), "පිටත කරුණක්?");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+
+    expect(
+      await screen.findByRole("heading", { name: strings.studyAbstainedHeading }),
+    ).toBeTruthy();
+    expect(screen.queryByText(strings.answerFromBook)).toBeNull();
+    await waitFor(() => expect(politeText()).toContain(strings.studyAbstainedHeading));
   });
 
   it("keeps the conversation when it is minimised", async () => {

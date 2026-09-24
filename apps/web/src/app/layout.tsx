@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Abhaya_Libre, Noto_Sans_Sinhala, Roboto } from "next/font/google";
 
-import { AppFrame } from "@/components/AppFrame";
 import { strings } from "@/lib/strings";
 
 import "./globals.css";
@@ -66,9 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${abhayaLibre.variable} ${notoSansSinhala.variable} ${roboto.variable}`}
     >
       <body>
-        <Providers>
-          <AppFrame>{children}</AppFrame>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

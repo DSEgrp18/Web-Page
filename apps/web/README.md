@@ -132,20 +132,34 @@ node apps/web/scripts/verify-contract.mjs /tmp/openapi.json
 
 ## How it is put together
 
-|                                |                                                                      |
-| ------------------------------ | -------------------------------------------------------------------- |
-| `src/lib/types.ts`             | The API contract, mirroring `schemas.py`.                            |
-| `src/lib/client.ts`            | Every request. Turns HTTP status into a small set of named failures. |
-| `src/lib/usePlayer.ts`         | One audio element, a queue of sentences, instant pause.              |
-| `src/lib/strings.ts`           | Every word the interface says. **Awaiting native-speaker review.**   |
-| `src/lib/identity.ts`          | The development stand-in for accounts.                               |
-| `src/components/Announcer.tsx` | The two live regions, and the rules for using them.                  |
-| `src/components/Library.tsx`   | Upload, list, delete.                                                |
-| `src/components/Reader.tsx`    | The reading screen.                                                  |
+Two route groups share one design system and one test suite:
+
+- **`src/app/(public)`**: the front door `/`, `/how-it-works`, `/for-teachers`,
+  `/help`, the accessibility statement, the privacy notice, the terms, and the
+  account pages. All render statically; none needs a session.
+- **`src/app/(app)`**: `/library`, the reader at `/library/[id]`, `/bookmarks`
+  and `/account`. `AppFrame` asks for a session and shows a sign-in panel
+  without one.
+
+`/documents/:id` (and the retired `/documents/:id/study`) redirect permanently
+to `/library/:id`, keeping `?segment=`, so saved links still work.
+
+|                                     |                                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------- |
+| `src/lib/types.ts`                  | The API contract, mirroring `schemas.py`.                              |
+| `src/lib/client.ts`                 | Every request. Turns HTTP status into a small set of named failures.   |
+| `src/lib/usePlayer.ts`              | One audio element, a queue of sentences, instant pause.                |
+| `src/lib/strings.ts`                | Every word the interface says. **Awaiting native-speaker review.**     |
+| `src/lib/content.ts`                | The public pages' prose. **Awaiting native-speaker and legal review.** |
+| `src/components/ReaderProvider.tsx` | The session: who is signed in, and the client to act as them.          |
+| `src/components/AccountForms.tsx`   | Sign in, register, recover, and the recovery code shown once.          |
+| `src/proxy.ts`                      | Sends a signed-in visitor from `/` to `/library` before render.        |
+| `src/components/Announcer.tsx`      | The two live regions, and the rules for using them.                    |
+| `src/components/Library.tsx`        | Upload, list, delete.                                                  |
+| `src/components/Reader.tsx`         | The reading screen.                                                    |
 
 Audio is fetched as a blob rather than pointed at with `<audio src>`, because
-that attribute can carry neither the identity header nor a reading of
-`X-Reader-Real-Model`. Clips are kept in memory (eight of them) so that pressing
+that attribute cannot read `X-Reader-Real-Model`. Clips are kept in memory (eight of them) so that pressing
 a sentence twice does not ask a GPU to make it twice.
 
 ## Not implemented

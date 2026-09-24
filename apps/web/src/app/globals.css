@@ -631,6 +631,86 @@ textarea {
   color: var(--ink-muted);
 }
 
+.footer-links {
+  list-style: none;
+  margin: 0 0 var(--s2);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s1) var(--s5);
+}
+
+/* Small text, but a full-size target. */
+/* -- the public pages ----------------------------------------------------- */
+
+/* A measure short enough to read, at any text size. */
+.prose-page,
+.landing {
+  inline-size: min(46rem, 100%);
+  margin-inline: auto;
+  display: grid;
+  gap: var(--s5);
+}
+
+.prose-page section {
+  display: grid;
+  gap: var(--s3);
+}
+
+.prose-page ul,
+.landing ul {
+  display: grid;
+  gap: var(--s2);
+  padding-inline-start: 1.25rem;
+  margin: 0;
+}
+
+.prose-lead {
+  font-size: var(--text-lg);
+  color: var(--ink);
+}
+
+.processing-now {
+  padding: var(--s5);
+  display: grid;
+  gap: var(--s3);
+}
+
+.landing-hero {
+  display: grid;
+  gap: var(--s4);
+  padding-block: var(--s5);
+}
+
+.landing-tagline {
+  font-size: var(--text-xl);
+  color: var(--green-deep);
+}
+
+.landing-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+  gap: var(--s4);
+}
+
+.landing-steps li {
+  padding: var(--s5);
+  display: grid;
+  gap: var(--s2);
+  align-content: start;
+}
+
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  color: var(--ink);
+}
+
 /* ==========================================================================
    7. Reduced motion
    ========================================================================== */

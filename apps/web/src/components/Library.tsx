@@ -422,7 +422,7 @@ function ContinueCard({ book }: { book: DocumentSummary }) {
         </p>
         {percent !== null ? <ProgressBar percent={percent} label={title} /> : null}
         {book.reading?.stale ? <p className="hint">{strings.resumeStale}</p> : null}
-        <Link className="btn btn-primary continue-action" href={`/documents/${book.document_id}`}>
+        <Link className="btn btn-primary continue-action" href={`/library/${book.document_id}`}>
           {strings.continueResume}
           <span className="visually-hidden"> — {title}</span>
         </Link>
@@ -498,7 +498,7 @@ function BookCard({
             </button>
           ) : null}
           {ready ? (
-            <Link className="btn btn-primary btn-sm" href={`/documents/${book.document_id}`}>
+            <Link className="btn btn-primary btn-sm" href={`/library/${book.document_id}`}>
               {strings.continueOrOpen(book.reading !== null)}
               {/* The name is inside the link so a screen reader listing links
                   hears which book each one opens, not five identical ones. */}

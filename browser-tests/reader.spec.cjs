@@ -35,7 +35,7 @@ test("reader shows the current sentence as words without autoplay", async ({ pag
     await route.fulfill({ status: body ? 200 : 404, headers, body: JSON.stringify(body ?? { detail: "not found" }) });
   });
 
-  await page.goto("/documents/doc-1");
+  await page.goto("/library/doc-1");
   const toggle = page.getByRole("button", { name: "වචන බලන්න" });
   await expect(toggle).toBeEnabled();
   await toggle.click();
@@ -90,7 +90,7 @@ test("library uploads PDF and DOCX files together", async ({ page }) => {
     await route.fulfill({ status: 404, headers, body: JSON.stringify({ detail: "not found" }) });
   });
 
-  await page.goto("/");
+  await page.goto("/library");
   // A real browser, not the metadata object: the root page shares the root
   // layout's segment, where its title template does not apply, and a unit
   // test that reads the metadata cannot see that.
@@ -106,4 +106,17 @@ test("library uploads PDF and DOCX files together", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "සටහන්.docx" })).toBeVisible();
   await expect(page.getByRole("button", { name: "පොතක් එක් කරන්න", exact: true })).toBeFocused();
   expect(uploads).toBe(2);
+});
+
+test("an old saved link reaches the same sentence under /library", async ({ page }) => {
+  await mockApi(page, async (route) => {
+    await route.fulfill({ status: 404, json: { detail: "not found" } });
+  });
+
+  const response = await page.goto("/documents/doc-1?segment=0000-s1");
+
+  // A permanent redirect, with the sentence kept.
+  expect(response.request().redirectedFrom()?.url()).toContain("/documents/doc-1?segment=0000-s1");
+  expect(new URL(page.url()).pathname).toBe("/library/doc-1");
+  expect(new URL(page.url()).searchParams.get("segment")).toBe("0000-s1");
 });
