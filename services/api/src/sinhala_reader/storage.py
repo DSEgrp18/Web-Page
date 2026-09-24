@@ -545,6 +545,14 @@ class Store(ABC):
     def put_audio(self, record: AudioRecord) -> AudioRecord: ...
 
     @abstractmethod
+    def audio_keys(self, document_id: str, owner: str) -> set[str]:
+        """The cache keys of the audio this owner's document already has.
+
+        How far a pre-render has got is read from here rather than kept beside
+        it, so it is right whichever process made the audio, and after a restart.
+        """
+
+    @abstractmethod
     def get_audio(self, cache_key: str, document_id: str, owner: str) -> AudioRecord | None:
         """Audio is kept per document, because a cache key is not per reader.
 
@@ -991,6 +999,14 @@ class InMemoryStore(Store):
             # in Postgres, so the two stores agree on which one is kept.
             self._audio.setdefault((record.document_id, record.cache_key), record)
         return record
+
+    def audio_keys(self, document_id: str, owner: str) -> set[str]:
+        with self._lock:
+            return {
+                key
+                for (document, key), record in self._audio.items()
+                if document == document_id and record.owner == owner
+            }
 
     def get_audio(self, cache_key: str, document_id: str, owner: str) -> AudioRecord | None:
         with self._lock:

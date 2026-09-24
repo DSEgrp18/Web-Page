@@ -546,6 +546,18 @@ class TestAudio:
 # --- progress --------------------------------------------------------------
 
 
+class TestAudioKeys:
+    def test_lists_this_owners_audio_for_this_document_only(self, store: Store) -> None:
+        mine, theirs = a_document(), a_document(owner=BOB)
+        store.put_document(mine)
+        store.put_document(theirs)
+        store.put_audio(an_audio_record(mine, cache_key="k1"))
+        store.put_audio(an_audio_record(theirs, cache_key="k2"))
+
+        assert store.audio_keys(mine.document_id, ALICE) == {"k1"}
+        assert store.audio_keys(mine.document_id, BOB) == set()
+
+
 class TestProgress:
     def test_round_trips(self, store: Store) -> None:
         document = a_document()
