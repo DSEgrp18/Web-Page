@@ -279,3 +279,70 @@ class TestWhatATeacherNeverSees:
 
         assert [b["note"] for b in theirs] == ["මගේ සටහන"]
         assert teachers == []
+
+
+class TestVoicingAheadOfTime:
+    """A shared book, voiced once for the class before anyone presses play."""
+
+    def test_voices_every_sentence_the_class_will_hear(self, school: School) -> None:
+        doc = school.upload([sinhala_page()])
+        school.publish(doc)
+
+        started = school.client.post(f"/documents/{doc}/prerender", headers=school.teacher)
+
+        assert started.status_code == 202, started.text
+        body = started.json()
+        assert body["total"] > 0
+        assert body["ready"] == body["total"]
+        again = school.client.get(f"/documents/{doc}/prerender", headers=school.teacher).json()
+        assert again == body
+
+    def test_the_class_then_plays_without_voicing_anything(self, school: School) -> None:
+        doc = school.upload([sinhala_page()])
+        school.publish(doc)
+        school.client.post(f"/documents/{doc}/prerender", headers=school.teacher)
+        voiced = school.store.audio_keys(doc, school.teacher_id)
+        page = school.client.get(f"/documents/{doc}/pages/0", headers=school.student).json()
+
+        for segment in page["segments"]:
+            played = school.client.get(
+                f"/documents/{doc}/segments/{segment['segment_id']}/audio",
+                headers=school.student,
+            )
+            assert played.status_code == 200
+
+        assert school.store.audio_keys(doc, school.teacher_id) == voiced
+
+    def test_skips_a_withheld_page(self, school: School) -> None:
+        whole = school.upload([sinhala_page()])
+        school.publish(whole)
+        one_page = school.client.post(
+            f"/documents/{whole}/prerender", headers=school.teacher
+        ).json()["total"]
+
+        doc = school.upload([sinhala_page(), legacy_page("DL-Manel")])
+        school.client.put(
+            f"/documents/{doc}/review/1", json={"decision": "withheld"}, headers=school.teacher
+        )
+        school.publish(doc)
+
+        status_ = school.client.post(f"/documents/{doc}/prerender", headers=school.teacher).json()
+
+        assert status_["total"] == one_page
+
+    def test_only_a_shared_book(self, school: School) -> None:
+        doc = school.upload([sinhala_page()])
+
+        refused = school.client.post(f"/documents/{doc}/prerender", headers=school.teacher)
+
+        assert refused.status_code == 409
+        assert school.store.audio_keys(doc, school.teacher_id) == set()
+
+    def test_only_by_its_owner(self, school: School) -> None:
+        doc = school.upload([sinhala_page()])
+        school.publish(doc)
+
+        as_student = school.client.post(f"/documents/{doc}/prerender", headers=school.student)
+        status_as_student = school.client.get(f"/documents/{doc}/prerender", headers=school.student)
+
+        assert (as_student.status_code, status_as_student.status_code) == (404, 404)

@@ -63,6 +63,7 @@ ROUTES = [
     ("retry", "POST", "/documents/{doc}/retry", None, "write"),
     ("review", "GET", "/documents/{doc}/review", None, "write"),
     ("publication", "GET", "/documents/{doc}/publication", None, "write"),
+    ("prerender status", "GET", "/documents/{doc}/prerender", None, "write"),
 ]
 
 

@@ -46,7 +46,8 @@ from .preparation import (
     inline,
     reap_periodically,
 )
-from .queue import build_app, send_prepare, uses_celery
+from .prerender import Prerenderer
+from .queue import build_app, send_prepare, send_prerender, uses_celery
 from .ratelimit import RateLimiter, build_rate_limiter
 from .routes import classes, documents, operations, publishing, reading, study
 from .routes.common import REAL_MODEL_HEADER
@@ -107,6 +108,18 @@ class Deps:
             self.store, dispatch=self._dispatcher(run_in_background)
         )
         self.synthesis = SynthesisService(self.adapter, self.store)
+        #: Voicing a shared book ahead of time: inline for tests, on the queue's
+        #: voice workers when there is a queue, otherwise on a thread here.
+        self.prerender = Prerenderer(self.store, self.synthesis)
+        if not run_in_background:
+            self.prerender = Prerenderer(self.store, self.synthesis, dispatch=self.prerender.inline)
+        elif self.celery is not None:
+            celery = self.celery
+            self.prerender = Prerenderer(
+                self.store,
+                self.synthesis,
+                dispatch=lambda document_id, owner: send_prerender(celery, document_id, owner),
+            )
 
     def _dispatcher(self, run_in_background: bool):
         if not run_in_background:

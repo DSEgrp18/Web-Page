@@ -65,6 +65,8 @@ LIMITS: dict[str, Limit] = {
     "join": Limit(10, 60 * 60),
     # Per teacher: a class's worth of lost codes in an hour, not a sweep.
     "teacher-reset": Limit(30, 60 * 60),
+    # Starting is cheap to repeat, since voiced sentences are kept; the voice is not.
+    "prerender": Limit(10, 60 * 60),
     "question": Limit(60, 60 * 60),
     "upload": Limit(30, 24 * 60 * 60),
 }
