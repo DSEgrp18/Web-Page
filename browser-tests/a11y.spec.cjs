@@ -182,6 +182,11 @@ const SCREENS = [
     ready: (page) => page.getByRole("heading", { name: "ඇතුළු වන්න" }),
   },
   {
+    name: "the account page",
+    path: "/account",
+    ready: (page) => page.getByRole("heading", { name: "මගේ ගිණුම", level: 1 }),
+  },
+  {
     name: "making an account",
     path: "/register",
     ready: (page) => page.getByRole("heading", { name: "ගිණුමක් සාදන්න" }),
