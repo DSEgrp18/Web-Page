@@ -145,6 +145,14 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
 
+  # Voices shared books for their classes, ahead of time. Its own queue and
+  # one process, so the voice model is loaded once and a pre-render of a whole
+  # book never waits behind, or starves, the preparation of an upload.
+  voice-worker:
+    extends: { service: worker }
+    command:
+      ["python", "-m", "celery", "-A", "sinhala_reader.celery_worker", "worker", "--loglevel=info", "--concurrency=1", "-Q", "voice"]
+
   web:
     build:
       context: ..
