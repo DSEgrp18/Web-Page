@@ -499,6 +499,15 @@ stays quality-track item 34.
 
 ### 7.4 Pre-render
 
+> **Landed (#86):** `prerender.py`, `POST/GET /documents/{id}/prerender`, the
+> `voice` Celery queue and the `voice-worker` Compose service, and the section on
+> the share page. Progress is read from the audio cache instead of a job row, so
+> it is right across processes and a stopped run resumes by starting again; the
+> job table stays the preparation job's. Not yet: Opus storage (below), which
+> needs an encoder dependency and a listening check against WAV, and chunked
+> "current chapter first" ordering, which the cache-based resume makes less
+> urgent.
+
 - **Tasks.** `sinhala_reader.prerender_book` plans chunks of about 60 segments, current chapter first, and queues `sinhala_reader.prerender_chunk` on a Celery queue named `audio`.
   - Chunks keep each task well inside the time limit and the visibility timeout.
   - Each segment goes through `SynthesisService`, which checks the cache first, so a restarted job skips finished work.
