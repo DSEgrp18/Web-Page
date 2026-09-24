@@ -512,6 +512,15 @@ function BookCard({
               <span className="visually-hidden"> — {title}</span>
             </Link>
           ) : null}
+          {ready ? (
+            <Link
+              className="btn btn-quiet btn-sm"
+              href={`/library/${encodeURIComponent(book.document_id)}/practice`}
+            >
+              {strings.practiceLink}
+              <span className="visually-hidden"> — {title}</span>
+            </Link>
+          ) : null}
           {ready && canShare ? (
             <Link
               className="btn btn-quiet btn-sm"

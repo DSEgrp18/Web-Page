@@ -10,7 +10,7 @@ import { ShareBook } from "../src/components/ShareBook";
 import { strings } from "../src/lib/strings";
 import type { FlaggedPage } from "../src/lib/types";
 import { FakeServer, readablePage, type FakeClass } from "./fakeApi";
-import { noticeText, politeText, renderApp } from "./render";
+import { noticeText, opensBook, politeText, renderApp } from "./render";
 import { navigations } from "./setup";
 
 const TEACHER = "usr-teacher";
@@ -440,7 +440,7 @@ describe("the library", () => {
   it("does not offer sharing to a student", async () => {
     renderApp(<Library />, school(), STUDENT);
 
-    await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
+    await screen.findByRole("link", { name: opensBook("ඉතිහාසය.pdf") });
     expect(screen.queryByRole("link", { name: new RegExp(strings.shareBook) })).toBeNull();
   });
 });
@@ -504,7 +504,7 @@ describe("a student whose teacher made a reset code", () => {
       STUDENT,
     );
 
-    await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
+    await screen.findByRole("link", { name: opensBook("ඉතිහාසය.pdf") });
     expect(screen.queryByRole("region", { name: strings.resetNoticeHeading })).toBeNull();
   });
 

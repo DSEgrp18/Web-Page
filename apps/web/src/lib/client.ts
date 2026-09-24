@@ -28,7 +28,10 @@ import type {
   JoinedClass,
   ResetNotice,
   MyClasses,
+  AnswerResult,
   PrerenderStatus,
+  QuizDetail,
+  QuizSummary,
   PublicationDetail,
   Review,
   RightsBasis,
@@ -509,6 +512,45 @@ export class ReaderApi {
       "POST",
       { class_ids: classIds, basis, note },
     );
+  }
+
+  // -- practice -----------------------------------------------------------
+
+  listQuizzes(documentId: string): Promise<QuizSummary[]> {
+    return this.json<QuizSummary[]>(`/documents/${encodeURIComponent(documentId)}/quizzes`);
+  }
+
+  makeQuiz(documentId: string, forClass = false): Promise<QuizDetail> {
+    return this.send<QuizDetail>(`/documents/${encodeURIComponent(documentId)}/quizzes`, "POST", {
+      generator: "cloze",
+      for_class: forClass,
+    });
+  }
+
+  getQuiz(quizId: string): Promise<QuizDetail> {
+    return this.json<QuizDetail>(`/quizzes/${encodeURIComponent(quizId)}`);
+  }
+
+  answerQuiz(quizId: string, questionId: string, choice: number): Promise<AnswerResult> {
+    return this.send<AnswerResult>(`/quizzes/${encodeURIComponent(quizId)}/answers`, "POST", {
+      question_id: questionId,
+      choice,
+    });
+  }
+
+  dropQuestion(quizId: string, questionId: string): Promise<QuizDetail> {
+    return this.send<QuizDetail>(
+      `/quizzes/${encodeURIComponent(quizId)}/questions/${encodeURIComponent(questionId)}`,
+      "DELETE",
+    );
+  }
+
+  publishQuiz(quizId: string): Promise<QuizDetail> {
+    return this.send<QuizDetail>(`/quizzes/${encodeURIComponent(quizId)}/publish`, "POST");
+  }
+
+  async deleteQuiz(quizId: string): Promise<void> {
+    await this.request(`/quizzes/${encodeURIComponent(quizId)}`, { method: "DELETE" });
   }
 
   getPrerender(documentId: string): Promise<PrerenderStatus> {

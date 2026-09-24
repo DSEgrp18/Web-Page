@@ -50,6 +50,13 @@ export function ClassBooks() {
               </Link>
             </h3>
             <p className="hint">{strings.classBookFrom(class_name)}</p>
+            <Link
+              className="btn btn-quiet btn-sm"
+              href={`/library/${encodeURIComponent(book.document_id)}/practice`}
+            >
+              {strings.practiceLink}
+              <span className="visually-hidden"> — {bookTitle(book)}</span>
+            </Link>
           </li>
         ))}
       </ul>

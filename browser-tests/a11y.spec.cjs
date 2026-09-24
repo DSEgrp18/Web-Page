@@ -92,6 +92,7 @@ async function withOneBook(page, account, extra = {}) {
       "/class-books": [],
       "/documents/doc-1/review": REVIEW,
       "/documents/doc-1/publication": null,
+      "/documents/doc-1/quizzes": [],
       ...extra,
     }[pathname];
     await route.fulfill({
@@ -234,6 +235,11 @@ const SCREENS = [
       },
     },
     ready: (page) => page.getByRole("heading", { name: "ඔබේ ගිණුම ගැන දැනුම්දීමක්" }),
+  },
+  {
+    name: "practice",
+    path: "/library/doc-1/practice",
+    ready: (page) => page.getByRole("button", { name: "පුහුණු ප්‍රශ්න සාදන්න" }),
   },
   {
     name: "the classes screen",

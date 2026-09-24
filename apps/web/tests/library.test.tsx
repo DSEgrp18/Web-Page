@@ -6,7 +6,7 @@ import { AppFrame } from "../src/components/AppFrame";
 import { Library } from "../src/components/Library";
 import { strings } from "../src/lib/strings";
 import { FakeServer, OWNER, readablePage, type FakeBook } from "./fakeApi";
-import { assertiveText, politeText, renderApp } from "./render";
+import { assertiveText, opensBook, politeText, renderApp } from "./render";
 
 function pdf(name = "ඉතිහාසය.pdf"): File {
   return new File([new Uint8Array([37, 80, 68, 70])], name, { type: "application/pdf" });
@@ -47,7 +47,7 @@ describe("the welcome", () => {
 describe("the shelf", () => {
   it("names the book inside the link that opens it", async () => {
     renderApp(<Library />, new FakeServer({ books: [book()] }));
-    const link = await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
+    const link = await screen.findByRole("link", { name: opensBook("ඉතිහාසය.pdf") });
     expect(link.getAttribute("href")).toBe("/library/doc-1");
   });
 
@@ -175,7 +175,7 @@ describe("the shelf", () => {
   it("stops polling once nothing is being prepared", async () => {
     const server = new FakeServer({ books: [book()] });
     renderApp(<Library />, server);
-    await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
+    await screen.findByRole("link", { name: opensBook("ඉතිහාසය.pdf") });
 
     const listedOnce = server.callsTo("GET", /^\/documents$/).length;
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -203,7 +203,7 @@ describe("adding a book", () => {
     await user.upload(screen.getByLabelText(strings.uploadChoose), pdf());
     await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
 
-    await screen.findByRole("link", { name: /ඉතිහාසය\.pdf/ });
+    await screen.findByRole("link", { name: opensBook("ඉතිහාසය.pdf") });
     // Progress goes to the polite region. Nothing here is urgent enough to
     // interrupt a screen reader mid-sentence.
     expect(politeText()).not.toBe("");
@@ -267,7 +267,7 @@ describe("adding a book", () => {
     await user.upload(screen.getByLabelText(strings.uploadChoose), [pdf(), docx]);
     await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
 
-    await screen.findByRole("link", { name: /සටහන්\.docx/ });
+    await screen.findByRole("link", { name: opensBook("සටහන්.docx") });
     expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(2);
   });
 
@@ -304,7 +304,7 @@ describe("adding a book", () => {
     expect(retryList).toContain("සටහන්.docx");
     await user.click(screen.getByRole("button", { name: strings.uploadSubmit }));
 
-    await screen.findByRole("link", { name: /සටහන්\.docx/ });
+    await screen.findByRole("link", { name: opensBook("සටහන්.docx") });
     expect(postAttempts).toBe(3);
     expect(server.callsTo("POST", /^\/documents$/)).toHaveLength(2);
     expect(screen.getAllByRole("heading", { name: "ඉතිහාසය.pdf" })).toHaveLength(1);
