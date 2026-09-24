@@ -317,6 +317,13 @@ export interface Review {
 export type RightsBasis =
   "public_domain" | "government_textbook" | "publisher_permission" | "own_work" | "other";
 
+/** How much of the class's copy of a shared book is voiced already. */
+export interface PrerenderStatus {
+  version: string;
+  total: number;
+  ready: number;
+}
+
 export interface PublicationDetail {
   version: string;
   basis: RightsBasis;

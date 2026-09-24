@@ -195,6 +195,13 @@ export const strings = {
   stoppedSharing: "බෙදා ගැනීම නැවැත්තුවා.",
   staleShare:
     "ඔබ බෙදා ගත් පසු පොත වෙනස් වී ඇත. පන්තිය තවමත් පෙර අනුවාදය කියවයි. නැවත බෙදා ගත්තොත් නව අනුවාදය ලැබේ.",
+  prerenderHeading: "පන්තිය සඳහා හඬ",
+  prerenderIntro:
+    "පොතේ සියලු වාක්‍ය කලින්ම හඬට හරවන්න, එවිට සිසුන් ඇසීම ආරම්භ කරන විට බලා සිටීමට සිදු නොවේ. නවත්වන ලද පිටු හඬට හරවන්නේ නැත. නැවැත්තුවහොත්, නැවත ආරම්භ කළ විට නතර වූ තැන සිට ඉදිරියට යයි.",
+  prerenderProgress: (ready: number, total: number) => `වාක්‍ය ${total} න් ${ready} ක් සූදානම්.`,
+  prerenderDone: "සියලු වාක්‍ය සූදානම්.",
+  prerenderAction: "දැන් හඬට හරවන්න",
+  prerenderStarted: "හඬට හැරවීම ආරම්භ කළා. මෙයට යම් කාලයක් ගත විය හැක.",
   onlyTeachersShare: "පන්ති සමඟ බෙදා ගත හැක්කේ ගුරුවරුන්ට පමණි.",
   // Refusals, each saying what to do next.
   errorSignIn: "ඊමේල් ලිපිනය හෝ මුරපදය නිවැරදි නැත.",
