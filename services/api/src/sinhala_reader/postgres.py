@@ -723,6 +723,14 @@ class PostgresStore(Store):
             )
         return record
 
+    def audio_keys(self, document_id: str, owner: str) -> set[str]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                "SELECT cache_key FROM audio WHERE document_id = %s AND owner = %s",
+                (document_id, owner),
+            ).fetchall()
+        return {row["cache_key"] for row in rows}
+
     def get_audio(self, cache_key: str, document_id: str, owner: str) -> AudioRecord | None:
         """Cached audio is still private content, so the owner is in the query.
 
