@@ -7,8 +7,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import RootLayout from "../src/app/layout";
 import { AppFrame } from "../src/components/AppFrame";
 import { Bookmarks } from "../src/components/Bookmarks";
+import { ClassDetail } from "../src/components/ClassDetail";
+import { Classes } from "../src/components/Classes";
 import { Library } from "../src/components/Library";
 import { Reader } from "../src/components/Reader";
+import { ShareBook } from "../src/components/ShareBook";
 import { strings } from "../src/lib/strings";
 import { FakeServer, readablePage } from "./fakeApi";
 import { noticeText, renderApp } from "./render";
@@ -61,6 +64,37 @@ function libraryServer() {
       },
     ],
   });
+}
+
+/** A teacher with one class, one student waiting, and a book with a page to decide. */
+function classServer() {
+  const server = libraryServer();
+  server.teachers.add("usr-teacher");
+  server.accounts.push({
+    user_id: "usr-teacher",
+    email: "t@example.lk",
+    password: "x",
+    display_name: "සුනිල්",
+  });
+  server.classes.push({
+    class_id: "cls-a",
+    name: "10 ශ්‍රේණිය",
+    join_code: "12345678",
+    teacher: "usr-teacher",
+    members: [
+      {
+        user_id: "usr-student",
+        display_name: "නිමලි",
+        state: "pending",
+        share_progress: false,
+        joined_at: "2026-09-10T00:00:00Z",
+      },
+    ],
+  });
+  server.reviews["doc-1"] = [
+    { page_index: 0, page_label: "1", quality: "needs_review", notes: [], decision: null },
+  ];
+  return server;
 }
 
 beforeEach(() => {
@@ -124,6 +158,43 @@ describe("no automatically detectable violations", () => {
       }),
     );
     await screen.findByText(strings.failedStalled);
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
+  it("on the classes screen, as a teacher", async () => {
+    const server = classServer();
+    const { container } = renderApp(
+      <AppFrame>
+        <Classes />
+      </AppFrame>,
+      server,
+      "usr-teacher",
+    );
+    await screen.findByRole("link", { name: "10 ශ්‍රේණිය" });
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
+  it("on a class, with a student waiting", async () => {
+    const { container } = renderApp(
+      <AppFrame>
+        <ClassDetail classId="cls-a" />
+      </AppFrame>,
+      classServer(),
+      "usr-teacher",
+    );
+    await screen.findByRole("table");
+    expect(await violationsIn(container)).toEqual([]);
+  });
+
+  it("on sharing a book, with a page to decide", async () => {
+    const { container } = renderApp(
+      <AppFrame>
+        <ShareBook documentId="doc-1" />
+      </AppFrame>,
+      classServer(),
+      "usr-teacher",
+    );
+    await screen.findByRole("radio", { name: strings.pageAccept });
     expect(await violationsIn(container)).toEqual([]);
   });
 

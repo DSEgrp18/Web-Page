@@ -970,6 +970,54 @@ textarea {
   gap: var(--s4);
 }
 
+.class-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+}
+
+.class-item {
+  display: grid;
+  gap: var(--s2);
+  padding-block: var(--s3);
+  border-block-end: 1px solid var(--hair);
+}
+
+.class-item:last-child {
+  border-block-end: 0;
+}
+
+/* A table read by row: each student's name heads the row it acts on. */
+.member-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.member-table th,
+.member-table td {
+  text-align: start;
+  padding: var(--s2) var(--s3);
+  border-block-end: 1px solid var(--hair);
+  vertical-align: middle;
+}
+
+/* A group of choices under a legend: a page's decision, the basis, the classes. */
+.decision {
+  border: 1px solid var(--hair);
+  border-radius: var(--r);
+  padding: var(--s3) var(--s4);
+  margin: 0;
+  display: grid;
+  gap: var(--s1);
+}
+
+.decision legend {
+  font-weight: 600;
+  padding-inline: var(--s1);
+}
+
 .account-details {
   display: grid;
   grid-template-columns: max-content 1fr;

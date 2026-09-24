@@ -242,6 +242,77 @@ export interface SignedIn {
   recovery_code: string | null;
 }
 
+// -- classes and sharing ----------------------------------------------------
+
+/** A student as their teacher sees them: a name and a standing, no more. */
+export interface MemberDetail {
+  user_id: string;
+  display_name: string;
+  state: "pending" | "active" | "removed";
+  share_progress: boolean;
+  joined_at: string;
+}
+
+/** A class as its teacher sees it, with the code to give out. */
+export interface TaughtClass {
+  class_id: string;
+  name: string;
+  join_code: string;
+  created_at: string;
+  members: MemberDetail[];
+}
+
+/** A class as its student sees it. No code, no other students. */
+export interface JoinedClass {
+  class_id: string;
+  name: string;
+  teacher_name: string;
+  state: "pending" | "active";
+  share_progress: boolean;
+}
+
+export interface MyClasses {
+  teaching: TaughtClass[];
+  joined: JoinedClass[];
+}
+
+/** A book shared with one of this reader's classes. */
+export interface ClassBook {
+  class_id: string;
+  class_name: string;
+  book: DocumentSummary;
+}
+
+export interface FlaggedPage {
+  page_index: number;
+  page_label: string | null;
+  quality: string;
+  notes: string[];
+  decision: "accepted" | "withheld" | null;
+}
+
+/** The flagged pages a teacher decides on before sharing. */
+export interface Review {
+  version: string;
+  pages: FlaggedPage[];
+  undecided: number;
+  ready_to_publish: boolean;
+}
+
+export type RightsBasis =
+  "public_domain" | "government_textbook" | "publisher_permission" | "own_work" | "other";
+
+export interface PublicationDetail {
+  version: string;
+  basis: RightsBasis;
+  note: string | null;
+  attested_at: string;
+  published_at: string;
+  class_ids: string[];
+  /** True when the book has changed since it was shared. */
+  stale: boolean;
+}
+
 export interface Readiness {
   alive: boolean;
   serving: boolean;

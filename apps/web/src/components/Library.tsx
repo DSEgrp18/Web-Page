@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import { useAnnouncer } from "@/components/Announcer";
 import { BookCover } from "@/components/BookCover";
+import { ClassBooks } from "@/components/ClassBooks";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { useReader } from "@/components/ReaderProvider";
@@ -57,7 +58,7 @@ const ORDERS: { id: Order; label: string }[] = [
  * first when there is something to continue.
  */
 export function Library() {
-  const { api } = useReader();
+  const { api, account } = useReader();
   const { say, alert } = useAnnouncer();
 
   const [documents, setDocuments] = useState<DocumentSummary[] | null>(null);
@@ -315,6 +316,7 @@ export function Library() {
                     key={book.document_id}
                     book={book}
                     onRetry={() => void retry(book)}
+                    canShare={account?.role === "teacher"}
                     onRename={(trigger) => {
                       cardTrigger.current = trigger;
                       setRenaming(book);
@@ -330,6 +332,8 @@ export function Library() {
           </section>
         </>
       )}
+
+      <ClassBooks />
 
       <UploadDialog
         open={uploading}
@@ -434,11 +438,14 @@ function ContinueCard({ book }: { book: DocumentSummary }) {
 function BookCard({
   book,
   onRetry,
+  canShare,
   onRename,
   onDelete,
 }: {
   book: DocumentSummary;
   onRetry: () => void;
+  /** A teacher may share a ready book with their classes. */
+  canShare: boolean;
   onRename: (trigger: HTMLElement) => void;
   onDelete: (trigger: HTMLElement) => void;
 }) {
@@ -502,6 +509,15 @@ function BookCard({
               {strings.continueOrOpen(book.reading !== null)}
               {/* The name is inside the link so a screen reader listing links
                   hears which book each one opens, not five identical ones. */}
+              <span className="visually-hidden"> — {title}</span>
+            </Link>
+          ) : null}
+          {ready && canShare ? (
+            <Link
+              className="btn btn-quiet btn-sm"
+              href={`/library/${encodeURIComponent(book.document_id)}/share`}
+            >
+              {strings.shareBook}
               <span className="visually-hidden"> — {title}</span>
             </Link>
           ) : null}
