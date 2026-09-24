@@ -172,6 +172,18 @@ class LexicalIndex:
         """
         return self._passages[0].document_version if self._passages else None
 
+    def idf(self, term: str) -> float:
+        """How rare a term is across this document's passages; 0 when absent.
+
+        Public so the practice-question generator can choose the word worth
+        asking about by the same measure retrieval ranks by.
+        """
+        return self._idf.get(term, 0.0)
+
+    def is_informative(self, term: str) -> bool:
+        """Whether the term is rare enough here to tell passages apart."""
+        return term in self._informative
+
     def search(self, question: str, *, limit: int = 5) -> tuple[Hit, ...]:
         """The passages most likely to contain the answer, best first.
 
