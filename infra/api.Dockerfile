@@ -41,7 +41,8 @@ RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       "psycopg[binary]>=3.2" \
       "psycopg-pool>=3.2" \
       "celery>=5.4" \
-      "redis>=5"
+      "redis>=5" \
+      "langgraph>=1.2"
 
 # Tesseract and its Sinhala model, for pages whose embedded text does not match
 # what is printed. See services/worker/src/sinhala_documents/ocr.py. It reads

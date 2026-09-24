@@ -181,3 +181,105 @@ class TestDeletion:
 
         assert gone.status_code == 204
         assert school.store.quizzes_for(doc, school.teacher_id) == []
+
+
+def _fake_model(system: str, user: str) -> dict:
+    """Drafts from the passage it is shown, the way a well-behaved model would."""
+    if "Answer the multiple-choice question" in system:
+        return {"choice": 0}
+    body = user.split(">\n", 1)[1].split("\n</passage>", 1)[0]
+    quote = body.split(".")[0].strip() + "."
+    answer = max(quote.replace(".", "").split(), key=len)
+    return {
+        "question": quote.replace(answer, "_____", 1),
+        "options": [answer, "ඇඇඇඇඇ", "ඉඉඉඉඉ", "උඋඋඋඋ"],
+        "answer": 0,
+        "quote": quote,
+    }
+
+
+class TestModelDraftedQuestions:
+    @pytest.fixture(autouse=True)
+    def graph_on(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        pytest.importorskip("langgraph")
+        monkeypatch.setenv("SINHALA_READER_QUIZ", "graph")
+
+    def test_are_drafted_verified_and_labelled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from sinhala_documents import quiz_graph
+
+        monkeypatch.setattr(quiz_graph, "gemini_transport", lambda: _fake_model)
+        school = School()
+        doc = school.upload([sinhala_page(), sinhala_page()])
+
+        made = make(school, doc, school.teacher, generator="graph")
+
+        assert made.status_code == 202, made.text
+        quiz = school.client.get(f"/quizzes/{made.json()['quiz_id']}", headers=school.teacher)
+        body = quiz.json()
+        assert body["generator"] == "graph"
+        stored = school.store.quiz_for(body["quiz_id"], school.teacher_id)
+        assert stored is not None
+        provenance = json.loads(stored.provenance)
+        assert provenance["framework"].startswith("langgraph")
+        assert provenance["verifier_version"] and provenance["prompt_version"]
+        assert body["status"] == "published", provenance
+        assert body["questions"]
+
+    def test_a_provider_failure_fails_the_quiz_and_is_not_swapped_for_cloze(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sinhala_documents import quiz_graph
+
+        def down() -> quiz_graph.Transport:
+            raise quiz_graph.ProviderFailure("no key")
+
+        monkeypatch.setattr(quiz_graph, "gemini_transport", down)
+        school = School()
+        doc = school.upload([sinhala_page()])
+
+        made = make(school, doc, school.teacher, generator="graph").json()
+        again = school.client.get(f"/quizzes/{made['quiz_id']}", headers=school.teacher).json()
+
+        assert again["status"] == "failed"
+        assert again["questions"] == [] and again["generator"] == "graph"
+
+    def test_the_api_will_not_start_it_without_a_queue(self) -> None:
+        from sinhala_reader import Deps
+        from sinhala_reader.storage import InMemoryStore
+
+        with pytest.raises(RuntimeError, match="SINHALA_READER_QUEUE=celery"):
+            Deps(store=InMemoryStore(), warm_on_start=False)
+
+    def test_offers_both_kinds(self) -> None:
+        school = School()
+        offered = school.client.get("/quiz-generators", headers=school.teacher).json()
+        assert offered == {"generators": ["cloze", "graph"]}
+
+
+def test_the_api_process_never_loads_langgraph() -> None:
+    """CLAUDE.md, "The agentic boundary": a fresh API process, configured for
+    model-drafted questions, builds its app and serves a quiz route without
+    importing the framework. Only the worker does."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    script = (
+        "import sys, os\n"
+        "os.environ.update(SINHALA_READER_QUIZ='graph', SINHALA_READER_QUEUE='celery',"
+        " SINHALA_READER_REDIS_URL='redis://127.0.0.1:1/0', SINHALA_READER_AUTH='development')\n"
+        "from fastapi.testclient import TestClient\n"
+        "from sinhala_reader import Deps, create_app\n"
+        "client = TestClient(create_app(Deps(warm_on_start=False, reap_stalled=False)))\n"
+        "client.get('/quiz-generators')\n"
+        "loaded = [m for m in ('langgraph', 'langchain_core') if m in sys.modules]\n"
+        "print(loaded)\n"
+        "sys.exit(1 if loaded else 0)\n"
+    )
+    paths = [root / "src", root.parent / "worker" / "src", root.parent / "tts" / "src"]
+    env = {**__import__("os").environ, "PYTHONPATH": __import__("os").pathsep.join(map(str, paths))}
+    done = subprocess.run(
+        [sys.executable, "-c", script], env=env, capture_output=True, text=True, timeout=120
+    )
+    assert done.returncode == 0, done.stdout + done.stderr

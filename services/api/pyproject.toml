@@ -30,6 +30,11 @@ queue = [
   "celery>=5.4",
   "redis>=5",
 ]
+# Model-drafted practice questions. Imported only by the worker's task, never
+# by the API process (tests/test_practice.py holds it to that).
+quiz = [
+  "langgraph>=1.2",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "httpx>=0.27"]
