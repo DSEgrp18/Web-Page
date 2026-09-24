@@ -360,7 +360,7 @@ def test_a_reader_cannot_fill_a_document_with_bookmarks(
     client: TestClient, monkeypatch, prepared_document
 ) -> None:
     """A quota, so a bookmark list cannot become a place to store text."""
-    from sinhala_reader import app as app_module
+    from sinhala_reader.routes import reading as app_module
 
     monkeypatch.setattr(app_module, "MAX_BOOKMARKS", 1)
     document_id = prepared_document["document_id"]
@@ -377,7 +377,7 @@ def test_the_quota_does_not_stop_editing_one_that_is_already_there(
     client: TestClient, monkeypatch, prepared_document
 ) -> None:
     """Being at the limit must not make the bookmarks already there unusable."""
-    from sinhala_reader import app as app_module
+    from sinhala_reader.routes import reading as app_module
 
     monkeypatch.setattr(app_module, "MAX_BOOKMARKS", 1)
     document_id = prepared_document["document_id"]
