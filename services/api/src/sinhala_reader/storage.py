@@ -271,6 +271,29 @@ class TeacherInvite:
     used_at: str | None = None
 
 
+@dataclass(frozen=True)
+class TeacherReset:
+    """A code a teacher made for one of their students, who lost everything else.
+
+    It lasts thirty minutes and works once, beside the student's own recovery
+    code rather than in place of it, so a teacher can never take away a code
+    the student kept. A student has at most one; a new one replaces it.
+
+    ``seen_at`` is when the student acknowledged being told about it. Until
+    then they are told, whether or not the code was ever used: a reset they
+    did not ask for is exactly the one they need to hear about.
+    """
+
+    user_id: str
+    code_hash: str
+    issued_by: str | None
+    """The teacher. ``None`` once that teacher's account is deleted."""
+    issued_at: str
+    expires_at: str
+    used_at: str | None = None
+    seen_at: str | None = None
+
+
 class MemberState(StrEnum):
     """Where a student stands in a class.
 
@@ -624,6 +647,26 @@ class Store(ABC):
         """
 
     @abstractmethod
+    def put_teacher_reset(self, reset: TeacherReset) -> TeacherReset:
+        """Give a student a teacher's reset code, replacing any they had."""
+
+    @abstractmethod
+    def teacher_reset(self, user_id: str) -> TeacherReset | None:
+        """The student's latest teacher reset, used or not."""
+
+    @abstractmethod
+    def spend_teacher_reset(self, user_id: str, code_hash: str, now: str) -> bool:
+        """Spend the student's reset code, once. ``True`` only for the caller that did.
+
+        Unused, unexpired and matching are checked in the same step as marking
+        it used, as for invitations.
+        """
+
+    @abstractmethod
+    def acknowledge_teacher_reset(self, user_id: str, now: str) -> bool:
+        """The student has been told. ``False`` if there was nothing to tell."""
+
+    @abstractmethod
     def record(self, event: AuditEvent) -> None: ...
 
     @abstractmethod
@@ -787,6 +830,7 @@ class InMemoryStore(Store):
         self._users: dict[str, User] = {}
         self._users_by_email: dict[str, str] = {}
         self._invites: dict[str, TeacherInvite] = {}
+        self._teacher_resets: dict[str, TeacherReset] = {}
         self._audit: list[AuditEvent] = []
         self._classes: dict[str, Classroom] = {}
         self._members: dict[tuple[str, str], Membership] = {}
@@ -1058,6 +1102,10 @@ class InMemoryStore(Store):
             for code_hash, invite in list(self._invites.items()):
                 if invite.used_by == user_id:
                     self._invites[code_hash] = replace(invite, used_by=None)
+            self._teacher_resets.pop(user_id, None)
+            for student, reset in list(self._teacher_resets.items()):
+                if reset.issued_by == user_id:
+                    self._teacher_resets[student] = replace(reset, issued_by=None)
             return True
 
     def set_role(self, user_id: str, role: Role) -> bool:
@@ -1087,6 +1135,36 @@ class InMemoryStore(Store):
             if invite is None or invite.used_at is not None or invite.expires_at <= now:
                 return False
             self._invites[code_hash] = replace(invite, used_by=user_id, used_at=now)
+            return True
+
+    def put_teacher_reset(self, reset: TeacherReset) -> TeacherReset:
+        with self._lock:
+            self._teacher_resets[reset.user_id] = reset
+        return reset
+
+    def teacher_reset(self, user_id: str) -> TeacherReset | None:
+        with self._lock:
+            return self._teacher_resets.get(user_id)
+
+    def spend_teacher_reset(self, user_id: str, code_hash: str, now: str) -> bool:
+        with self._lock:
+            reset = self._teacher_resets.get(user_id)
+            if (
+                reset is None
+                or reset.used_at is not None
+                or reset.expires_at <= now
+                or reset.code_hash != code_hash
+            ):
+                return False
+            self._teacher_resets[user_id] = replace(reset, used_at=now)
+            return True
+
+    def acknowledge_teacher_reset(self, user_id: str, now: str) -> bool:
+        with self._lock:
+            reset = self._teacher_resets.get(user_id)
+            if reset is None or reset.seen_at is not None:
+                return False
+            self._teacher_resets[user_id] = replace(reset, seen_at=now)
             return True
 
     def record(self, event: AuditEvent) -> None:

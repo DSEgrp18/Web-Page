@@ -61,7 +61,8 @@ const MEMBER = {
 
 const CLASS = {
   class_id: "cls-a", name: "10 ශ්‍රේණිය", join_code: "12345678",
-  created_at: "2026-09-20T00:00:00Z", members: [MEMBER],
+  created_at: "2026-09-20T00:00:00Z",
+  members: [MEMBER, { ...MEMBER, user_id: "usr-3", display_name: "කසුන්", state: "active" }],
 };
 
 const REVIEW = {
@@ -73,7 +74,7 @@ const REVIEW = {
  * A signed-in reader with one prepared book, and nothing else on the API.
  * As a teacher, they also teach one class, and the book has a page to decide.
  */
-async function withOneBook(page, account) {
+async function withOneBook(page, account, extra = {}) {
   await mockApi(page, async (route) => {
     const request = route.request();
     if (request.method() === "OPTIONS") {
@@ -91,6 +92,7 @@ async function withOneBook(page, account) {
       "/class-books": [],
       "/documents/doc-1/review": REVIEW,
       "/documents/doc-1/publication": null,
+      ...extra,
     }[pathname];
     await route.fulfill({
       status: body !== undefined ? 200 : 404,
@@ -224,6 +226,16 @@ const SCREENS = [
     ready: (page) => page.getByRole("heading", { name: "මගේ ගිණුම", level: 1 }),
   },
   {
+    name: "the library with a reset notice",
+    ...LIBRARY,
+    routes: {
+      "/auth/reset-notice": {
+        teacher_name: "සුනිල්", issued_at: "2026-09-20T08:00:00Z", used: false,
+      },
+    },
+    ready: (page) => page.getByRole("heading", { name: "ඔබේ ගිණුම ගැන දැනුම්දීමක්" }),
+  },
+  {
     name: "the classes screen",
     path: "/classes",
     account: TEACHER,
@@ -252,7 +264,7 @@ for (const scheme of ["light", "dark"]) {
   for (const screen of SCREENS) {
     test(`${screen.name} has no detectable violations in the ${scheme} theme`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-      await withOneBook(page, screen.account);
+      await withOneBook(page, screen.account, screen.routes);
       await page.goto(screen.path);
       await expect(screen.ready(page)).toBeVisible();
       if (screen.open) await screen.open(page);

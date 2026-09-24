@@ -47,6 +47,7 @@ from sinhala_reader.storage import (
     Session,
     Store,
     TeacherInvite,
+    TeacherReset,
     User,
     new_id,
 )
@@ -1053,6 +1054,77 @@ class TestTeacherInvites:
     def test_an_unknown_one_is_not_redeemed(self, store: Store) -> None:
         user = store.put_user(a_user())
         assert store.redeem_invite("never-issued", user.user_id, self.NOW) is False
+
+
+class TestTeacherResets:
+    NOW = "2026-09-01T00:00:00+00:00"
+
+    def _reset(
+        self,
+        store: Store,
+        student: User,
+        teacher: User,
+        code_hash: str = "hash-1",
+        expires_at: str = "2026-09-01T00:30:00+00:00",
+    ) -> None:
+        store.put_teacher_reset(
+            TeacherReset(
+                user_id=student.user_id,
+                code_hash=code_hash,
+                issued_by=teacher.user_id,
+                issued_at=self.NOW,
+                expires_at=expires_at,
+            )
+        )
+
+    def _people(self, store: Store) -> tuple[User, User]:
+        return store.put_user(a_user("s@example.lk")), store.put_user(a_user("t@example.lk"))
+
+    def test_spends_once_and_only_with_the_right_code(self, store: Store) -> None:
+        student, teacher = self._people(store)
+        self._reset(store, student, teacher)
+
+        assert store.spend_teacher_reset(student.user_id, "wrong", self.NOW) is False
+        assert store.spend_teacher_reset(student.user_id, "hash-1", self.NOW) is True
+        assert store.spend_teacher_reset(student.user_id, "hash-1", self.NOW) is False
+        reset = store.teacher_reset(student.user_id)
+        assert reset is not None and reset.used_at == self.NOW
+
+    def test_an_expired_one_is_not_spent(self, store: Store) -> None:
+        student, teacher = self._people(store)
+        self._reset(store, student, teacher, expires_at="2026-08-31T23:59:00+00:00")
+
+        assert store.spend_teacher_reset(student.user_id, "hash-1", self.NOW) is False
+
+    def test_a_new_one_replaces_the_last_and_is_told_again(self, store: Store) -> None:
+        student, teacher = self._people(store)
+        self._reset(store, student, teacher)
+        store.acknowledge_teacher_reset(student.user_id, self.NOW)
+        self._reset(store, student, teacher, code_hash="hash-2")
+
+        assert store.spend_teacher_reset(student.user_id, "hash-1", self.NOW) is False
+        reset = store.teacher_reset(student.user_id)
+        assert reset is not None
+        assert (reset.code_hash, reset.seen_at) == ("hash-2", None)
+
+    def test_acknowledged_once(self, store: Store) -> None:
+        student, teacher = self._people(store)
+        assert store.acknowledge_teacher_reset(student.user_id, self.NOW) is False
+        self._reset(store, student, teacher)
+
+        assert store.acknowledge_teacher_reset(student.user_id, self.NOW) is True
+        assert store.acknowledge_teacher_reset(student.user_id, self.NOW) is False
+
+    def test_goes_with_the_student_and_forgets_the_teacher(self, store: Store) -> None:
+        student, teacher = self._people(store)
+        self._reset(store, student, teacher)
+
+        store.delete_user(teacher.user_id)
+        reset = store.teacher_reset(student.user_id)
+        assert reset is not None and reset.issued_by is None
+
+        store.delete_user(student.user_id)
+        assert store.teacher_reset(student.user_id) is None
 
 
 class TestAudit:

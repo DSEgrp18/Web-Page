@@ -21,6 +21,7 @@ import type {
   Page,
   Progress,
   PublicationDetail,
+  ResetNotice,
   RightsBasis,
   Segment,
   StudyAnswer,
@@ -183,6 +184,10 @@ export class FakeServer {
   classes: FakeClass[] = [];
   /** The flagged pages of each book, as its owner decides on them. */
   reviews: Record<string, FlaggedPage[]> = {};
+  /** Whom a teacher has made reset codes for, in order. */
+  readonly issuedResets: string[] = [];
+  /** What each reader is still to be told about a teacher's reset code. */
+  resetNotices: Record<string, ResetNotice> = {};
   /** Each book's sharing, once it has been shared. */
   publications: Record<string, PublicationDetail> = {};
 
@@ -474,6 +479,13 @@ export class FakeServer {
       if (!passwordOk) return this.json({ detail: "That password is not correct." }, 401);
       return this.json({ recovery_code: "NEWC-ODE2-3456-789A" });
     }
+    if (path === "/auth/reset-notice" || path === "/auth/reset-notice/seen") {
+      if (!this.signedInAs) return this.json({ detail: "Sign in to continue." }, 401);
+      if (method === "GET") return this.json(this.resetNotices[this.signedInAs] ?? null);
+      if (headers.get("X-CSRF-Token") !== FAKE_CSRF) return this.json({ detail: "stale" }, 403);
+      delete this.resetNotices[this.signedInAs];
+      return new Response(null, { status: 204 });
+    }
     if (method === "POST" && path === "/auth/logout-everywhere") {
       this.signedInAs = null;
       return new Response(null, { status: 204 });
@@ -606,6 +618,22 @@ export class FakeServer {
     if (rest === "/code" && method === "POST") {
       room.join_code = String(Number(room.join_code) + 1111);
       return this.json(this.taught(room));
+    }
+    const reset = /^\/members\/([^/]+)\/reset$/.exec(rest);
+    if (reset && method === "POST") {
+      const member = this.membership(room, reset[1]!);
+      if (member?.state !== "active") return this.json({ detail: "No such member." }, 404);
+      this.issuedResets.push(member.user_id);
+      this.resetNotices[member.user_id] = {
+        teacher_name: this.nameOf(owner),
+        issued_at: "2026-09-10T08:00:00Z",
+        used: false,
+      };
+      return this.json({
+        display_name: member.display_name,
+        recovery_code: "RSET-CODE-2345-6789",
+        expires_at: "2026-09-10T08:30:00Z",
+      });
     }
     const act = /^\/members\/([^/]+)\/(approve|remove)$/.exec(rest);
     if (act && method === "POST") {

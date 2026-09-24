@@ -6,6 +6,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
 import { BrandMark } from "@/components/BrandMark";
+import { ResetNoticeBanner } from "@/components/ResetNoticeBanner";
 import { SiteFooter } from "@/components/PublicFrame";
 import { useReader } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
@@ -86,7 +87,12 @@ export function AppFrame({ children }: { children: ReactNode }) {
 
         <main id="main" className={isWorkspace ? "shell-main shell-main-wide" : "shell-main"}>
           {signedIn ? (
-            children
+            <>
+              {/* Not over the book: the workspace owns its whole height. It
+                  is on the library, where every sign-in lands. */}
+              {isWorkspace ? null : <ResetNoticeBanner />}
+              {children}
+            </>
           ) : status === "loading" ? (
             // Short, and not announced: a reader who hears "loading" on every
             // visit learns to ignore the word.

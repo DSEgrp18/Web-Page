@@ -12,17 +12,27 @@ it, and theirs to withdraw.
 
 Every read is scoped in the store to the class's teacher or the member, and
 anything else is absent (404), as for documents.
+
+A teacher can also make a reset code for one of their own students, for a
+student who has lost both their password and their recovery code. It lasts
+thirty minutes, works once, and sits beside the student's own code rather than
+replacing it. It changes nothing by itself: the student spends it on the
+recovery page with their own email address, which the teacher never sees, and
+is told afterwards, on every screen until they acknowledge it, who made it.
 """
 
 from __future__ import annotations
 
 import secrets
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 
+from .. import codes
+from ..accounts import RECOVERY_GROUPS, TEACHER_RESET_LIFETIME
 from ..ratelimit import enforce
 from ..security import require_user
 from ..storage import (
@@ -32,6 +42,7 @@ from ..storage import (
     Membership,
     MemberState,
     Role,
+    TeacherReset,
     User,
     new_id,
 )
@@ -107,6 +118,14 @@ class JoinedClass(BaseModel):
     teacher_name: str
     state: str = Field(description="pending or active.")
     share_progress: bool
+
+
+class IssuedReset(BaseModel):
+    """A reset code for a student, for their teacher to hand over. Shown once."""
+
+    display_name: str
+    recovery_code: str
+    expires_at: str
 
 
 class MyClasses(BaseModel):
@@ -287,3 +306,43 @@ def register(app: FastAPI, deps: Deps) -> None:
     def remove(class_id: str, member_id: str, user: User = CurrentUser) -> TaughtClass:
         """Take a student out. Their access ends on their next request."""
         return set_state(class_id, member_id, user, MemberState.REMOVED)
+
+    @app.post("/classes/{class_id}/members/{member_id}/reset", tags=["classes"])
+    def issue_reset(
+        class_id: str, member_id: str, request: Request, user: User = CurrentUser
+    ) -> IssuedReset:
+        """Make a thirty-minute, single-use reset code for an approved student.
+
+        It changes no password and leaves the student's own recovery code as it
+        was: the student uses it on the recovery page, with their own email
+        address, to choose a new password. A second one replaces the first.
+        Only for students: an account that is itself a teacher's holds other
+        people's classes, and is reset by an admin. Recorded in the audit log,
+        and the student is told.
+        """
+        enforce(request, "teacher-reset", user.user_id)
+        taught(class_id, user)
+        membership = store.membership(class_id, member_id)
+        student = store.get_user(member_id)
+        if (
+            membership is None
+            or membership.state != MemberState.ACTIVE
+            or student is None
+            or student.role != Role.STUDENT
+        ):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such member.")
+        code = codes.new_code(RECOVERY_GROUPS)
+        issued = datetime.now(UTC)
+        reset = store.put_teacher_reset(
+            TeacherReset(
+                user_id=student.user_id,
+                code_hash=codes.code_hash(code),
+                issued_by=user.user_id,
+                issued_at=issued.isoformat(),
+                expires_at=(issued + TEACHER_RESET_LIFETIME).isoformat(),
+            )
+        )
+        audit(user.user_id, student.user_id, "teacher_reset_issued", f"class:{class_id}")
+        return IssuedReset(
+            display_name=student.display_name, recovery_code=code, expires_at=reset.expires_at
+        )

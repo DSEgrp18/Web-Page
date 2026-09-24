@@ -271,6 +271,21 @@ export interface JoinedClass {
   share_progress: boolean;
 }
 
+/** A thirty-minute, single-use code for a student, for their teacher to hand over. */
+export interface IssuedReset {
+  display_name: string;
+  recovery_code: string;
+  expires_at: string;
+}
+
+/** A teacher made a reset code for this account; shown until the reader has seen it. */
+export interface ResetNotice {
+  /** Null when that teacher's account has since been deleted. */
+  teacher_name: string | null;
+  issued_at: string;
+  used: boolean;
+}
+
 export interface MyClasses {
   teaching: TaughtClass[];
   joined: JoinedClass[];

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import hmac
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
@@ -128,12 +128,28 @@ class RecoveryCode(BaseModel):
 #: Four groups of four: about 79 bits, for a code that resets a password.
 RECOVERY_GROUPS = 4
 
+#: How long a code a teacher made for their student lasts. Long enough to
+#: hand it over in class and use it; short enough that a code left on a desk
+#: is worthless by the next lesson.
+TEACHER_RESET_LIFETIME = timedelta(minutes=30)
+
 #: One answer for "no such account", "no recovery code on it" and "wrong code".
 RECOVERY_REFUSED = "That email address and recovery code do not match."
 
 #: Compared against when there is no account or no code, so both branches do
 #: the same work. Never a valid code's hash: it is the hash of nothing.
 _NO_CODE_HASH = codes.code_hash("")
+
+
+class ResetNotice(BaseModel):
+    """A teacher made a reset code for this account, and the reader has not yet
+    said they have seen that. Shown on every screen until they do."""
+
+    teacher_name: str | None = Field(
+        description="Null when that teacher's account has since been deleted."
+    )
+    issued_at: str
+    used: bool
 
 
 class Account(BaseModel):
@@ -271,9 +287,18 @@ def recover(body: Recovery, request: Request, response: Response) -> SignedIn:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(weak)) from weak
 
     user = store.get_user_by_email(body.email.strip().lower())
+    typed = codes.code_hash(body.recovery_code)
     stored = user.recovery_hash if user and user.recovery_hash else _NO_CODE_HASH
-    matches = hmac.compare_digest(codes.code_hash(body.recovery_code), stored)
-    if user is None or user.recovery_hash is None or not matches:
+    # Compared first, and whatever happens next, as the hash above is.
+    matches = hmac.compare_digest(typed, stored)
+    own_code = matches and user is not None and user.recovery_hash is not None
+    # Otherwise a code their teacher made, spent here or not at all. Checked
+    # only when their own code did not match, so it is never spent for nothing.
+    now = datetime.now(UTC).isoformat()
+    teachers_code = (
+        user is not None and not own_code and store.spend_teacher_reset(user.user_id, typed, now)
+    )
+    if user is None or not (own_code or teachers_code):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, RECOVERY_REFUSED)
 
     user = store.put_user(replace(user, password_hash=password_hash))
@@ -284,7 +309,7 @@ def recover(body: Recovery, request: Request, response: Response) -> SignedIn:
             kind="password_recovered",
             actor=user.user_id,
             subject=user.user_id,
-            reason="recovery-code",
+            reason="teacher-reset" if teachers_code else "recovery-code",
         )
     )
     recovery_code = _new_recovery_code(store, user)
@@ -318,6 +343,32 @@ def replace_recovery_code(
         )
     )
     return RecoveryCode(recovery_code=code)
+
+
+@router.get("/reset-notice")
+def reset_notice(request: Request, user: User = CurrentUser) -> ResetNotice | None:
+    """Whether a teacher made a reset code for this account that the reader has
+    not yet been told about. Null when there is nothing to tell.
+
+    Told whether or not the code was used: a reset the reader did not ask for
+    is the one they most need to hear about, and whom to ask about it.
+    """
+    store = store_of(request)
+    reset = store.teacher_reset(user.user_id)
+    if reset is None or reset.seen_at is not None:
+        return None
+    teacher = store.get_user(reset.issued_by) if reset.issued_by else None
+    return ResetNotice(
+        teacher_name=teacher.display_name if teacher else None,
+        issued_at=reset.issued_at,
+        used=reset.used_at is not None,
+    )
+
+
+@router.post("/reset-notice/seen", status_code=status.HTTP_204_NO_CONTENT)
+def reset_notice_seen(request: Request, user: User = CurrentUser) -> None:
+    """The reader has read the notice. Saying so twice is harmless."""
+    store_of(request).acknowledge_teacher_reset(user.user_id, datetime.now(UTC).isoformat())
 
 
 @router.post("/login", dependencies=[SessionsRequired])

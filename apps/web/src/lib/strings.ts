@@ -44,7 +44,8 @@ export const strings = {
   displayNameLabel: "ඔබේ නම",
   displayNameHint: "ස්වර ඔබට ආමන්ත්‍රණය කරන නම.",
   recoveryCodeLabel: "ප්‍රතිසාධන කේතය",
-  recoveryCodeHint: "අකුරු අතර ඉඩ හෝ ඉරි තිබුණත් කමක් නැත. කැපිටල් හෝ සිම්පල් අකුරු දෙකම පිළිගනී.",
+  recoveryCodeHint:
+    "අකුරු අතර ඉඩ හෝ ඉරි තිබුණත් කමක් නැත. කැපිටල් හෝ සිම්පල් අකුරු දෙකම පිළිගනී. ගුරුවරයා දුන් කේතයක් ද මෙහි ලියන්න.",
   signedOutHeading: "ඔබේ පොත් කියවීමට ඇතුළු වන්න",
   signedOutBody: "ඔබේ පොත් ඔබට පමණක් පෙනේ. ඒවා විවෘත කිරීමට ඔබේ ගිණුමෙන් ඇතුළු වන්න.",
   noAccountYet: "ගිණුමක් නැද්ද?",
@@ -128,6 +129,25 @@ export const strings = {
   removeNamed: (name: string) => `${name} ඉවත් කරන්න`,
   memberApproved: (name: string) => `${name} අනුමත කළා.`,
   memberRemoved: (name: string) => `${name} ඉවත් කළා.`,
+  // A reset code, made by the teacher for a student who lost their password
+  // and their own recovery code.
+  resetNamed: (name: string) => `${name} සඳහා මුරපදය නැවත සැකසීමේ කේතයක්`,
+  resetConfirmTitle: (name: string) => `${name} සඳහා මුරපදය නැවත සැකසීමේ කේතයක් සාදන්න ද?`,
+  resetConfirmBody:
+    'කේතය එක් වරක් පමණක්, විනාඩි 30ක් ඇතුළත ක්‍රියා කරයි. ඔවුන්ගේම ප්‍රතිසාධන කේතය තවමත් ක්‍රියා කරයි. ඔවුන් මෙම කේතය සහ ඔවුන්ගේම ඊමේල් ලිපිනය "ගිණුම නැවත ලබා ගන්න" පිටුවේ භාවිත කරන තුරු මුරපදය වෙනස් නොවේ. ඔබ කේතය සෑදූ බව ඔවුන්ට දැනුම් දෙනු ලැබේ.',
+  resetConfirmAction: "කේතය සාදන්න",
+  resetCodeHeading: (name: string) => `${name} සඳහා කේතය`,
+  resetCodeIntro:
+    'මෙය ඔවුන්ට පෞද්ගලිකව දෙන්න. මෙය නැවත පෙන්වන්නේ නැත, සහ විනාඩි 30කින් කල් ඉකුත් වේ. ඔවුන් "ගිණුම නැවත ලබා ගන්න" පිටුවේ මෙය ඔවුන්ගේම ඊමේල් ලිපිනය සමඟ භාවිත කරයි.',
+  resetIssued: (name: string) => `${name} සඳහා කේතයක් සෑදුවා.`,
+  resetDone: "අවසන්",
+  // What the student is told, on every screen, until they say they have seen it.
+  resetNoticeHeading: "ඔබේ ගිණුම ගැන දැනුම්දීමක්",
+  resetNoticeText: (teacher: string | null, when: string, used: boolean) =>
+    `${teacher ? `${teacher} ගුරුවරයා` : "ඔබේ ගුරුවරයෙක්"} ${when} ඔබේ ගිණුම සඳහා මුරපදය නැවත සැකසීමේ කේතයක් සෑදුවා. ` +
+    (used ? "එම කේතයෙන් මුරපදය වෙනස් කර ඇත. " : "එය තවම භාවිත කර නැත. ") +
+    "ඔබ එය ඉල්ලුවේ නැත්නම්, ඔබේ ගුරුවරයාට හෝ සේවා කණ්ඩායමට කියන්න.",
+  resetNoticeSeen: "තේරුණා",
   renameClassLabel: "පන්තියේ නම",
   renameClassAction: "නම සුරකින්න",
   classRenamed: "පන්තියේ නම වෙනස් කළා.",
