@@ -31,11 +31,14 @@ from sinhala_reader.storage import (
     AudioRecord,
     AuditEvent,
     Bookmark,
+    Classroom,
+    CodeTaken,
     Document,
     EmailTaken,
     InMemoryStore,
     Job,
     JobState,
+    MemberState,
     Progress,
     Role,
     Session,
@@ -1093,3 +1096,112 @@ class TestAudit:
                 reason="teacher:7d",
             )
         )
+
+
+# --- classes -----------------------------------------------------------------
+
+
+class TestClasses:
+    def _setup(self, store: Store) -> tuple[User, User, Classroom]:
+        teacher = store.put_user(a_user("teacher@school.lk"))
+        student = store.put_user(a_user("student@school.lk"))
+        room = store.put_class(
+            Classroom(
+                class_id=new_id("cls"), teacher_id=teacher.user_id, name="10", join_code="12345678"
+            )
+        )
+        return teacher, student, room
+
+    def test_a_class_is_its_teachers_and_found_by_code(self, store: Store) -> None:
+        teacher, student, room = self._setup(store)
+
+        assert store.class_taught(room.class_id, teacher.user_id) == room
+        assert store.class_taught(room.class_id, student.user_id) is None
+        assert store.classes_taught(teacher.user_id) == [room]
+        assert store.class_by_code("12345678") == room
+        assert store.class_by_code("87654321") is None
+
+    def test_two_classes_cannot_share_a_code(self, store: Store) -> None:
+        teacher, _, _ = self._setup(store)
+        with pytest.raises(CodeTaken):
+            store.put_class(
+                Classroom(
+                    class_id=new_id("cls"),
+                    teacher_id=teacher.user_id,
+                    name="11",
+                    join_code="12345678",
+                )
+            )
+
+    def test_joining_is_pending_until_the_teacher_approves(self, store: Store) -> None:
+        teacher, student, room = self._setup(store)
+
+        joined = store.join_class(room.class_id, student.user_id)
+        assert joined.state is MemberState.PENDING
+        assert store.set_member_state(
+            room.class_id, teacher.user_id, student.user_id, MemberState.ACTIVE
+        )
+        assert store.membership(room.class_id, student.user_id).state is MemberState.ACTIVE
+        # Joining again leaves an active member as they were.
+        assert store.join_class(room.class_id, student.user_id).state is MemberState.ACTIVE
+
+    def test_only_the_teacher_can_change_a_member(self, store: Store) -> None:
+        _, student, room = self._setup(store)
+        store.join_class(room.class_id, student.user_id)
+
+        assert not store.set_member_state(
+            room.class_id, student.user_id, student.user_id, MemberState.ACTIVE
+        )
+        assert store.members(room.class_id, student.user_id) == []
+        assert store.membership(room.class_id, student.user_id).state is MemberState.PENDING
+
+    def test_a_removed_member_is_gone_from_their_list_and_rejoins_as_pending(
+        self, store: Store
+    ) -> None:
+        teacher, student, room = self._setup(store)
+        store.join_class(room.class_id, student.user_id)
+        store.set_share_progress(room.class_id, student.user_id, True)
+        store.set_member_state(room.class_id, teacher.user_id, student.user_id, MemberState.REMOVED)
+
+        assert store.classes_joined(student.user_id) == []
+        again = store.join_class(room.class_id, student.user_id)
+        assert (again.state, again.share_progress) == (MemberState.PENDING, False)
+
+    def test_sharing_progress_is_the_members_to_set(self, store: Store) -> None:
+        _, student, room = self._setup(store)
+        store.join_class(room.class_id, student.user_id)
+
+        assert store.set_share_progress(room.class_id, student.user_id, True)
+        on = store.membership(room.class_id, student.user_id)
+        assert on.share_progress and on.consented_at is not None
+        store.set_share_progress(room.class_id, student.user_id, False)
+        off = store.membership(room.class_id, student.user_id)
+        assert (off.share_progress, off.consented_at) == (False, None)
+
+    def test_leaving_and_deleting_take_the_membership(self, store: Store) -> None:
+        teacher, student, room = self._setup(store)
+        store.join_class(room.class_id, student.user_id)
+
+        assert store.leave_class(room.class_id, student.user_id)
+        assert store.membership(room.class_id, student.user_id) is None
+        store.join_class(room.class_id, student.user_id)
+        assert not store.delete_class(room.class_id, student.user_id)
+        assert store.delete_class(room.class_id, teacher.user_id)
+        assert store.membership(room.class_id, student.user_id) is None
+
+    def test_a_new_code_replaces_the_old(self, store: Store) -> None:
+        teacher, student, room = self._setup(store)
+
+        assert not store.set_join_code(room.class_id, student.user_id, "11112222")
+        assert store.set_join_code(room.class_id, teacher.user_id, "11112222")
+        assert store.class_by_code("12345678") is None
+        assert store.class_by_code("11112222").class_id == room.class_id
+
+    def test_deleting_a_teacher_takes_their_classes(self, store: Store) -> None:
+        teacher, student, room = self._setup(store)
+        store.join_class(room.class_id, student.user_id)
+
+        store.delete_user(teacher.user_id)
+
+        assert store.class_by_code("12345678") is None
+        assert store.membership(room.class_id, student.user_id) is None

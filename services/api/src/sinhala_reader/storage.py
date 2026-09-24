@@ -271,6 +271,53 @@ class TeacherInvite:
     used_at: str | None = None
 
 
+class MemberState(StrEnum):
+    """Where a student stands in a class.
+
+    Joining with the code makes a *pending* membership; the teacher approving
+    it is the real defence against someone guessing a code, since eight digits
+    can be guessed and a teacher knows their own students. A teacher removing
+    someone keeps the row as *removed*, so the removal is a fact rather than an
+    absence, and access ends on the next request.
+    """
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    REMOVED = "removed"
+
+
+@dataclass(frozen=True)
+class Classroom:
+    """A teacher's class. ``join_code`` is eight digits, shown to the teacher."""
+
+    class_id: str
+    teacher_id: str
+    name: str
+    join_code: str
+    created_at: str = field(default_factory=_now)
+
+
+@dataclass(frozen=True)
+class Membership:
+    """One student in one class, and what they have agreed to share."""
+
+    class_id: str
+    user_id: str
+    state: MemberState = MemberState.PENDING
+    share_progress: bool = False
+    """Off unless the student turns it on, and they can turn it off again."""
+
+    consented_at: str | None = None
+    """When share_progress was last turned on; ``None`` while it is off."""
+
+    joined_at: str = field(default_factory=_now)
+    updated_at: str = field(default_factory=_now)
+
+
+class CodeTaken(Exception):
+    """Another class already has this join code. The caller draws another."""
+
+
 @dataclass(frozen=True)
 class AuditEvent:
     """Something that changed what an account may do, and who did it.
@@ -559,6 +606,65 @@ class Store(ABC):
         session keeps working.
         """
 
+    # -- classes -----------------------------------------------------------
+    #
+    # Scoped like documents. Every read or change names who is asking: the
+    # teacher of the class, or the member themselves. Anyone else gets
+    # nothing, and a route turns nothing into 404.
+
+    @abstractmethod
+    def put_class(self, classroom: Classroom) -> Classroom:
+        """Create a class, or rename it. Raises :class:`CodeTaken` on a clash."""
+
+    @abstractmethod
+    def class_taught(self, class_id: str, teacher_id: str) -> Classroom | None: ...
+
+    @abstractmethod
+    def classes_taught(self, teacher_id: str) -> list[Classroom]:
+        """Oldest first."""
+
+    @abstractmethod
+    def class_by_code(self, join_code: str) -> Classroom | None:
+        """The one unscoped read: the code is how a student finds a class."""
+
+    @abstractmethod
+    def set_join_code(self, class_id: str, teacher_id: str, join_code: str) -> bool:
+        """Replace the code. Raises :class:`CodeTaken`; ``False`` if not their class."""
+
+    @abstractmethod
+    def delete_class(self, class_id: str, teacher_id: str) -> bool:
+        """Remove the class and every membership in it."""
+
+    @abstractmethod
+    def join_class(self, class_id: str, user_id: str) -> Membership:
+        """Ask to join. New and removed members become pending; others are unchanged."""
+
+    @abstractmethod
+    def membership(self, class_id: str, user_id: str) -> Membership | None:
+        """The member's own membership, in any state."""
+
+    @abstractmethod
+    def classes_joined(self, user_id: str) -> list[tuple[Classroom, Membership]]:
+        """Every class this reader belongs to or has asked to, except removals."""
+
+    @abstractmethod
+    def members(self, class_id: str, teacher_id: str) -> list[Membership]:
+        """The class's members, for its teacher only; empty for anyone else."""
+
+    @abstractmethod
+    def set_member_state(
+        self, class_id: str, teacher_id: str, user_id: str, state: MemberState
+    ) -> bool:
+        """Approve or remove. ``False`` unless this teacher's class has that member."""
+
+    @abstractmethod
+    def leave_class(self, class_id: str, user_id: str) -> bool:
+        """The member leaves. Their row goes entirely: nothing of theirs stays behind."""
+
+    @abstractmethod
+    def set_share_progress(self, class_id: str, user_id: str, share: bool) -> bool:
+        """The member's own consent to share progress with the teacher."""
+
 
 class InMemoryStore(Store):
     """A dictionary with a lock. Everything is lost when the process stops.
@@ -584,6 +690,8 @@ class InMemoryStore(Store):
         self._users_by_email: dict[str, str] = {}
         self._invites: dict[str, TeacherInvite] = {}
         self._audit: list[AuditEvent] = []
+        self._classes: dict[str, Classroom] = {}
+        self._members: dict[tuple[str, str], Membership] = {}
         self._sessions: dict[str, Session] = {}
 
     # -- documents ---------------------------------------------------------
@@ -832,6 +940,13 @@ class InMemoryStore(Store):
             for token_hash in [h for h, s in self._sessions.items() if s.user_id == user_id]:
                 del self._sessions[token_hash]
             self._audit = [e for e in self._audit if e.subject != user_id]
+            # As the Postgres cascade: the classes they taught, with every
+            # membership in them, and every membership of their own.
+            taught = {c for c, room in self._classes.items() if room.teacher_id == user_id}
+            for class_id in taught:
+                del self._classes[class_id]
+            for key in [k for k in self._members if k[0] in taught or k[1] == user_id]:
+                del self._members[key]
             for code_hash, invite in list(self._invites.items()):
                 if invite.used_by == user_id:
                     self._invites[code_hash] = replace(invite, used_by=None)
@@ -902,6 +1017,108 @@ class InMemoryStore(Store):
             for token_hash in doomed:
                 del self._sessions[token_hash]
             return len(doomed)
+
+    # -- classes -----------------------------------------------------------
+
+    def put_class(self, classroom: Classroom) -> Classroom:
+        with self._lock:
+            for other in self._classes.values():
+                if other.join_code == classroom.join_code and other.class_id != classroom.class_id:
+                    raise CodeTaken(classroom.join_code)
+            self._classes[classroom.class_id] = classroom
+        return classroom
+
+    def class_taught(self, class_id: str, teacher_id: str) -> Classroom | None:
+        with self._lock:
+            found = self._classes.get(class_id)
+        return found if found and found.teacher_id == teacher_id else None
+
+    def classes_taught(self, teacher_id: str) -> list[Classroom]:
+        with self._lock:
+            mine = [c for c in self._classes.values() if c.teacher_id == teacher_id]
+        return sorted(mine, key=lambda c: c.created_at)
+
+    def class_by_code(self, join_code: str) -> Classroom | None:
+        with self._lock:
+            return next((c for c in self._classes.values() if c.join_code == join_code), None)
+
+    def set_join_code(self, class_id: str, teacher_id: str, join_code: str) -> bool:
+        with self._lock:
+            found = self._classes.get(class_id)
+            if found is None or found.teacher_id != teacher_id:
+                return False
+            if any(
+                c.join_code == join_code and c.class_id != class_id for c in self._classes.values()
+            ):
+                raise CodeTaken(join_code)
+            self._classes[class_id] = replace(found, join_code=join_code)
+            return True
+
+    def delete_class(self, class_id: str, teacher_id: str) -> bool:
+        with self._lock:
+            found = self._classes.get(class_id)
+            if found is None or found.teacher_id != teacher_id:
+                return False
+            del self._classes[class_id]
+            for key in [k for k in self._members if k[0] == class_id]:
+                del self._members[key]
+            return True
+
+    def join_class(self, class_id: str, user_id: str) -> Membership:
+        with self._lock:
+            existing = self._members.get((class_id, user_id))
+            if existing is not None and existing.state is not MemberState.REMOVED:
+                return existing
+            joined = Membership(class_id=class_id, user_id=user_id)
+            self._members[(class_id, user_id)] = joined
+            return joined
+
+    def membership(self, class_id: str, user_id: str) -> Membership | None:
+        with self._lock:
+            return self._members.get((class_id, user_id))
+
+    def classes_joined(self, user_id: str) -> list[tuple[Classroom, Membership]]:
+        with self._lock:
+            joined = [
+                (self._classes[m.class_id], m)
+                for (_, member), m in self._members.items()
+                if member == user_id and m.state is not MemberState.REMOVED
+            ]
+        return sorted(joined, key=lambda pair: pair[1].joined_at)
+
+    def members(self, class_id: str, teacher_id: str) -> list[Membership]:
+        if self.class_taught(class_id, teacher_id) is None:
+            return []
+        with self._lock:
+            found = [m for (c, _), m in self._members.items() if c == class_id]
+        return sorted(found, key=lambda m: m.joined_at)
+
+    def set_member_state(
+        self, class_id: str, teacher_id: str, user_id: str, state: MemberState
+    ) -> bool:
+        if self.class_taught(class_id, teacher_id) is None:
+            return False
+        with self._lock:
+            found = self._members.get((class_id, user_id))
+            if found is None:
+                return False
+            self._members[(class_id, user_id)] = replace(found, state=state, updated_at=_now())
+            return True
+
+    def leave_class(self, class_id: str, user_id: str) -> bool:
+        with self._lock:
+            return self._members.pop((class_id, user_id), None) is not None
+
+    def set_share_progress(self, class_id: str, user_id: str, share: bool) -> bool:
+        with self._lock:
+            found = self._members.get((class_id, user_id))
+            if found is None or found.state is MemberState.REMOVED:
+                return False
+            now = _now()
+            self._members[(class_id, user_id)] = replace(
+                found, share_progress=share, consented_at=now if share else None, updated_at=now
+            )
+            return True
 
 
 def build_store() -> Store:

@@ -48,7 +48,7 @@ from .preparation import (
 )
 from .queue import build_app, send_prepare, uses_celery
 from .ratelimit import RateLimiter, build_rate_limiter
-from .routes import documents, operations, reading, study
+from .routes import classes, documents, operations, reading, study
 from .routes.common import REAL_MODEL_HEADER
 from .security import (
     OWNER_HEADER,
@@ -175,6 +175,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
     documents.register(app, deps)
     reading.register(app, deps)
     study.register(app, deps)
+    classes.register(app, deps)
 
     return app
 

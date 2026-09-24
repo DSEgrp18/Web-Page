@@ -311,6 +311,27 @@ request must also show it came from this site:
 In `sessions` mode the server will not start without `SINHALA_READER_SECRET`
 of at least 32 bytes. A renewed session renews the cookie with it.
 
+### Classes
+
+A teacher makes a class (`POST /classes`) and gives out its eight-digit code.
+A student asks to join with it (`POST /classes/join`) and waits: the teacher
+approving them (`…/members/{id}/approve`) is what lets them in, since a code
+can be guessed or passed on. `…/remove` takes them out, effective on the next
+request; `POST /classes/{id}/code` replaces a code that has spread too far.
+
+| | |
+| --- | --- |
+| `GET /classes` | The classes this account teaches, and the ones it belongs to. |
+| `POST /classes`, `PATCH`/`DELETE /classes/{id}` | Make, rename, delete. Teachers only. |
+| `GET /classes/{id}` | As its teacher (members by display name and standing) or as a member (name and teacher). Absent to anyone else. |
+| `POST /classes/join` | Ask to join with the code. Limited to 10 an hour per account. |
+| `PUT /classes/{id}/share-progress` | The student's own consent, off by default. |
+| `DELETE /classes/{id}/membership` | Leave. Nothing of the student's stays in the class. |
+
+A teacher sees a student's display name and membership, never their email,
+books, bookmarks or questions. Every read is scoped in the store to the class's
+teacher or the member; anyone else gets 404.
+
 ### Roles, and the admin command line
 
 Every account is a `student`, `teacher` or `admin`, and `GET /auth/me` says

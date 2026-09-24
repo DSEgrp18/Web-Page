@@ -62,6 +62,7 @@ LIMITS: dict[str, Limit] = {
     "register": Limit(5, 60 * 60),
     "recover": Limit(10, 60 * 60),
     "invite": Limit(10, 60 * 60),
+    "join": Limit(10, 60 * 60),
     "question": Limit(60, 60 * 60),
     "upload": Limit(30, 24 * 60 * 60),
 }
