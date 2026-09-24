@@ -232,6 +232,7 @@ should not require a database and a registered user.
 | `POST /auth/login` | A session, and when it expires, with the page's CSRF token. |
 | `POST /auth/logout` | End this session and clear the cookie. Idempotent. |
 | `POST /auth/logout-everywhere` | End every session on every device. |
+| `DELETE /auth/account` | With the password: every book and everything made from it, then the account, its sessions and history. |
 | `GET /auth/me` | Who am I — what a reloaded interface asks. |
 | `POST /auth/password` | Change it, and end **every** session. |
 | `POST /auth/teacher-invite` | Spend a single-use invitation code to become a teacher. Students only. |

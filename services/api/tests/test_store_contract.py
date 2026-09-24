@@ -966,6 +966,55 @@ class TestRoles:
         assert store.set_recovery_hash("usr_nobody", "x") is False
 
 
+class TestDeletingAUser:
+    def test_takes_its_sessions_and_history_with_it(self, store: Store) -> None:
+        user = store.put_user(a_user())
+        store.put_session(
+            Session(
+                token_hash="h1",
+                user_id=user.user_id,
+                created_at="2026-09-01T00:00:00+00:00",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+        )
+        store.record(
+            AuditEvent(
+                event_id=new_id("aud"),
+                kind="role_granted",
+                actor="cli",
+                subject=user.user_id,
+                reason="student->teacher:school-staff",
+            )
+        )
+
+        assert store.delete_user(user.user_id) is True
+
+        assert store.get_user(user.user_id) is None
+        assert store.get_user_by_email(user.email_key) is None
+        assert store.get_session("h1") is None
+        assert store.audit_for(user.user_id) == []
+
+    def test_a_spent_invitation_stays_spent(self, store: Store) -> None:
+        user = store.put_user(a_user())
+        store.put_invite(
+            TeacherInvite(
+                code_hash="c1",
+                created_by="cli",
+                created_at="2026-09-01T00:00:00+00:00",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+        )
+        store.redeem_invite("c1", user.user_id, "2026-09-02T00:00:00+00:00")
+
+        store.delete_user(user.user_id)
+
+        other = store.put_user(a_user("other@example.lk"))
+        assert store.redeem_invite("c1", other.user_id, "2026-09-03T00:00:00+00:00") is False
+
+    def test_a_missing_user_is_nothing_to_delete(self, store: Store) -> None:
+        assert store.delete_user("usr_nobody") is False
+
+
 class TestTeacherInvites:
     NOW = "2026-09-01T00:00:00+00:00"
 

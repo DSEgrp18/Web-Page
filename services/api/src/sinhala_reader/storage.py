@@ -492,6 +492,16 @@ class Store(ABC):
     def get_user_by_email(self, email_key: str) -> User | None: ...
 
     @abstractmethod
+    def delete_user(self, user_id: str) -> bool:
+        """Remove an account, its sessions and its audit history.
+
+        Its books are not removed here: deleting a book removes derived text,
+        audio and caches, and that is :meth:`delete_document`'s job, which the
+        caller does first, book by book. An invitation the account spent stays
+        spent, with no one named as having spent it.
+        """
+
+    @abstractmethod
     def set_role(self, user_id: str, role: Role) -> bool:
         """Change an account's role. The only way a role changes.
 
@@ -811,6 +821,21 @@ class InMemoryStore(Store):
             self._users[user.user_id] = user
             self._users_by_email[user.email_key] = user.user_id
         return user
+
+    def delete_user(self, user_id: str) -> bool:
+        with self._lock:
+            user = self._users.pop(user_id, None)
+            if user is None:
+                return False
+            if self._users_by_email.get(user.email_key) == user_id:
+                del self._users_by_email[user.email_key]
+            for token_hash in [h for h, s in self._sessions.items() if s.user_id == user_id]:
+                del self._sessions[token_hash]
+            self._audit = [e for e in self._audit if e.subject != user_id]
+            for code_hash, invite in list(self._invites.items()):
+                if invite.used_by == user_id:
+                    self._invites[code_hash] = replace(invite, used_by=None)
+            return True
 
     def set_role(self, user_id: str, role: Role) -> bool:
         with self._lock:

@@ -794,6 +794,14 @@ class PostgresStore(Store):
             ).fetchone()
         return _user(row) if row else None
 
+    def delete_user(self, user_id: str) -> bool:
+        """One statement. The cascade removes sessions and audit events."""
+        with self._pool.connection() as connection:
+            deleted = connection.execute(
+                "DELETE FROM users WHERE user_id = %s", (user_id,)
+            ).rowcount
+        return deleted == 1
+
     def set_role(self, user_id: str, role: Role) -> bool:
         with self._pool.connection() as connection:
             changed = connection.execute(
