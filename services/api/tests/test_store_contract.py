@@ -42,6 +42,9 @@ from sinhala_reader.storage import (
     PageDecision,
     Progress,
     Publication,
+    Quiz,
+    QuizAnswer,
+    QuizStatus,
     RightsBasis,
     Role,
     Session,
@@ -1137,6 +1140,65 @@ class TestTeacherResets:
 
         store.delete_user(student.user_id)
         assert store.teacher_reset(student.user_id) is None
+
+
+class TestQuizzes:
+    def _quiz(self, store: Store, creator: str, **kwargs: object) -> Quiz:
+        # A quiz's maker is an account: in Postgres it goes when they do.
+        if store.get_user(creator) is None:
+            store.put_user(a_user(f"{creator}@example.lk", user_id=creator))
+        document = a_document(owner=creator)
+        store.put_document(document)
+        fields: dict[str, object] = {
+            "quiz_id": new_id("quiz"),
+            "document_id": document.document_id,
+            "creator": creator,
+            "version": "v1",
+            "for_class": False,
+            "status": QuizStatus.PUBLISHED,
+            "provenance": "{}",
+            "questions": "[]",
+        }
+        fields.update(kwargs)
+        return store.put_quiz(Quiz(**fields))  # type: ignore[arg-type]
+
+    def test_the_creator_sees_it_and_nobody_else(self, store: Store) -> None:
+        quiz = self._quiz(store, ALICE)
+
+        assert store.quiz_for(quiz.quiz_id, ALICE) == quiz
+        assert store.quiz_for(quiz.quiz_id, BOB) is None
+        assert store.quizzes_for(quiz.document_id, BOB) == []
+
+    def test_only_the_creator_changes_or_deletes_it(self, store: Store) -> None:
+        quiz = self._quiz(store, ALICE, status=QuizStatus.DRAFT)
+
+        assert (
+            store.update_quiz(quiz.quiz_id, BOB, status=QuizStatus.PUBLISHED, questions="[]")
+            is None
+        )
+        updated = store.update_quiz(
+            quiz.quiz_id, ALICE, status=QuizStatus.PUBLISHED, questions="[1]"
+        )
+        assert updated is not None and updated.status == QuizStatus.PUBLISHED
+        assert store.delete_quiz(quiz.quiz_id, BOB) is False
+        assert store.delete_quiz(quiz.quiz_id, ALICE) is True
+        assert store.quiz_for(quiz.quiz_id, ALICE) is None
+
+    def test_an_answer_is_replaced_not_added(self, store: Store) -> None:
+        quiz = self._quiz(store, ALICE)
+        store.put_quiz_answer(QuizAnswer(quiz.quiz_id, ALICE, "q1", 0, False))
+        store.put_quiz_answer(QuizAnswer(quiz.quiz_id, ALICE, "q1", 2, True))
+
+        (answer,) = store.quiz_answers(quiz.quiz_id, ALICE)
+        assert (answer.choice, answer.correct) == (2, True)
+        assert store.quiz_answers(quiz.quiz_id, BOB) == []
+
+    def test_goes_with_its_book(self, store: Store) -> None:
+        quiz = self._quiz(store, ALICE)
+
+        store.delete_document(quiz.document_id, ALICE)
+
+        assert store.quiz_for(quiz.quiz_id, ALICE) is None
 
 
 class TestAudit:
