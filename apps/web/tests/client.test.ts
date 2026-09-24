@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiError, ReaderApi, type FailureKind } from "../src/lib/client";
-import { FakeServer, OWNER, readablePage } from "./fakeApi";
+import { FAKE_CSRF, FakeServer, OWNER, readablePage } from "./fakeApi";
 
 function serverWithBook() {
   return new FakeServer({
@@ -16,22 +16,46 @@ function serverWithBook() {
   });
 }
 
-function apiFor(server: FakeServer, owner = OWNER) {
-  return new ReaderApi(owner, { baseUrl: "http://api.test", fetchImpl: server.fetch });
+/** A client for a browser signed in as OWNER, holding the page's CSRF token. */
+function apiFor(server: FakeServer, csrf: string | null = FAKE_CSRF) {
+  server.signedInAs = OWNER;
+  return new ReaderApi(csrf, { baseUrl: "http://api.test", fetchImpl: server.fetch });
 }
 
-describe("identity", () => {
-  it("sends the reader's identity on every request", async () => {
+describe("the session", () => {
+  it("sends no identity of its own: the cookie is the credential", async () => {
     const server = serverWithBook();
     await apiFor(server).listDocuments();
-    expect(server.calls[0]?.owner).toBe(OWNER);
+    const headers = server.calls[0]!.headers!;
+    expect(headers.get("X-Reader-User")).toBeNull();
+    expect(headers.get("Authorization")).toBeNull();
   });
 
-  it("refuses to make a request at all with no identity", async () => {
+  it("sends the CSRF token on a change, and not on a read", async () => {
     const server = serverWithBook();
-    await expect(apiFor(server, "").listDocuments()).rejects.toMatchObject({ kind: "identity" });
-    // Not "the server said no" — the request never happened.
-    expect(server.calls).toHaveLength(0);
+    const api = apiFor(server);
+
+    await api.listDocuments();
+    await api.renameDocument("doc-1", "නව නම");
+
+    expect(server.calls[0]!.headers!.get("X-CSRF-Token")).toBeNull();
+    expect(server.callsTo("PATCH", /doc-1/)[0]!.headers!.get("X-CSRF-Token")).toBe(FAKE_CSRF);
+  });
+
+  it("asks for the session's cookie to be sent, and only to this site", async () => {
+    const fetchImpl = vi.fn(async () => Response.json([])) as unknown as typeof fetch;
+    await new ReaderApi(FAKE_CSRF, { fetchImpl }).listDocuments();
+
+    const [url, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(url).toBe("/api/documents");
+    expect((init as RequestInit).credentials).toBe("same-origin");
+  });
+
+  it("names a refused change as a stale page, not as signed out", async () => {
+    const server = serverWithBook();
+    await expect(apiFor(server, "wrong-token").renameDocument("doc-1", "x")).rejects.toMatchObject({
+      kind: "forbidden",
+    });
   });
 });
 
@@ -41,7 +65,10 @@ describe("failures", () => {
     [409, "not_ready"],
     [422, "unspeakable"],
     [413, "rejected"],
-    [503, "identity"],
+    [401, "signed_out"],
+    [403, "forbidden"],
+    [429, "throttled"],
+    [503, "server"],
     [500, "server"],
   ];
 
@@ -50,7 +77,7 @@ describe("failures", () => {
       const fetchImpl = vi.fn(
         async () => new Response(JSON.stringify({ detail: "no" }), { status }),
       ) as unknown as typeof fetch;
-      const api = new ReaderApi(OWNER, { baseUrl: "http://api.test", fetchImpl });
+      const api = new ReaderApi(FAKE_CSRF, { baseUrl: "http://api.test", fetchImpl });
       await expect(api.listDocuments()).rejects.toMatchObject({ kind });
     });
   }
@@ -59,7 +86,7 @@ describe("failures", () => {
     const fetchImpl = vi.fn(async () => {
       throw new TypeError("Failed to fetch");
     }) as unknown as typeof fetch;
-    const api = new ReaderApi(OWNER, { baseUrl: "http://api.test", fetchImpl });
+    const api = new ReaderApi(FAKE_CSRF, { baseUrl: "http://api.test", fetchImpl });
     const error = await api.listDocuments().catch((cause) => cause);
     expect(error).toBeInstanceOf(ApiError);
     expect(error.kind).toBe("offline");
@@ -97,7 +124,7 @@ describe("audio", () => {
     const fetchImpl = vi.fn(
       async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
     ) as unknown as typeof fetch;
-    const api = new ReaderApi(OWNER, { baseUrl: "http://api.test", fetchImpl });
+    const api = new ReaderApi(FAKE_CSRF, { baseUrl: "http://api.test", fetchImpl });
     expect((await api.getAudio("doc-1", "0000-s0")).realModel).toBe(false);
   });
 });
@@ -145,5 +172,21 @@ describe("bookmarks", () => {
     expect(await api.listBookmarks("doc-1")).toHaveLength(1);
     await api.deleteBookmark("doc-1", bookmark.bookmark_id);
     expect(await api.listBookmarks("doc-1")).toEqual([]);
+  });
+});
+
+describe("being told to wait", () => {
+  it("carries Retry-After, so the reader can be told how long", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ detail: "Too many attempts." }), {
+          status: 429,
+          headers: { "retry-after": "90" },
+        }),
+    ) as unknown as typeof fetch;
+
+    const error = await new ReaderApi(FAKE_CSRF, { fetchImpl }).listDocuments().catch((e) => e);
+
+    expect(error).toMatchObject({ kind: "throttled", retryAfter: 90 });
   });
 });

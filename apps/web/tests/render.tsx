@@ -17,13 +17,14 @@ import { OWNER } from "./fakeApi";
  * forever.
  */
 export function renderApp(ui: ReactElement, server: FakeServer, owner: string = OWNER) {
+  // Signed in as `owner`, as a browser holding that reader's cookie is. An
+  // empty string starts signed out.
+  server.signedInAs = owner || null;
   const clientOptions = { baseUrl: "http://api.test", fetchImpl: server.fetch };
   return render(
     <PreferencesProvider>
       <AnnouncerProvider>
-        <ReaderProvider ownerOverride={owner} clientOptions={clientOptions}>
-          {ui}
-        </ReaderProvider>
+        <ReaderProvider clientOptions={clientOptions}>{ui}</ReaderProvider>
       </AnnouncerProvider>
     </PreferencesProvider>,
   );

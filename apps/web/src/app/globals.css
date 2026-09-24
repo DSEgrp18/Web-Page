@@ -647,7 +647,7 @@ textarea {
 }
 
 /* ==========================================================================
-   8. Masthead extras: identity and settings
+   8. Masthead extras: account and settings
    ========================================================================== */
 
 .shell-actions {
@@ -663,14 +663,14 @@ textarea {
   margin-inline-start: 0;
 }
 
-.identity-badge {
+.account-badge {
   display: flex;
   align-items: center;
   gap: var(--s2);
   font-size: var(--text-sm);
 }
 
-.identity-name {
+.account-name {
   font-weight: 600;
   padding: var(--s1) var(--s3);
   background: var(--green-wash);
@@ -842,7 +842,7 @@ textarea {
    9. Sign-in
    ========================================================================== */
 
-.identity-screen {
+.account-screen {
   display: grid;
   gap: var(--s6);
   justify-items: center;
@@ -850,12 +850,12 @@ textarea {
   padding-block: var(--s6);
 }
 
-.identity-art {
+.account-art {
   width: min(22rem, 70vw);
   height: auto;
 }
 
-.identity-form {
+.account-form {
   width: min(28rem, 100%);
   padding: var(--s6);
   display: grid;
@@ -870,6 +870,38 @@ textarea {
 
 .field .hint {
   margin-top: var(--s1);
+}
+
+.account-fields {
+  display: grid;
+  gap: var(--s4);
+}
+
+/* A checkbox and its label, as one target at least --tap tall. */
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--tap);
+}
+
+.check-row input {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin: 0;
+}
+
+/* Large, and spaced, so it can be read aloud or copied by eye without error. */
+.recovery-code {
+  font-size: var(--text-2xl);
+  letter-spacing: 0.08em;
+  word-spacing: 0.3em;
+  text-align: center;
+  padding: var(--s4);
+  border-radius: var(--r);
+  background: var(--panel-sunken);
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 /* ==========================================================================
@@ -2173,7 +2205,7 @@ textarea {
     text-align: center;
   }
 
-  .identity-name {
+  .account-name {
     max-inline-size: 6rem;
   }
 
@@ -2295,13 +2327,13 @@ h4 {
   gap: 0.45rem;
 }
 
-.identity-badge {
+.account-badge {
   gap: 0.15rem;
   padding-inline-start: 0.3rem;
   border-inline-start: 1px solid var(--hair);
 }
 
-.identity-name {
+.account-name {
   background: transparent;
   color: var(--ink-muted);
   font-family: var(--font-latin);
@@ -2664,7 +2696,7 @@ h4 {
   }
 
   .brand-latin,
-  .identity-name {
+  .account-name {
     display: none;
   }
 

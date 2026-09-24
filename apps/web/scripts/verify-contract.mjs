@@ -45,6 +45,8 @@ const MAPPING = {
   BookmarkDetail: "Bookmark",
   StudyCitation: "StudyCitation",
   StudyAnswer: "StudyAnswer",
+  Account: "Account",
+  SignedIn: "SignedIn",
 };
 
 /**

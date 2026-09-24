@@ -27,7 +27,7 @@
 
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 
-import { API_BASE, OWNER_HEADER } from "./client";
+import { API_BASE } from "./client";
 
 type PdfModule = typeof import("pdfjs-dist");
 
@@ -59,18 +59,17 @@ export function documentFileUrl(documentId: string): string {
  */
 export async function openDocument(
   documentId: string,
-  owner: string,
 ): Promise<{ pdf: PDFDocumentProxy; cancel: () => void }> {
   const pdfjs = await loadPdfLibrary();
   const task = pdfjs.getDocument({
     url: documentFileUrl(documentId),
-    httpHeaders: { [OWNER_HEADER]: owner },
     // A PDF may reference Helvetica or Times without embedding them, and then
     // pdf.js needs its own substitutes. Without this it throws and the page
     // comes out blank — which a blind reader has no way to notice.
     standardFontDataUrl: "/pdf-standard-fonts/",
-    // Identity is a header, not a cookie. Sending credentials would be a
-    // different security model than the API is written for.
+    // Same origin, so the session cookie goes with every range request
+    // without this; `true` would only matter for another origin, and there is
+    // none.
     withCredentials: false,
   });
   const pdf = await task.promise;

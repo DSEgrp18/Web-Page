@@ -23,6 +23,19 @@ import type {
 
 export const OWNER = "reader-one";
 
+/** The CSRF token the fake hands out, and requires on every change. */
+export const FAKE_CSRF = "csrf-for-tests";
+
+const UNSAFE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/** What the fake's accounts look like: an address and a password per reader. */
+interface FakeAccount {
+  user_id: string;
+  email: string;
+  password: string;
+  display_name: string;
+}
+
 export interface FakeBook {
   document_id: string;
   filename: string;
@@ -67,8 +80,10 @@ export interface FakeServerOptions {
 export interface RecordedCall {
   method: string;
   path: string;
+  /** Who the session belonged to when the call was made; null when signed out. */
   owner: string | null;
   body?: unknown;
+  headers?: Headers;
 }
 
 /** Sixteen bytes of silent 8 kHz mono WAV — enough to be a real audio blob. */
@@ -137,6 +152,15 @@ export class FakeServer {
   studyAnswer?: StudyAnswer;
   private pollsLeft: number;
   private counter = 0;
+  /**
+   * Who the browser's cookie belongs to, or null when there is no cookie.
+   * `renderApp` sets it to sign a test in; the account routes set and clear
+   * it as the real API's cookie would be.
+   */
+  signedInAs: string | null = null;
+  readonly accounts: FakeAccount[] = [];
+  /** Set to make every account request answer 429, as the rate limiter would. */
+  throttleAccounts = false;
 
   constructor(options: FakeServerOptions = {}) {
     this.books = options.books ?? [];
@@ -161,11 +185,17 @@ export class FakeServer {
     const path = url.replace(/^https?:\/\/[^/]+/, "");
     const method = (init.method ?? "GET").toUpperCase();
     const headers = new Headers(init.headers);
-    const owner = headers.get("X-Reader-User");
-    this.calls.push({ method, path, owner, body: init.body });
+    const owner = this.signedInAs;
+    this.calls.push({ method, path, owner, body: init.body, headers });
 
-    // The real API refuses to answer anything without an identity.
-    if (!owner) return this.json({ detail: "unauthenticated" }, 503);
+    if (path.startsWith("/auth/")) return this.account(method, path, init, headers);
+
+    // As the real API: no session, no answer; a change without this page's
+    // CSRF token is refused.
+    if (!owner) return this.json({ detail: "Sign in to continue." }, 401);
+    if (UNSAFE.has(method) && headers.get("X-CSRF-Token") !== FAKE_CSRF) {
+      return this.json({ detail: "This page is out of date." }, 403);
+    }
 
     if (method === "GET" && path === "/documents") return this.listDocuments();
     if (method === "POST" && path === "/documents") return this.upload(init);
@@ -298,6 +328,83 @@ export class FakeServer {
       return summary;
     });
     return this.json(listed);
+  }
+
+  /** The `/auth` routes, as far as the interface uses them. */
+  private account(method: string, path: string, init: RequestInit, headers: Headers): Response {
+    if (this.throttleAccounts && path !== "/auth/me") {
+      return new Response(JSON.stringify({ detail: "Too many attempts." }), {
+        status: 429,
+        headers: { "content-type": "application/json", "retry-after": "60" },
+      });
+    }
+    const body = init.body ? (JSON.parse(String(init.body)) as Record<string, string>) : {};
+    const accountFor = (id: string) => {
+      const found = this.accounts.find((a) => a.user_id === id);
+      return {
+        user_id: id,
+        email: found?.email ?? `${id}@example.lk`,
+        display_name: found?.display_name ?? id,
+        role: "student",
+        has_recovery_code: true,
+        created_at: "2026-09-01T00:00:00Z",
+      };
+    };
+    const signedIn = (id: string, recovery: string | null = null, status = 200) => {
+      this.signedInAs = id;
+      return this.json(
+        {
+          token: null,
+          expires_at: "2026-10-01T00:00:00Z",
+          account: accountFor(id),
+          csrf_token: FAKE_CSRF,
+          recovery_code: recovery,
+        },
+        status,
+      );
+    };
+
+    if (method === "GET" && path === "/auth/me") {
+      if (!this.signedInAs) return this.json({ detail: "Sign in to continue." }, 401);
+      return this.json({ ...accountFor(this.signedInAs), csrf_token: FAKE_CSRF });
+    }
+    if (method === "POST" && path === "/auth/login") {
+      const found = this.accounts.find(
+        (a) => a.email.toLowerCase() === body.email?.toLowerCase() && a.password === body.password,
+      );
+      return found ? signedIn(found.user_id) : this.json({ detail: "Sign in to continue." }, 401);
+    }
+    if (method === "POST" && path === "/auth/register") {
+      if (this.accounts.some((a) => a.email.toLowerCase() === body.email?.toLowerCase())) {
+        return this.json({ detail: "That email address already has an account." }, 409);
+      }
+      if ((body.password ?? "").length < 10) return this.json({ detail: "Too short." }, 422);
+      const account = {
+        user_id: `usr-${this.accounts.length + 1}`,
+        email: body.email ?? "",
+        password: body.password ?? "",
+        display_name: body.display_name ?? "",
+      };
+      this.accounts.push(account);
+      return signedIn(account.user_id, "ABCD-EFGH-JKMN-PQRS", 201);
+    }
+    if (method === "POST" && path === "/auth/recover") {
+      const found = this.accounts.find((a) => a.email.toLowerCase() === body.email?.toLowerCase());
+      if (
+        !found ||
+        body.recovery_code?.replace(/[\s-]/g, "").toUpperCase() !== "ABCDEFGHJKMNPQRS"
+      ) {
+        return this.json({ detail: "That email address and recovery code do not match." }, 401);
+      }
+      found.password = body.new_password ?? "";
+      return signedIn(found.user_id, "TUVW-XYZ2-3456-789A");
+    }
+    if (method === "POST" && path === "/auth/logout") {
+      if (headers.get("X-CSRF-Token") !== FAKE_CSRF) return this.json({ detail: "stale" }, 403);
+      this.signedInAs = null;
+      return new Response(null, { status: 204 });
+    }
+    return this.notFound();
   }
 
   /** As the API: a new job, queued, and only when the last one may be retried. */

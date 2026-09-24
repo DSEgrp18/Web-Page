@@ -32,7 +32,7 @@ const COVER_WIDTH = 320;
  * screen reader announcing "image" before every title is noise.
  */
 export function BookCover({ documentId, ready }: { documentId: string; ready: boolean }) {
-  const { owner } = useReader();
+  const { signedIn } = useReader();
   const holder = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [progress, setProgress] = useState<"waiting" | "drawing" | "drawn" | "failed">("waiting");
@@ -43,11 +43,11 @@ export function BookCover({ documentId, ready }: { documentId: string; ready: bo
    * discover in an effect and write back into state — which would be a second
    * render on every card, every time the library polls.
    */
-  const state = !ready || !owner || progress === "failed" ? "unavailable" : progress;
+  const state = !ready || !signedIn || progress === "failed" ? "unavailable" : progress;
 
   useEffect(() => {
     // Nothing to draw from until preparation has produced a document.
-    if (!ready || !owner) return;
+    if (!ready || !signedIn) return;
     const element = holder.current;
     if (!element) return;
 
@@ -57,7 +57,7 @@ export function BookCover({ documentId, ready }: { documentId: string; ready: bo
     const draw = async () => {
       setProgress("drawing");
       try {
-        const { pdf, cancel } = await openDocument(documentId, owner);
+        const { pdf, cancel } = await openDocument(documentId);
         close = () => {
           cancel();
           void pdf.destroy();
@@ -94,7 +94,7 @@ export function BookCover({ documentId, ready }: { documentId: string; ready: bo
       observer.disconnect();
       close?.();
     };
-  }, [documentId, owner, ready]);
+  }, [documentId, signedIn, ready]);
 
   return (
     <div className="book-cover" ref={holder} data-state={state}>

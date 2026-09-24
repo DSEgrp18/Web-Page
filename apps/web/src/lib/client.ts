@@ -3,10 +3,16 @@
  *
  * Two decisions worth knowing about:
  *
- * **Audio is fetched, not pointed at.** An `<audio src>` attribute cannot carry
- * the identity header, and it cannot read `X-Reader-Real-Model`. So audio comes
- * back through `fetch` as a blob, and the "is this actually speech" answer
- * travels with it instead of being looked up separately and possibly forgotten.
+ * **It talks only to this site.** Every request goes to `/api/...`, which the
+ * web server passes on to the API (`lib/passThrough.ts`). The session is an
+ * httpOnly cookie the browser sends by itself and no script can read; what the
+ * client adds is the CSRF token, on every change, which it is handed at sign-in
+ * and by `/auth/me` and never stores.
+ *
+ * **Audio is fetched, not pointed at.** An `<audio src>` cannot read
+ * `X-Reader-Real-Model`, so audio comes back through `fetch` as a blob, and the
+ * "is this actually speech" answer travels with it instead of being looked up
+ * separately and possibly forgotten.
  *
  * **Failures become a small set of named kinds.** The interface has to say
  * something out loud for each one, in Sinhala, and it must never guess: the API
@@ -15,6 +21,7 @@
  */
 
 import type {
+  Account,
   AudioClip,
   AudioManifest,
   Bookmark,
@@ -26,12 +33,15 @@ import type {
   Progress,
   Readiness,
   Segment,
+  SignedIn,
   StudyAnswer,
 } from "./types";
 
 export type FailureKind =
   | "offline" // the request never reached a server
-  | "identity" // no reader identity, or the server refuses to authenticate
+  | "signed_out" // no session, or it has ended: sign in again
+  | "forbidden" // the page's CSRF token is out of date: reload
+  | "throttled" // too many attempts: wait, then try again
   | "not_found" // no such document, page, or segment — for this reader
   | "not_ready" // the document is still being prepared
   | "rejected" // the upload itself was refused
@@ -41,17 +51,27 @@ export type FailureKind =
 export class ApiError extends Error {
   readonly kind: FailureKind;
   readonly status: number;
+  /** For `throttled`: seconds until trying again is allowed, when the server said. */
+  readonly retryAfter: number | null;
 
-  constructor(kind: FailureKind, status: number, message: string) {
+  constructor(
+    kind: FailureKind,
+    status: number,
+    message: string,
+    retryAfter: number | null = null,
+  ) {
     super(message);
     this.name = "ApiError";
     this.kind = kind;
     this.status = status;
+    this.retryAfter = retryAfter;
   }
 }
 
 function kindFor(status: number): FailureKind {
-  if (status === 401 || status === 403 || status === 503) return "identity";
+  if (status === 401) return "signed_out";
+  if (status === 403) return "forbidden";
+  if (status === 429) return "throttled";
   if (status === 404) return "not_found";
   if (status === 409) return "not_ready";
   if (status === 422) return "unspeakable";
@@ -59,53 +79,137 @@ function kindFor(status: number): FailureKind {
   return "server";
 }
 
-/**
- * Where the API lives. Public because the browser needs it; it is an address,
- * not a secret. Secrets never enter a browser bundle.
- */
-export const API_BASE = (process.env.NEXT_PUBLIC_READER_API ?? "http://127.0.0.1:8000").replace(
-  /\/+$/,
-  "",
-);
+/** Where the API is, as this site serves it: the same-origin pass-through. */
+export const API_BASE = "/api";
 
-export const OWNER_HEADER = "X-Reader-User";
+export const CSRF_HEADER = "X-CSRF-Token";
 export const REAL_MODEL_HEADER = "X-Reader-Real-Model";
+
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export interface ClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
 }
 
-export class ReaderApi {
-  private readonly baseUrl: string;
-  private readonly doFetch: typeof fetch;
-  private readonly owner: string;
+/** One request to the API, with failures turned into named kinds. */
+async function send(
+  options: ClientOptions,
+  csrf: string | null,
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const base = (options.baseUrl ?? API_BASE).replace(/\/+$/, "");
+  const doFetch = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  const headers = new Headers(init.headers);
+  const method = (init.method ?? "GET").toUpperCase();
+  if (csrf && UNSAFE_METHODS.has(method)) headers.set(CSRF_HEADER, csrf);
 
-  constructor(owner: string, options: ClientOptions = {}) {
-    this.owner = owner;
-    this.baseUrl = (options.baseUrl ?? API_BASE).replace(/\/+$/, "");
-    this.doFetch = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  let response: Response;
+  try {
+    // Same origin, so the browser sends the session cookie by itself.
+    response = await doFetch(`${base}${path}`, { ...init, headers, credentials: "same-origin" });
+  } catch (cause) {
+    throw new ApiError("offline", 0, String(cause));
+  }
+  if (!response.ok) {
+    const retryAfter = Number(response.headers.get("retry-after"));
+    throw new ApiError(
+      kindFor(response.status),
+      response.status,
+      await detailOf(response),
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
+    );
+  }
+  return response;
+}
+
+/**
+ * The account routes. Separate from `ReaderApi` because they run before there
+ * is a session, and so before there is a CSRF token to send.
+ */
+export class AuthApi {
+  constructor(private readonly options: ClientOptions = {}) {}
+
+  private async json<T>(path: string, init?: RequestInit, csrf: string | null = null): Promise<T> {
+    return (await send(this.options, csrf, path, init)).json() as Promise<T>;
   }
 
-  private async request(path: string, init: RequestInit = {}): Promise<Response> {
-    if (!this.owner) {
-      throw new ApiError("identity", 0, "No reader identity is set.");
-    }
-    const headers = new Headers(init.headers);
-    headers.set(OWNER_HEADER, this.owner);
+  private post<T>(path: string, body: unknown, csrf: string | null = null): Promise<T> {
+    return this.json<T>(
+      path,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      csrf,
+    );
+  }
 
-    let response: Response;
+  /** Who is signed in, and the page's CSRF token; null when nobody is. */
+  async me(): Promise<{ account: Account; csrf: string } | null> {
     try {
-      response = await this.doFetch(`${this.baseUrl}${path}`, { ...init, headers });
-    } catch (cause) {
-      // A network failure and a CORS refusal are indistinguishable here by
-      // design of the platform, so the message says what the reader can act on.
-      throw new ApiError("offline", 0, String(cause));
+      const { csrf_token, ...account } = await this.json<Account & { csrf_token: string | null }>(
+        "/auth/me",
+      );
+      return { account, csrf: csrf_token ?? "" };
+    } catch (error) {
+      if (error instanceof ApiError && error.kind === "signed_out") return null;
+      throw error;
     }
-    if (!response.ok) {
-      throw new ApiError(kindFor(response.status), response.status, await detailOf(response));
-    }
-    return response;
+  }
+
+  signIn(email: string, password: string): Promise<SignedIn> {
+    return this.post<SignedIn>("/auth/login", { email, password });
+  }
+
+  register(email: string, password: string, displayName: string): Promise<SignedIn> {
+    return this.post<SignedIn>("/auth/register", {
+      email,
+      password,
+      display_name: displayName,
+    });
+  }
+
+  recover(email: string, recoveryCode: string, newPassword: string): Promise<SignedIn> {
+    return this.post<SignedIn>("/auth/recover", {
+      email,
+      recovery_code: recoveryCode,
+      new_password: newPassword,
+    });
+  }
+
+  async signOut(csrf: string): Promise<void> {
+    await send(this.options, csrf, "/auth/logout", { method: "POST" });
+  }
+}
+
+export class ReaderApi {
+  private readonly options: ClientOptions;
+  private csrf: string | null;
+
+  /** `csrf` is the page's token, sent on every change; null before sign-in. */
+  constructor(csrf: string | null, options: ClientOptions = {}) {
+    this.csrf = csrf;
+    this.options = options;
+  }
+
+  /**
+   * The token for the session that has just begun or ended. Set on the same
+   * client rather than by making a new one, so nothing that depends on the
+   * client fetches again because a token arrived.
+   */
+  setCsrf(csrf: string | null): void {
+    this.csrf = csrf;
+  }
+
+  get csrfToken(): string | null {
+    return this.csrf;
+  }
+
+  private request(path: string, init: RequestInit = {}): Promise<Response> {
+    return send(this.options, this.csrf, path, init);
   }
 
   private async json<T>(path: string, init?: RequestInit): Promise<T> {
@@ -155,10 +259,8 @@ export class ReaderApi {
   /**
    * The uploaded PDF itself, as a blob URL the caller owns.
    *
-   * Fetched rather than pointed at, for the same reason as audio: a `<embed
-   * src>` cannot carry the identity header, so the request has to go through
-   * `fetch`. The caller must call `URL.revokeObjectURL` when it is finished, or
-   * the whole PDF stays in memory for the life of the tab.
+   * The caller must call `URL.revokeObjectURL` when it is finished, or the
+   * whole PDF stays in memory for the life of the tab.
    */
   async getDocumentFile(id: string, signal?: AbortSignal): Promise<Blob> {
     const response = await this.request(`/documents/${encodeURIComponent(id)}/file`, { signal });

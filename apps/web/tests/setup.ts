@@ -25,6 +25,22 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...rest }, children),
 }));
 
+// `next/navigation` needs an App Router too. The path is where the test put
+// the window; navigations are recorded rather than performed, so a test can
+// check where a screen sent the reader.
+export const navigations: string[] = [];
+vi.mock("next/navigation", () => ({
+  usePathname: () => window.location.pathname,
+  useSearchParams: () => new URLSearchParams(window.location.search),
+  useRouter: () => ({
+    push: (href: string) => navigations.push(href),
+    replace: (href: string) => navigations.push(href),
+    back: () => navigations.push("back"),
+    refresh: () => {},
+    prefetch: () => Promise.resolve(),
+  }),
+}));
+
 // `next/font/google` needs the Next runtime; tests only need the CSS variables.
 vi.mock("next/font/google", () => {
   const face = (variable: string) => () => ({ className: "", variable, style: {} });
@@ -190,6 +206,8 @@ afterEach(() => {
   scrollIntoViewCalls.length = 0;
   currentTime = 0;
   window.localStorage.clear();
+  navigations.length = 0;
+  window.history.replaceState(null, "", "/");
   // The preferences module caches its snapshot for the life of the module,
   // which outlives every test. Clearing storage alone would leave the next
   // test reading what this one saved.

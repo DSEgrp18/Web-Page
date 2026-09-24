@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { apiUrl, mockApi } = require("./session.cjs");
 const { default: AxeBuilder } = require("@axe-core/playwright");
 
 /**
@@ -55,14 +56,13 @@ const BOOKMARK = {
 
 /** A signed-in reader with one prepared book, and nothing else on the API. */
 async function withOneBook(page) {
-  await page.addInitScript(() => localStorage.setItem("sinhala-reader.identity", "browser-tester"));
-  await page.route("http://127.0.0.1:8000/**", async (route) => {
+  await mockApi(page, async (route) => {
     const request = route.request();
     if (request.method() === "OPTIONS") {
       await route.fulfill({ status: 204, headers: HEADERS });
       return;
     }
-    const { pathname } = new URL(request.url());
+    const { pathname } = apiUrl(request);
     const body = {
       "/documents": [BOOK],
       "/documents/doc-1": BOOK,
@@ -176,6 +176,16 @@ const SCREENS = [
     overlay: ".assistant",
   },
   { name: "bookmarks", path: "/bookmarks", ready: (page) => page.getByText("පාඩම") },
+  {
+    name: "signing in",
+    path: "/sign-in",
+    ready: (page) => page.getByRole("heading", { name: "ඇතුළු වන්න" }),
+  },
+  {
+    name: "making an account",
+    path: "/register",
+    ready: (page) => page.getByRole("heading", { name: "ගිණුමක් සාදන්න" }),
+  },
 ];
 
 for (const scheme of ["light", "dark"]) {

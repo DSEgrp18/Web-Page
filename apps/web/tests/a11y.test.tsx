@@ -84,7 +84,7 @@ describe("the document language", () => {
 });
 
 describe("no automatically detectable violations", () => {
-  it("on the identity step", async () => {
+  it("when signed out", async () => {
     const { container } = renderApp(
       <AppFrame>
         <Library />
@@ -92,7 +92,7 @@ describe("no automatically detectable violations", () => {
       new FakeServer(),
       "",
     );
-    await screen.findByRole("heading", { name: strings.identityHeading });
+    await screen.findByRole("heading", { name: strings.signedOutHeading });
     expect(await violationsIn(container)).toEqual([]);
   });
 
