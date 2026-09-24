@@ -15,7 +15,6 @@ from ..queue import QUEUE_ENV, REDIS_URL_ENV, queue_mode, uses_celery
 from ..recognition import ocr_limitations, ocr_mode
 from ..security import (
     AUTH_MODE_ENV,
-    ORIGINS_ENV,
     allowed_origins,
     auth_mode,
     is_development_auth,
@@ -104,12 +103,10 @@ def register(app: FastAPI, deps: Deps) -> None:
                 f"No authentication is configured, so every request is refused. "
                 f"Set {AUTH_MODE_ENV} to one of: sessions, development."
             )
-        if not origins:
-            limitations.append(
-                "No browser origin is allowed, so the reader interface cannot reach this "
-                f"server. Set {ORIGINS_ENV} to the address it is served from."
-            )
-        elif "*" in origins:
+        # No origins is the normal case now: the web app reaches this API through
+        # its own /api pass-through, so no browser calls it cross-origin. Only a
+        # wildcard is worth a warning.
+        if "*" in origins:
             limitations.append(
                 "Any website may call this API from a browser. With header identity that "
                 "means any page can read any reader's documents."

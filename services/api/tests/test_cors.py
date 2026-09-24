@@ -94,10 +94,15 @@ def test_the_identity_header_is_allowed_through_preflight(
     assert "x-reader-user" in allowed
 
 
-def test_readiness_says_when_no_browser_can_reach_it(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_no_origins_is_normal_and_not_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The web app reaches the API through its own /api pass-through, not CORS.
+
+    So an unset origin list is the correct configuration, and reporting it as
+    the interface being unable to reach the server would be a false alarm.
+    """
     client = app_with_origins(monkeypatch, None)
     limitations = client.get("/readiness").json()["limitations"]
-    assert any(ORIGINS_ENV in note for note in limitations)
+    assert not any(ORIGINS_ENV in note for note in limitations)
 
 
 def test_readiness_says_when_any_website_can(monkeypatch: pytest.MonkeyPatch) -> None:
