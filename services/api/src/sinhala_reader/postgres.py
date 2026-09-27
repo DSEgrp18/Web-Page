@@ -57,12 +57,14 @@ from .storage import (
     Membership,
     MemberState,
     PageDecision,
+    ProblemReport,
     Progress,
     Publication,
     Quiz,
     QuizAnswer,
     QuizStatus,
     Reading,
+    ReportKind,
     RightsBasis,
     Role,
     Session,
@@ -462,6 +464,26 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             updated_at  text NOT NULL,
             PRIMARY KEY (document_id, user_id)
         );
+        """,
+    ),
+    (
+        "0015_reports",
+        """
+        -- Problems readers report. Without a book, a report is about the site
+        -- and only an operator reads it. Deleted with the book and the reporter.
+        CREATE TABLE problem_reports (
+            report_id   text PRIMARY KEY,
+            reporter    text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+            kind        text NOT NULL CHECK (kind IN
+                ('pronunciation', 'extraction', 'question', 'accessibility', 'other')),
+            message     text NOT NULL,
+            document_id text REFERENCES documents (document_id) ON DELETE CASCADE,
+            segment_id  text,
+            quiz_id     text,
+            question_id text,
+            created_at  text NOT NULL
+        );
+        CREATE INDEX problem_reports_by_document ON problem_reports (document_id);
         """,
     ),
 )
@@ -1106,6 +1128,40 @@ class PostgresStore(Store):
                 (quiz_id, user_id),
             ).fetchall()
         return [QuizAnswer(**row) for row in rows]
+
+    def put_report(self, report: ProblemReport) -> ProblemReport:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO problem_reports (report_id, reporter, kind, message, document_id,
+                                             segment_id, quiz_id, question_id, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    report.report_id,
+                    report.reporter,
+                    str(report.kind),
+                    report.message,
+                    report.document_id,
+                    report.segment_id,
+                    report.quiz_id,
+                    report.question_id,
+                    report.created_at,
+                ),
+            )
+        return report
+
+    def reports_on(self, document_id: str, owner: str) -> list[ProblemReport]:
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT r.* FROM problem_reports r JOIN documents d USING (document_id)
+                 WHERE r.document_id = %s AND d.owner = %s
+                 ORDER BY r.created_at DESC, r.report_id DESC
+                """,
+                (document_id, owner),
+            ).fetchall()
+        return [ProblemReport(**{**row, "kind": ReportKind(row["kind"])}) for row in rows]
 
     def put_heard(self, heard: Heard) -> Heard:
         with self._pool.connection() as connection:
