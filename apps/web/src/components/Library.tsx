@@ -72,6 +72,7 @@ export function Library() {
   const [deleting, setDeleting] = useState<DocumentSummary | null>(null);
 
   const addButton = useRef<HTMLButtonElement>(null);
+  const searchField = useRef<HTMLInputElement>(null);
   const cardTrigger = useRef<HTMLElement | null>(null);
   const restoreAddFocus = useRef(false);
   const searchId = useId();
@@ -149,6 +150,10 @@ export function Library() {
       await api.deleteDocument(book.document_id);
       say(strings.deleted);
       await refresh();
+      // The delete button went with its book. "Add a book" is on screen
+      // whether or not any books are left, so focus waits there rather than
+      // falling to the top of the page.
+      addButton.current?.focus();
     } catch (cause) {
       fail(cause);
     }
@@ -182,6 +187,9 @@ export function Library() {
         await api.renameDocument(book.document_id, title);
         say(strings.renamed);
         await refresh();
+        // A new name can move the book when the shelf is sorted by title,
+        // and moving the element that has focus drops it. Put it back.
+        if (cardTrigger.current?.isConnected) cardTrigger.current.focus();
       } catch (cause) {
         fail(cause);
       }
@@ -255,6 +263,7 @@ export function Library() {
                 </label>
                 <SearchIcon />
                 <input
+                  ref={searchField}
                   id={searchId}
                   type="search"
                   value={query}
@@ -305,7 +314,16 @@ export function Library() {
                 <div className="empty-note">
                   <h3>{strings.noResultsHeading}</h3>
                   <p>{strings.noResultsBody(query.trim())}</p>
-                  <button className="btn" type="button" onClick={() => setQuery("")}>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => {
+                      // This button disappears with the query it clears; the
+                      // search field is where the reader goes next.
+                      setQuery("");
+                      searchField.current?.focus();
+                    }}
+                  >
                     {strings.clearSearch}
                   </button>
                 </div>

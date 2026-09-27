@@ -87,6 +87,19 @@ describe("the shelf", () => {
     await screen.findByRole("heading", { name: "ඉතිහාසය.pdf" });
   });
 
+  it("puts focus back in the search field once the search is cleared", async () => {
+    // The clear button goes with the query it clears. Focus used to go with
+    // it, to <body>, and a keyboard reader started again from the top.
+    const user = userEvent.setup();
+    renderApp(<Library />, new FakeServer({ books: [book()] }));
+    const search = await screen.findByRole("searchbox", { name: strings.searchLibrary });
+
+    await user.type(search, "zzzz");
+    await user.click(await screen.findByRole("button", { name: strings.clearSearch }));
+
+    await waitFor(() => expect(document.activeElement).toBe(search));
+  });
+
   it("filters to what is still being prepared", async () => {
     const user = userEvent.setup();
     renderApp(
@@ -439,6 +452,34 @@ describe("naming a book", () => {
     await screen.findByRole("heading", { name: "ඉතිහාසය 11" });
     await waitFor(() => expect(politeText()).toContain(strings.renamed));
   });
+
+  it("gives focus back to the book's rename button after saving", async () => {
+    // The dialog used to focus the button while it was still modal, when
+    // everything outside it is inert, so focus fell to <body> as it closed.
+    const user = userEvent.setup();
+    renderApp(<Library />, new FakeServer({ books: [book()] }));
+
+    await user.click(await screen.findByRole("button", { name: /නම වෙනස්.*ඉතිහාසය/ }));
+    const field = await screen.findByLabelText(strings.renameLabel);
+    await user.clear(field);
+    await user.type(field, "ඉතිහාසය 11");
+    await user.click(screen.getByRole("button", { name: strings.renameSave }));
+
+    const again = await screen.findByRole("button", { name: /නම වෙනස්.*ඉතිහාසය 11/ });
+    await waitFor(() => expect(document.activeElement).toBe(again));
+  });
+
+  it("gives focus back to the book's rename button after cancelling", async () => {
+    const user = userEvent.setup();
+    renderApp(<Library />, new FakeServer({ books: [book()] }));
+
+    const rename = await screen.findByRole("button", { name: /නම වෙනස්.*ඉතිහාසය/ });
+    await user.click(rename);
+    await screen.findByLabelText(strings.renameLabel);
+    await user.click(screen.getByRole("button", { name: strings.deleteConfirmCancel }));
+
+    await waitFor(() => expect(document.activeElement).toBe(rename));
+  });
 });
 
 describe("deleting a book", () => {
@@ -478,6 +519,24 @@ describe("deleting a book", () => {
 
     await waitFor(() => expect(server.callsTo("DELETE", /\/documents\//)).toHaveLength(1));
     await waitFor(() => expect(politeText()).toContain(strings.deleted));
+  });
+
+  it("moves focus to adding a book, since the delete button is gone", async () => {
+    const user = userEvent.setup();
+    renderApp(
+      <Library />,
+      new FakeServer({ books: [book(), book({ document_id: "doc-2", filename: "භූගෝලය.pdf" })] }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: /මකන්න.*ඉතිහාසය/ }));
+    await user.click(screen.getByRole("button", { name: strings.deleteConfirmAction }));
+
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "ඉතිහාසය.pdf" })).toBeNull());
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: new RegExp(strings.addBook) }),
+      ),
+    );
   });
 });
 

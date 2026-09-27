@@ -178,9 +178,28 @@ window.matchMedia =
   };
 
 // jsdom implements `<dialog>` but not always a working `showModal` / `close`.
+//
+// And not the part that matters most to a keyboard: while a modal dialog is
+// open, everything outside it is inert, so `focus()` on an element outside it
+// does nothing. Without that, a dialog that hands focus back *before* it has
+// closed passes here and drops focus to <body> in every browser — which is
+// exactly what the rename dialog did.
+const modalDialogs = new WeakSet<HTMLDialogElement>();
 if (typeof HTMLDialogElement !== "undefined") {
   HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
     this.setAttribute("open", "");
+    modalDialogs.add(this);
+  };
+  const focus = HTMLElement.prototype.focus;
+  HTMLElement.prototype.focus = function focusUnlessInert(
+    this: HTMLElement,
+    options?: FocusOptions,
+  ) {
+    const blocking = [...document.querySelectorAll("dialog[open]")].find(
+      (dialog) => modalDialogs.has(dialog as HTMLDialogElement) && !dialog.contains(this),
+    );
+    if (blocking) return;
+    focus.call(this, options);
   };
   HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
     this.removeAttribute("open");

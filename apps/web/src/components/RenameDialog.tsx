@@ -46,9 +46,20 @@ export function RenameDialog({
     return () => window.clearTimeout(timer);
   }, []);
 
-  const close = () => {
-    onCancel();
+  /*
+   * Close first, then hand focus back. While a modal dialog is open everything
+   * outside it is inert, and `focus()` on an inert element does nothing — so
+   * focusing the book's button before closing left focus on <body> once the
+   * dialog unmounted, and a keyboard reader was thrown to the top of the page.
+   */
+  const giveFocusBack = () => {
+    dialog.current?.close();
     returnFocusTo.current?.focus();
+  };
+
+  const close = () => {
+    giveFocusBack();
+    onCancel();
   };
 
   return (
@@ -73,8 +84,8 @@ export function RenameDialog({
         className="dialog-body"
         onSubmit={(event) => {
           event.preventDefault();
+          giveFocusBack();
           onSave(value);
-          returnFocusTo.current?.focus();
         }}
       >
         <h2 id={`${fieldId}-heading`}>{strings.renameHeading}</h2>
