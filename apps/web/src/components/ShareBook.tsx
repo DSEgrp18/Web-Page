@@ -188,7 +188,8 @@ export function ShareBook({ documentId }: { documentId: string }) {
                   <fieldset key={page.page_index} className="decision">
                     <legend>{`${strings.pageWord} ${label}`}</legend>
                     {page.notes.map((line) => (
-                      <p key={line} className="hint">
+                      // English, from the pipeline: see ReadingPanel.
+                      <p key={line} className="hint" lang="en">
                         {line}
                       </p>
                     ))}

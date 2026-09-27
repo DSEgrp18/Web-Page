@@ -229,7 +229,7 @@ describe("the assistant", () => {
     await screen.findByRole("button", { name: FIRST });
     await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
     await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
-    const ask = screen.getByRole("button", { name: strings.assistantAsk });
+    const ask = screen.getByRole<HTMLButtonElement>("button", { name: strings.assistantAsk });
     // Disabling it while asking dropped focus to <body> in a browser. The
     // round trip here is too quick to see the focus move, so watch for the
     // cause: the focused button being disabled at any moment.
