@@ -38,6 +38,7 @@ RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       "uvicorn>=0.27" \
       "pdfplumber>=0.11.4" \
       "numpy>=1.26" \
+      "soundfile>=0.12" \
       "psycopg[binary]>=3.2" \
       "psycopg-pool>=3.2" \
       "celery>=5.4" \

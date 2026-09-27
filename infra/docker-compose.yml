@@ -80,6 +80,8 @@ services:
       # cloze makes fill-in-the-blank questions here; graph adds model-drafted ones,
       # run only by the worker. Off unless chosen: it sends pages to a model.
       SINHALA_READER_QUIZ: ${SINHALA_READER_QUIZ:-cloze}
+      # wav, or opus (about 15 times smaller). Opus waits on a blind listening test.
+      SINHALA_READER_AUDIO_FORMAT: ${SINHALA_READER_AUDIO_FORMAT:-wav}
     # The repository-root .env, read at run time and injected as environment —
     # never copied into a layer, where a key would survive in the image history
     # even if a later layer deleted it.
@@ -136,6 +138,8 @@ services:
       # cloze makes fill-in-the-blank questions here; graph adds model-drafted ones,
       # run only by the worker. Off unless chosen: it sends pages to a model.
       SINHALA_READER_QUIZ: ${SINHALA_READER_QUIZ:-cloze}
+      # wav, or opus (about 15 times smaller). Opus waits on a blind listening test.
+      SINHALA_READER_AUDIO_FORMAT: ${SINHALA_READER_AUDIO_FORMAT:-wav}
     # The repository-root .env, read at run time and injected as environment —
     # never copied into a layer, where a key would survive in the image history
     # even if a later layer deleted it.
