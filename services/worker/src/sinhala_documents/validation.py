@@ -39,7 +39,12 @@ SUPPORTED_MEDIA_TYPES = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
+    ".txt": "text/plain",
 }
+
+#: Pasted text, in characters. A long chapter pasted whole fits; a book should
+#: be uploaded as the file it came from.
+MAX_TEXT_CHARACTERS = 200_000
 
 
 class DocumentRejected(Exception):
@@ -129,7 +134,7 @@ def check_document_bytes(data: bytes, filename: str, *, max_bytes: int = MAX_UPL
         )
     media_type = media_type_for(filename, data)
     if media_type is None:
-        raise DocumentRejected("Only PDF, DOCX, PNG and JPEG files can be read.")
+        raise DocumentRejected("Only PDF, DOCX, PNG, JPEG and text files can be read.")
     if media_type == "application/pdf":
         check_pdf_bytes(data, max_bytes=max_bytes)
     elif media_type == "image/png" and not data.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -140,6 +145,17 @@ def check_document_bytes(data: bytes, filename: str, *, max_bytes: int = MAX_UPL
         )
     elif media_type.endswith("wordprocessingml.document"):
         parse_docx_document(data)
+    elif media_type == "text/plain":
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise DocumentRejected("The text is not UTF-8 and cannot be read.") from error
+        if len(text) > MAX_TEXT_CHARACTERS:
+            raise DocumentRejected(
+                f"The text is {len(text):,} characters, over the {MAX_TEXT_CHARACTERS:,} limit."
+            )
+        if not text.strip():
+            raise DocumentRejected("The text is empty.")
     return media_type
 
 
