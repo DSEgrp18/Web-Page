@@ -184,6 +184,24 @@ describe("listening", () => {
     expect(politeText()).toBe(politeBefore);
   });
 
+  it("reports a sentence heard to its end, with the position, when they pause", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    openReader(server);
+
+    await user.click(await screen.findByRole("button", { name: FIRST }));
+    await waitFor(() => expect(playCalls).toHaveLength(1));
+    await act(async () => {
+      playedElements[0]?.dispatchEvent(new Event("ended"));
+    });
+    await waitFor(() => expect(playCalls).toHaveLength(2));
+    expect(server.heard).toEqual([]);
+
+    await user.click(screen.getByRole("button", { name: strings.pause }));
+
+    await waitFor(() => expect(server.heard).toEqual(["0000-s0"]));
+  });
+
   it("saves where the reader stopped when they pause", async () => {
     const user = userEvent.setup();
     const server = new FakeServer({ books: [book()] });

@@ -48,6 +48,8 @@ export interface PlayerOptions {
   segments: PlayableSegment[];
   /** Called when the reader's position changes in a way worth persisting. */
   onPosition?: (segmentId: string, offsetSeconds: number) => void;
+  /** Called when a sentence has played to its end. */
+  onHeard?: (segmentId: string) => void;
   onError?: (error: ApiError) => void;
 }
 
@@ -70,7 +72,7 @@ export interface Player {
 }
 
 export function usePlayer(options: PlayerOptions): Player {
-  const { api, documentId, segments, onPosition, onError } = options;
+  const { api, documentId, segments, onPosition, onHeard, onError } = options;
 
   const [status, setStatus] = useState<PlayerStatus>("idle");
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -90,10 +92,12 @@ export function usePlayer(options: PlayerOptions): Player {
   // a value React is free to throw away and re-derive.
   const segmentsRef = useRef(segments);
   const onPositionRef = useRef(onPosition);
+  const onHeardRef = useRef(onHeard);
   const onErrorRef = useRef(onError);
   useEffect(() => {
     segmentsRef.current = segments;
     onPositionRef.current = onPosition;
+    onHeardRef.current = onHeard;
     onErrorRef.current = onError;
   });
 
@@ -240,6 +244,7 @@ export function usePlayer(options: PlayerOptions): Player {
 
     const onEnded = () => {
       const finished = segmentsRef.current[indexRef.current];
+      if (finished) onHeardRef.current?.(finished.segment_id);
       const following = indexRef.current + 1;
       if (following < segmentsRef.current.length) {
         // Continuing is not announced: the reader is listening to the book,

@@ -19,6 +19,9 @@ import type { Bookmark, Chapter, DocumentDetail, Page, Progress } from "@/lib/ty
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { usePlayer } from "@/lib/usePlayer";
 
+/** Heard sentences are sent once this many have built up, or on a pause. */
+const HEARD_BATCH = 10;
+
 type Side = "original" | "reading";
 
 /**
@@ -182,16 +185,33 @@ export function Reader({
 
   const segments = useMemo(() => page?.segments ?? [], [page]);
 
+  // Sentences heard to the end, sent in small batches rather than one request
+  // per sentence. Like the position, a lost batch is not worth an interruption.
+  const heard = useRef<string[]>([]);
+  const sendHeard = useCallback(() => {
+    const batch = heard.current.splice(0);
+    if (batch.length) void api.markHeard(documentId, batch).catch(() => {});
+  }, [api, documentId]);
+  const onHeard = useCallback(
+    (segmentId: string) => {
+      heard.current.push(segmentId);
+      if (heard.current.length >= HEARD_BATCH) sendHeard();
+    },
+    [sendHeard],
+  );
+  useEffect(() => sendHeard, [sendHeard]);
+
   const onPosition = useCallback(
     (segmentId: string, offsetSeconds: number) => {
       // Losing a saved position is a small harm; interrupting the reader to
       // report it is a larger one. It is retried the next time they pause.
       void api.saveProgress(documentId, segmentId, offsetSeconds).catch(() => {});
+      sendHeard();
     },
-    [api, documentId],
+    [api, documentId, sendHeard],
   );
 
-  const player = usePlayer({ api, documentId, segments, onPosition, onError: fail });
+  const player = usePlayer({ api, documentId, segments, onPosition, onHeard, onError: fail });
   const { stop } = player;
 
   // A new page is a new queue. Anything still playing belongs to the old one.
