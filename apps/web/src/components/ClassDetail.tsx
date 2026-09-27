@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
+import { ClassProgressSection } from "@/components/ClassProgressSection";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
@@ -142,6 +143,7 @@ export function ClassDetail({ classId }: { classId: string }) {
               setResetFor(member);
             }}
           />
+          <ClassProgressSection classId={classId} />
           <ConfirmDialog
             open={resetFor !== null}
             title={strings.resetConfirmTitle(resetFor?.display_name ?? "")}
