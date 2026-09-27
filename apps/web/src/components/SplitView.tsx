@@ -108,12 +108,11 @@ export function SplitView({
     };
   }, [onPercent]);
 
-  const columns =
-    collapsed === "start"
-      ? "1fr 0 0"
-      : collapsed === "end"
-        ? "0 0 1fr"
-        : `${percent}fr auto ${100 - percent}fr`;
+  // One column when collapsed. The hidden panel is `display: none` and the
+  // divider is not rendered, so the visible panel is the only grid item and
+  // lands in the first track. "0 0 1fr" gave it a 0-wide track, and expanding
+  // the reading panel showed nothing at all.
+  const columns = collapsed ? "minmax(0, 1fr)" : `${percent}fr auto ${100 - percent}fr`;
 
   return (
     <div className="split" ref={frame} style={{ gridTemplateColumns: columns }}>
