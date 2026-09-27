@@ -35,6 +35,10 @@ queue = [
 quiz = [
   "langgraph>=1.2",
 ]
+# Ogg Opus audio (SINHALA_READER_AUDIO_FORMAT=opus). Imported only when chosen.
+opus = [
+  "soundfile>=0.12",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "httpx>=0.27"]
