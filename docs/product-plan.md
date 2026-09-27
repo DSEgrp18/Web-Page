@@ -723,9 +723,7 @@ not by a teacher". **A class quiz needs a teacher's approval.**
 > (linked from the share page). Deliberate differences: a book's owner reads its
 > reports, and no report says who sent it; a report about the site has no book and
 > only an operator reads it, from the database, since admins have no screen. **5d
-> offline download waits for Opus storage (`0016`) and object storage**: building
-> it on WAV served from the database would cache about 173 MB per hour of audio on
-> a shared phone.
+> landed after it**, with Opus (`0016`): see the note below.
 
 - **5a Pasted text.** This is a `CLAUDE.md` initial-release item that was never built.
   - `POST /documents/text` takes up to 200,000 characters and splits them into parts of about 3,000 characters at paragraph breaks. The interface calls them **"sections", never pages**.
@@ -733,6 +731,21 @@ not by a teacher". **A class quiz needs a teacher's approval.**
 - **5b In-book search.** `GET /documents/{id}/search` returns two lists: exact matches in book order, and BM25 matches over the memoised passages. Results cue without playing, and the reading position is kept. This merges quality-track item 20.
 - **5c Report a problem** (`0015`). Available from any sentence, any quiz question and the accessibility statement. The report kinds are pronunciation, extraction, question, accessibility and other. A teacher sees reports on their own books.
 - **5d Offline chapter download** (#32).
+
+  > **Landed.** `SINHALA_READER_AUDIO_FORMAT=opus` stores new audio as Ogg Opus at
+  > about 24 kbps (measured; libsndfile compression level 0.93), **off by default**
+  > until the RQ4 blind listening comparison clears it, and named in `/readiness`
+  > when on. Each clip records its media type, so WAV made earlier keeps playing.
+  > `GET /documents/{id}/offline?page=` lists the chapter around a page and which
+  > sentences have audio; `src/lib/offline.ts` saves those into Cache Storage, and
+  > the entry goes last so a broken download is never listed. `/offline` lists
+  > saved chapters with sizes, the storage estimate, removal, and a player that
+  > needs no network; `public/sw.js` only serves that page's shell when offline.
+  > Sign-out, sign-out everywhere and account deletion delete every cache
+  > (`clearOfflineCaches`, already in `ReaderProvider`). Differences: a chapter
+  > saves the sentences that have audio and says how many do not, rather than
+  > refusing; and audio still lives in Postgres, since object storage (quality
+  > item 43) remains a Phase 7 decision.
   - A download manifest lists a chapter's pre-rendered Opus clips.
   - A hand-written `sw.js` caches only explicit downloads.
   - The offline screen shows each download's size and a remove button, and uses the browser's storage estimate.
@@ -806,7 +819,7 @@ as the hardening track. Each phase gate also checks the quality-track items it c
 | `0013_quizzes` | Quizzes (questions as one JSON document per quiz) and each reader's latest answers (landed) |
 | `0014_track` | Heard segments, and each answer's Leitner box and due date (landed) |
 | `0015_reports` | Problem reports (landed) |
-| `0016_compact_audio` | Opus audio |
+| `0016_compact_audio` | Each clip's media type, so audio can be Ogg Opus (landed) |
 
 Numbers are fixed when a migration merges. Those for later phases are the order we expect,
 and may shift if work lands in a different order.
