@@ -1,0 +1,13 @@
+# The evaluation kit. Not a package anyone installs: it runs from this folder
+# against the product's own code, so what is measured is what ships.
+[tool.pytest.ini_options]
+pythonpath = [".", "../services/worker/src", "../services/api/src", "../services/tts/src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
