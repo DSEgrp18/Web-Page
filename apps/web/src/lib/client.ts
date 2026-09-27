@@ -32,6 +32,9 @@ import type {
   PrerenderStatus,
   ClassProgress,
   ProgressReport,
+  ReportKind,
+  ReportView,
+  SearchResults,
   QuizDetail,
   QuizGenerators,
   QuizSummary,
@@ -536,6 +539,40 @@ export class ReaderApi {
       generator,
       for_class: forClass,
     });
+  }
+
+  // -- reader additions ----------------------------------------------------
+
+  /** Pasted text becomes a book, read in sections rather than pages. */
+  pasteText(text: string, title: string): Promise<DocumentDetail> {
+    return this.send<DocumentDetail>("/documents/text", "POST", {
+      text,
+      title: title.trim() || null,
+    });
+  }
+
+  searchBook(documentId: string, query: string): Promise<SearchResults> {
+    const q = encodeURIComponent(query);
+    return this.json<SearchResults>(`/documents/${encodeURIComponent(documentId)}/search?q=${q}`);
+  }
+
+  async report(body: {
+    kind: ReportKind;
+    message: string;
+    document_id?: string;
+    segment_id?: string;
+    quiz_id?: string;
+    question_id?: string;
+  }): Promise<void> {
+    await this.request("/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  listReports(documentId: string): Promise<ReportView[]> {
+    return this.json<ReportView[]>(`/documents/${encodeURIComponent(documentId)}/reports`);
   }
 
   // -- track -------------------------------------------------------------
