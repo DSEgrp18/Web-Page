@@ -57,6 +57,8 @@ from .routes import (
     practice,
     publishing,
     reading,
+    reports,
+    search,
     study,
     track,
 )
@@ -214,6 +216,8 @@ def create_app(deps: Deps | None = None) -> FastAPI:
     operations.register(app, deps)
     documents.register(app, deps)
     reading.register(app, deps)
+    search.register(app, deps)
+    reports.register(app, deps)
     study.register(app, deps)
     classes.register(app, deps)
     publishing.register(app, deps)
