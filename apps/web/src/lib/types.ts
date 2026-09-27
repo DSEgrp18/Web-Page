@@ -349,6 +349,53 @@ export interface MyAnswer {
   question_id: string;
   choice: number;
   correct: boolean;
+  /** Due for spaced review today. */
+  due: boolean;
+}
+
+export interface ChapterProgress {
+  /** Null for a book without chapters, or the pages before the first. */
+  title: string | null;
+  first_page: number;
+  sentences: number;
+  heard: number;
+  complete: boolean;
+  answered: number;
+  correct: number;
+  due: number;
+}
+
+export interface BookProgress {
+  document_id: string;
+  title: string;
+  chapters: ChapterProgress[];
+}
+
+export interface RevisionItem {
+  document_id: string;
+  title: string;
+  quiz_id: string;
+  due: number;
+}
+
+export interface ProgressReport {
+  books: BookProgress[];
+  chapters_complete: number;
+  chapter_count: number;
+  due: number;
+  revise: RevisionItem[];
+}
+
+export interface StudentProgress {
+  display_name: string;
+  books: BookProgress[];
+}
+
+export interface ClassProgress {
+  class_id: string;
+  name: string;
+  students: StudentProgress[];
+  not_sharing: number;
 }
 
 export interface QuizDetail extends QuizSummary {
