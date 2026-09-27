@@ -30,7 +30,7 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --from=build /app/.next ./.next
-COPY --from=build /app/next.config.mjs ./next.config.mjs
+COPY --from=build /app/next.config.ts ./next.config.ts
 
 # public/ carries the brand artwork, the loader video, and — the one that is not
 # merely cosmetic — pdf.js's worker, which `npm run prebuild` copies out of
