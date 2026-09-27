@@ -23,6 +23,8 @@ import type {
   PublicationDetail,
   ClassProgress,
   ProgressReport,
+  ReportView,
+  SearchResults,
   QuizDetail,
   ResetNotice,
   RightsBasis,
@@ -203,6 +205,14 @@ export class FakeServer {
   };
   /** A teacher's view of their class's progress; null is an empty one. */
   classProgressReport: ClassProgress | null = null;
+  /** Text pasted to become a book. */
+  pasted: { text: string; title: string | null }[] = [];
+  /** Problem reports sent, as their bodies. */
+  reports: Record<string, string>[] = [];
+  /** What a book's search answers; null is a 404. */
+  searchResults: SearchResults | null = null;
+  /** What the owner's list of reports answers. */
+  bookReports: ReportView[] = [];
   /** Every sentence reported as heard, in order. */
   heard: string[] = [];
   /** Quizzes, with the answers the fake checks against. */
@@ -248,6 +258,20 @@ export class FakeServer {
     }
 
     if (method === "GET" && path === "/progress") return this.json(this.report);
+    if (method === "POST" && path === "/documents/text") {
+      this.pasted.push(JSON.parse(String(init.body)) as { text: string; title: string | null });
+      return this.json({ document_id: "doc-pasted", filename: "pasted.txt" }, 202);
+    }
+    if (method === "POST" && path === "/reports") {
+      this.reports.push(JSON.parse(String(init.body)) as Record<string, string>);
+      return new Response(null, { status: 201 });
+    }
+    const searched = /^\/documents\/([^/]+)\/search\?/.exec(path);
+    if (method === "GET" && searched) {
+      return this.searchResults ? this.json(this.searchResults) : this.notFound();
+    }
+    const bookReports = /^\/documents\/([^/]+)\/reports$/.exec(path);
+    if (method === "GET" && bookReports) return this.json(this.bookReports);
     const heard = /^\/documents\/([^/]+)\/heard$/.exec(path);
     if (method === "POST" && heard) {
       const body = JSON.parse(String(init.body)) as { segment_ids: string[] };
