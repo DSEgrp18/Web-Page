@@ -73,7 +73,8 @@ export function AssistantDrawer({
   onClearSelection: () => void;
   /** Move the reader to a cited sentence. False when it is not on this page. */
   onOpenCitation: (segmentId: string) => boolean;
-  onGoToPage: (index: number) => void;
+  /** Turn to a page, and cue a sentence on it once it has loaded. */
+  onGoToPage: (index: number, segmentId?: string) => void;
 }) {
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
@@ -84,12 +85,15 @@ export function AssistantDrawer({
   const [asking, setAsking] = useState(false);
 
   /*
-   * Whether this deployment writes answers or extracts them. There is no
-   * endpoint that says so before the first question, and guessing would put
-   * the wrong claim above every answer — so it is learned from the first reply
-   * and kept. An abstention still tells us: the flag travels with it.
+   * Whether this deployment writes answers or extracts them. `/readiness`
+   * says which answerer the server started with, so the drawer asks it the
+   * first time it opens; every reply carries the flag as well, and a reply
+   * saying "generated" wins. Until one of them has said "extractive", the
+   * claim is the cautious one: telling a reader they are hearing the book when
+   * they are hearing a model is the failure this label exists to prevent.
    */
-  const generated = turns.some((turn) => turn.answer?.generated);
+  const [serverExtracts, setServerExtracts] = useState<boolean | null>(null);
+  const generated = turns.some((turn) => turn.answer?.generated) || serverExtracts !== true;
 
   const drawerId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
@@ -109,6 +113,21 @@ export function AssistantDrawer({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, close]);
+
+  useEffect(() => {
+    if (!open || serverExtracts !== null) return;
+    let cancelled = false;
+    api
+      .readiness()
+      .then((ready) => {
+        if (!cancelled) setServerExtracts(ready.answers === "extractive");
+      })
+      // Unknown stays unknown, and the cautious claim stays up.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [api, open, serverExtracts]);
 
   useEffect(() => {
     if (!open) return;
@@ -178,7 +197,7 @@ export function AssistantDrawer({
       }
       // Not on this page. Go there; the reader can then hear it.
       if (citationPage !== pageIndex) {
-        onGoToPage(citationPage);
+        onGoToPage(citationPage, segmentId);
         say(strings.citationOpened);
       } else {
         say(strings.citationUnavailable);
@@ -236,13 +255,9 @@ export function AssistantDrawer({
         </header>
 
         {/*
-         * Said plainly, at the top, not in a footnote.
-         *
-         * Which sentence appears depends on what the server is configured to
-         * do, and that is only knowable once an answer comes back — so it
-         * starts as the conservative claim and corrects itself. Getting this
-         * the wrong way round would be the worse failure: a reader told they
-         * are reading the book, who is actually reading a model.
+         * Said plainly, at the top, not in a footnote. Which sentence appears
+         * depends on what the server is configured to do (see `generated`
+         * above): the conservative claim until the server says otherwise.
          */}
         <p className="notice assistant-honesty" data-generated={generated}>
           {generated ? strings.assistantGenerated : strings.assistantExtractive}
@@ -331,7 +346,7 @@ export function AssistantDrawer({
           className="assistant-form"
           onSubmit={(event) => {
             event.preventDefault();
-            void ask(question);
+            if (!asking) void ask(question);
           }}
         >
           <label htmlFor={`${drawerId}-q`} className="visually-hidden">
@@ -344,10 +359,12 @@ export function AssistantDrawer({
             rows={2}
             maxLength={500}
             placeholder={strings.questionPlaceholder}
-            disabled={asking}
+            readOnly={asking}
             onChange={(event) => setQuestion(event.target.value)}
           />
-          <button className="btn btn-primary" type="submit" disabled={asking}>
+          {/* Busy, not disabled, while an answer is on its way: disabling the
+              button that has focus drops focus to <body>. */}
+          <button className="btn btn-primary" type="submit" aria-disabled={asking || undefined}>
             {asking ? strings.answering : strings.assistantAsk}
           </button>
         </form>
