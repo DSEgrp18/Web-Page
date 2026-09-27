@@ -74,6 +74,23 @@ const REVIEW = {
  * A signed-in reader with one prepared book, and nothing else on the API.
  * As a teacher, they also teach one class, and the book has a page to decide.
  */
+const PROGRESS = {
+  books: [
+    {
+      document_id: "doc-1",
+      title: "පොත.pdf",
+      chapters: [
+        { title: null, first_page: 0, sentences: 2, heard: 1, complete: false,
+          answered: 1, correct: 1, due: 0 },
+      ],
+    },
+  ],
+  chapters_complete: 0,
+  chapter_count: 1,
+  due: 1,
+  revise: [{ document_id: "doc-1", title: "පොත.pdf", quiz_id: "quiz-1", due: 1 }],
+};
+
 async function withOneBook(page, account, extra = {}) {
   await mockApi(page, async (route) => {
     const request = route.request();
@@ -89,6 +106,8 @@ async function withOneBook(page, account, extra = {}) {
       "/documents/doc-1/bookmarks": [BOOKMARK],
       "/classes": { teaching: [CLASS], joined: [] },
       "/classes/cls-a": CLASS,
+      "/classes/cls-a/progress": { class_id: "cls-a", name: "10 ශ්‍රේණිය", students: [], not_sharing: 1 },
+      "/progress": PROGRESS,
       "/class-books": [],
       "/documents/doc-1/review": REVIEW,
       "/documents/doc-1/publication": null,
@@ -240,6 +259,11 @@ const SCREENS = [
     name: "practice",
     path: "/library/doc-1/practice",
     ready: (page) => page.getByRole("button", { name: "පුහුණු ප්‍රශ්න සාදන්න" }),
+  },
+  {
+    name: "progress",
+    path: "/progress",
+    ready: (page) => page.getByRole("table"),
   },
   {
     name: "the classes screen",
