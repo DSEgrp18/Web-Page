@@ -30,6 +30,8 @@ import type {
   MyClasses,
   AnswerResult,
   PrerenderStatus,
+  ClassProgress,
+  ProgressReport,
   QuizDetail,
   QuizGenerators,
   QuizSummary,
@@ -534,6 +536,30 @@ export class ReaderApi {
       generator,
       for_class: forClass,
     });
+  }
+
+  // -- track -------------------------------------------------------------
+
+  /** Sentences listened to the end of, so progress can count them. */
+  async markHeard(documentId: string, segmentIds: string[]): Promise<void> {
+    await this.request(`/documents/${encodeURIComponent(documentId)}/heard`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ segment_ids: segmentIds }),
+    });
+  }
+
+  myProgress(): Promise<ProgressReport> {
+    return this.json<ProgressReport>("/progress");
+  }
+
+  classProgress(classId: string): Promise<ClassProgress> {
+    return this.json<ClassProgress>(`/classes/${encodeURIComponent(classId)}/progress`);
+  }
+
+  async classProgressSheet(classId: string): Promise<Blob> {
+    const response = await this.request(`/classes/${encodeURIComponent(classId)}/progress.csv`);
+    return response.blob();
   }
 
   getQuiz(quizId: string): Promise<QuizDetail> {
