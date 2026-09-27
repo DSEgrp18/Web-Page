@@ -217,6 +217,16 @@ if (typeof HTMLDialogElement !== "undefined") {
   });
 }
 
+// The HTML focus fixup rule: when the focused element stops being focusable —
+// here, when it is disabled — focus goes to <body>. Browsers do this and jsdom
+// does not, so a control that disables itself under the reader's focus (stop,
+// bookmark, ask) passed here while throwing a keyboard reader to the top of
+// the page in every browser.
+new MutationObserver(() => {
+  const focused = document.activeElement as HTMLButtonElement | null;
+  if (focused && focused !== document.body && focused.disabled) focused.blur();
+}).observe(document, { attributes: true, attributeFilter: ["disabled"], subtree: true });
+
 afterEach(() => {
   cleanup();
   playCalls.length = 0;

@@ -253,6 +253,22 @@ export class FakeServer {
 
     if (path.startsWith("/auth/")) return this.account(method, path, init, headers);
 
+    // Public, like the real one: what this server was started with.
+    if (method === "GET" && path === "/readiness") {
+      return this.json({
+        alive: true,
+        serving: true,
+        readiness: "ready",
+        real_model: false,
+        model_version: null,
+        structure: "deterministic",
+        ocr: "off",
+        answers: this.generatedAnswers ? "gemini" : "extractive",
+        auth_mode: "sessions",
+        limitations: [],
+      });
+    }
+
     // As the real API: no session, no answer; a change without this page's
     // CSRF token is refused.
     if (!owner) return this.json({ detail: "Sign in to continue." }, 401);

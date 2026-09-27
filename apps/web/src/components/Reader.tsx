@@ -94,6 +94,8 @@ export function Reader({
   const navigated = useRef(false);
   const announcedPlaceholder = useRef(false);
   const cuedBookmark = useRef<string | null>(null);
+  /** A cited sentence on a page still loading: cued when it arrives. */
+  const pendingCue = useRef<string | null>(null);
 
   const fail = useCallback(
     (cause: unknown) => {
@@ -242,6 +244,15 @@ export function Reader({
 
   // Undo lasts eight seconds, but never runs out while the reader is on it: a
   // keyboard reader who has just reached the button must be able to press it.
+  // A citation into another page turns to that page; this cues its sentence
+  // once it is there. Cued, never played, like everything else.
+  useEffect(() => {
+    const wanted = pendingCue.current;
+    if (!wanted || !segments.some((segment) => segment.segment_id === wanted)) return;
+    pendingCue.current = null;
+    player.cue(wanted, 0, false);
+  }, [player, segments]);
+
   useEffect(() => {
     if (!undoBookmark || holdUndo) return;
     const timer = window.setTimeout(() => setUndoBookmark(null), 8000);
@@ -643,7 +654,10 @@ export function Reader({
         selection={selection}
         onClearSelection={() => setSelection("")}
         onOpenCitation={openCitation}
-        onGoToPage={goToPage}
+        onGoToPage={(index, segmentId) => {
+          pendingCue.current = segmentId ?? null;
+          goToPage(index);
+        }}
       />
     </div>
   );

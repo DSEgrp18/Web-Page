@@ -211,6 +211,80 @@ describe("the assistant", () => {
     expect(screen.queryByText(strings.assistantExtractive)).toBeNull();
   });
 
+  it("makes the cautious claim before anything is asked, when the server writes answers", async () => {
+    // It used to say "the book's own words" until the first answer came back,
+    // on a server that writes every answer with a model.
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()], generatedAnswers: true }));
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+
+    expect(await screen.findByText(strings.assistantGenerated)).toBeTruthy();
+    expect(screen.queryByText(strings.assistantExtractive)).toBeNull();
+  });
+
+  it("keeps focus on the ask button while the answer is on its way", async () => {
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()] }));
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+    await user.type(screen.getByLabelText(strings.questionLabel), "පළමු");
+    const ask = screen.getByRole("button", { name: strings.assistantAsk });
+    // Disabling it while asking dropped focus to <body> in a browser. The
+    // round trip here is too quick to see the focus move, so watch for the
+    // cause: the focused button being disabled at any moment.
+    let disabledUnderFocus = false;
+    const watch = new MutationObserver(() => {
+      if (ask.disabled && document.activeElement === ask) disabledUnderFocus = true;
+    });
+    watch.observe(ask, { attributes: true });
+    await user.click(ask);
+
+    expect(await screen.findByText(strings.answerFromBook)).toBeTruthy();
+    watch.disconnect();
+    expect(disabledUnderFocus).toBe(false);
+    expect(document.activeElement).toBe(ask);
+  });
+
+  it("cues a cited sentence on another page once that page has opened", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({
+      books: [book()],
+      studyAnswer: {
+        document_id: "doc-1",
+        answer: ON_PAGE_TWO,
+        citations: [
+          {
+            passage_id: "passage-2",
+            page_index: 1,
+            page_label: "13",
+            section: null,
+            segment_ids: ["0001-s0"],
+            quote: ON_PAGE_TWO,
+          },
+        ],
+        abstained: false,
+        generated: false,
+      },
+    });
+    open(server);
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+    await user.type(screen.getByLabelText(strings.questionLabel), "දෙවන");
+    await user.click(screen.getByRole("button", { name: strings.assistantAsk }));
+
+    const citation = await waitFor(() => {
+      const found = document.querySelector<HTMLButtonElement>(".assistant .citation");
+      if (!found) throw new Error("no citation yet");
+      return found;
+    });
+    await user.click(citation);
+
+    const sentence = await screen.findByRole("button", { name: ON_PAGE_TWO });
+    await waitFor(() => expect(sentence.getAttribute("aria-current")).toBe("true"));
+    expect(playCalls).toHaveLength(0);
+  });
+
   // Carried over from the study page this drawer replaced.
   it("cues a cited sentence without starting audio", async () => {
     const user = userEvent.setup();
