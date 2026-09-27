@@ -51,7 +51,7 @@ class TestAPersonalQuiz:
         assert result["segment_id"] and result["quote"]
         again = school.client.get(f"/quizzes/{quiz['quiz_id']}", headers=school.teacher).json()
         assert again["answers"] == [
-            {"question_id": question["question_id"], "choice": right, "correct": True}
+            {"question_id": question["question_id"], "choice": right, "correct": True, "due": False}
         ]
 
     def test_is_nobody_elses(self, school: School) -> None:

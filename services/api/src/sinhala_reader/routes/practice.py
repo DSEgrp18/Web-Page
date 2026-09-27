@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
+from .. import track
 from ..practice import cloze_quiz, offered_generators, provenance
 from ..ratelimit import enforce
 from ..security import require_owner
@@ -60,6 +61,7 @@ class MyAnswer(BaseModel):
     question_id: str
     choice: int
     correct: bool
+    due: bool = Field(default=False, description="Due for spaced review today, in Colombo.")
 
 
 class QuizSummary(BaseModel):
@@ -117,6 +119,7 @@ def register(app: FastAPI, deps: Deps) -> None:
 
     def detail(quiz: Quiz, reader: str) -> QuizDetail:
         mine = quiz.creator == reader
+        on = track.today()
         questions = [
             QuestionView(
                 question_id=q["question_id"],
@@ -128,7 +131,12 @@ def register(app: FastAPI, deps: Deps) -> None:
             for q in json.loads(quiz.questions)
         ]
         answers = [
-            MyAnswer(question_id=a.question_id, choice=a.choice, correct=a.correct)
+            MyAnswer(
+                question_id=a.question_id,
+                choice=a.choice,
+                correct=a.correct,
+                due=track.is_due(a.due_on, on),
+            )
             for a in store.quiz_answers(quiz.quiz_id, reader)
         ]
         return QuizDetail(
@@ -240,6 +248,13 @@ def register(app: FastAPI, deps: Deps) -> None:
         if question is None or body.choice >= len(question["options"]):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such question.")
         correct = body.choice == question["answer"]
+        previous = next(
+            (a for a in store.quiz_answers(quiz_id, reader) if a.question_id == body.question_id),
+            None,
+        )
+        box, due_on = track.schedule(
+            None if previous is None else (previous.box, previous.due_on), correct, track.today()
+        )
         store.put_quiz_answer(
             QuizAnswer(
                 quiz_id=quiz_id,
@@ -247,6 +262,8 @@ def register(app: FastAPI, deps: Deps) -> None:
                 question_id=body.question_id,
                 choice=body.choice,
                 correct=correct,
+                box=box,
+                due_on=due_on,
             )
         )
         return AnswerResult(
