@@ -7,7 +7,9 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
+from pydantic import BaseModel, Field
 from sinhala_documents import DocumentRejected, check_document_bytes, media_type_for
+from sinhala_documents.validation import MAX_TEXT_CHARACTERS
 
 from ..preparation import forget_prepared
 from ..ratelimit import enforce
@@ -20,12 +22,67 @@ if TYPE_CHECKING:
     from ..app import Deps
 
 
+#: What pasted text is stored as. The ``.txt`` is what routes it to the text reader.
+PASTED_FILENAME = "pasted.txt"
+
+
+class PastedText(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    text: str = Field(min_length=1, max_length=MAX_TEXT_CHARACTERS)
+
+
 def register(app: FastAPI, deps: Deps) -> None:
     """Add the document routes to ``app``, acting through ``deps``."""
     owned = partial(owned_in, deps)
     readable = partial(readable_in, deps)
 
     # -- documents ---------------------------------------------------------
+
+    def start(owner: str, filename: str, data: bytes, title: str | None = None) -> DocumentDetail:
+        """Keep the source and start preparing it, returning the job to watch."""
+        document = deps.store.put_document(
+            Document(
+                document_id=new_id("doc"),
+                owner=owner,
+                filename=filename,
+                size_bytes=len(data),
+                title=title,
+            )
+        )
+        deps.store.put_source(document.document_id, data)
+        job = deps.preparation.start(
+            document,
+            Job(
+                job_id=new_id("job"),
+                document_id=document.document_id,
+                owner=owner,
+                kind="prepare",
+            ),
+        )
+        return _document_detail(deps.store, document.document_id, owner, job)
+
+    @app.post(
+        "/documents/text",
+        status_code=status.HTTP_202_ACCEPTED,
+        tags=["documents"],
+        summary="Read pasted text, prepared in sections rather than pages",
+    )
+    def paste(
+        body: PastedText, request: Request, owner: str = Depends(require_owner)
+    ) -> DocumentDetail:
+        """Pasted text becomes a document like any upload, kept as UTF-8 text.
+
+        It has no font information, so text in a legacy encoding cannot be
+        recognised by its font: it is marked for review and never converted.
+        """
+        enforce(request, "upload", owner)
+        data = body.text.encode("utf-8")
+        try:
+            check_document_bytes(data, PASTED_FILENAME)
+        except DocumentRejected as error:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from error
+        title = (body.title or "").strip() or None
+        return start(owner, PASTED_FILENAME, data, title)
 
     @app.post(
         "/documents",
@@ -51,25 +108,7 @@ def register(app: FastAPI, deps: Deps) -> None:
         except DocumentRejected as error:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from error
 
-        document = deps.store.put_document(
-            Document(
-                document_id=new_id("doc"),
-                owner=owner,
-                filename=filename,
-                size_bytes=len(data),
-            )
-        )
-        deps.store.put_source(document.document_id, data)
-        job = deps.preparation.start(
-            document,
-            Job(
-                job_id=new_id("job"),
-                document_id=document.document_id,
-                owner=owner,
-                kind="prepare",
-            ),
-        )
-        return _document_detail(deps.store, document.document_id, owner, job)
+        return start(owner, filename, data)
 
     @app.get("/documents", tags=["documents"])
     def list_documents(owner: str = Depends(require_owner)) -> list[DocumentSummary]:
