@@ -26,7 +26,7 @@ const RESULT = { right: "notice", wrong: "notice notice-warn" } as const;
  * the options never submits anything; an explicit Check button does. The
  * result is static text, said once. There is no time limit anywhere.
  */
-export function Practice({ documentId }: { documentId: string }) {
+export function Practice({ documentId, review }: { documentId: string; review?: string }) {
   const { api, account } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -62,6 +62,26 @@ export function Practice({ documentId }: { documentId: string }) {
       cancelled = true;
     };
   }, [api, documentId, setFailure]);
+
+  // Arriving from "revise next": open that quiz with only its due questions.
+  useEffect(() => {
+    if (!review) return;
+    let cancelled = false;
+    api.getQuiz(review).then(
+      (quiz) => {
+        if (cancelled) return;
+        const due = new Set(quiz.answers.filter((a) => a.due).map((a) => a.question_id));
+        const questions = quiz.questions.filter((q) => due.has(q.question_id));
+        setOpen(questions.length ? { ...quiz, questions } : quiz);
+      },
+      (error) => {
+        if (!cancelled) setFailure(explain(error, {}));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [api, review, setFailure]);
 
   async function refresh() {
     setQuizzes(await api.listQuizzes(documentId));
