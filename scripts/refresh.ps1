@@ -94,8 +94,16 @@ if (-not $env:SINHALA_READER_ANSWERS) {
 }
 $answers = if ($env:SINHALA_READER_ANSWERS -eq "gemini") { "written by Gemini" } else { "extracts from the book" }
 
+# Model-drafted practice questions follow the same key. Fill-in-the-blank stays
+# available either way; drafting is offered as a second button, never swapped in.
+if (-not $env:SINHALA_READER_QUIZ) {
+    $env:SINHALA_READER_QUIZ = if ($env:SINHALA_READER_ANSWERS -eq "gemini") { "graph" } else { "cloze" }
+}
+$quiz = if ($env:SINHALA_READER_QUIZ -eq "graph") { "fill-in-the-blank, and drafted by Gemini" } else { "fill-in-the-blank only" }
+
 Write-Host "    Voice:   $voice"
 Write-Host "    Answers: $answers"
+Write-Host "    Quizzes: $quiz"
 
 # -- Build ---------------------------------------------------------------------
 
