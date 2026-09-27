@@ -383,6 +383,12 @@ function TakeQuiz({
                   {strings.hearSource}
                 </Link>
               ) : null}
+              <Link
+                className="btn btn-quiet"
+                href={`/report?kind=question&document=${encodeURIComponent(documentId)}&quiz=${encodeURIComponent(quiz.quiz_id)}&question=${encodeURIComponent(question.question_id)}`}
+              >
+                {strings.reportQuestionLink}
+              </Link>
               <button className="btn btn-primary" type="button" onClick={next}>
                 {index + 1 >= total ? strings.finishQuiz : strings.nextQuestion}
               </button>
