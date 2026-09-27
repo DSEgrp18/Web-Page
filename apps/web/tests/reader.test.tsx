@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { Reader } from "../src/components/Reader";
 import { strings } from "../src/lib/strings";
@@ -233,6 +233,18 @@ describe("listening", () => {
     );
   });
 
+  it("gives focus to play once stop has disabled itself", async () => {
+    const user = userEvent.setup();
+    openReader(new FakeServer({ books: [book()] }));
+
+    await user.click(await screen.findByRole("button", { name: FIRST }));
+    await user.click(await screen.findByRole("button", { name: strings.stop }));
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: strings.play })),
+    );
+  });
+
   it("asks for each clip once, however many times it is played", async () => {
     const user = userEvent.setup();
     const server = new FakeServer({ books: [book()] });
@@ -397,6 +409,57 @@ describe("bookmarking", () => {
 
     await user.click(screen.getByRole("button", { name: strings.undoBookmark }));
     await waitFor(() => expect(server.bookmarks).toEqual([]));
+  });
+
+  it("keeps focus on the bookmark button while it saves, and undo comes next", async () => {
+    // Disabling the focused button while saving used to drop focus to <body>,
+    // and undo sat before the player in the tab order.
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    openReader(server);
+
+    await user.click(await screen.findByRole("button", { name: FIRST }));
+    const bookmark = await screen.findByRole("button", { name: strings.bookmarkSentence(1, 1) });
+    await user.click(bookmark);
+    await waitFor(() => expect(server.bookmarks).toHaveLength(1));
+    expect(document.activeElement).toBe(bookmark);
+
+    await user.tab(); // the speed
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: strings.undoBookmark }));
+
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(server.bookmarks).toEqual([]));
+    // Undo is gone; focus goes back to where the bookmark was made.
+    expect(document.activeElement).toBe(bookmark);
+  });
+
+  it("does not take undo away while the reader is on it", async () => {
+    const user = userEvent.setup();
+    openReader(new FakeServer({ books: [book()] }));
+
+    await user.click(await screen.findByRole("button", { name: FIRST }));
+    const bookmark = await screen.findByRole("button", { name: strings.bookmarkSentence(1, 1) });
+    await user.click(bookmark);
+    const undo = await screen.findByRole("button", { name: strings.undoBookmark });
+
+    vi.useFakeTimers();
+    try {
+      act(() => undo.focus());
+      act(() => {
+        vi.advanceTimersByTime(20_000);
+      });
+      expect(screen.getByRole("button", { name: strings.undoBookmark })).toBe(undo);
+
+      // Once the reader has moved on, it runs out as before.
+      act(() => bookmark.focus());
+      act(() => {
+        vi.advanceTimersByTime(9_000);
+      });
+      expect(screen.queryByRole("button", { name: strings.undoBookmark })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("opens a bookmarked sentence without playing it", async () => {

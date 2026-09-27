@@ -79,6 +79,8 @@ export function Reader({
   const [saved, setSaved] = useState<Progress | null>(null);
   const [bookmarkSaving, setBookmarkSaving] = useState(false);
   const [undoBookmark, setUndoBookmark] = useState<Bookmark | null>(null);
+  /** True while focus is inside the undo notice: it is not taken away mid-use. */
+  const [holdUndo, setHoldUndo] = useState(false);
 
   const [collapsed, setCollapsed] = useState<"start" | "end" | null>(null);
   const [tab, setTab] = useState<Side>("reading");
@@ -87,6 +89,7 @@ export function Reader({
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const contentsButtonRef = useRef<HTMLButtonElement>(null);
+  const bookmarkButtonRef = useRef<HTMLButtonElement>(null);
   /** Focus is moved on navigation, but never on arrival. */
   const navigated = useRef(false);
   const announcedPlaceholder = useRef(false);
@@ -237,11 +240,13 @@ export function Reader({
     player.cue(bookmarkSegmentId, 0, false);
   }, [bookmarkSegmentId, player, segments]);
 
+  // Undo lasts eight seconds, but never runs out while the reader is on it: a
+  // keyboard reader who has just reached the button must be able to press it.
   useEffect(() => {
-    if (!undoBookmark) return;
+    if (!undoBookmark || holdUndo) return;
     const timer = window.setTimeout(() => setUndoBookmark(null), 8000);
     return () => window.clearTimeout(timer);
-  }, [undoBookmark]);
+  }, [undoBookmark, holdUndo]);
 
   useEffect(() => {
     if (player.realModel !== false || announcedPlaceholder.current) return;
@@ -359,6 +364,9 @@ export function Reader({
     try {
       await api.deleteBookmark(documentId, undoBookmark.bookmark_id);
       setUndoBookmark(null);
+      setHoldUndo(false);
+      // The notice, and the button that was pressed, are gone.
+      bookmarkButtonRef.current?.focus();
       say(strings.bookmarkRemoved);
     } catch (cause) {
       fail(cause);
@@ -595,15 +603,6 @@ export function Reader({
         />
       ) : null}
 
-      {undoBookmark ? (
-        <div className="bookmark-toast" role="group" aria-label={strings.bookmarksHeading}>
-          <p>{strings.bookmarkSaved}</p>
-          <button type="button" className="btn btn-sm" onClick={() => void undoSavedBookmark()}>
-            {strings.undoBookmark}
-          </button>
-        </div>
-      ) : null}
-
       <PlayerBar
         player={player}
         disabled={segments.length === 0}
@@ -612,7 +611,30 @@ export function Reader({
         bookmarkLabel={bookmarkLabel}
         bookmarkSaving={bookmarkSaving}
         onBookmark={() => void addBookmark()}
+        bookmarkRef={bookmarkButtonRef}
       />
+
+      {/* After the player in the document, so Tab reaches "undo" straight
+          after the bookmark button that offered it; it is drawn above the
+          player, but read in this order. */}
+      {undoBookmark ? (
+        <div
+          className="bookmark-toast"
+          role="group"
+          aria-label={strings.bookmarksHeading}
+          onFocus={() => setHoldUndo(true)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+              setHoldUndo(false);
+            }
+          }}
+        >
+          <p>{strings.bookmarkSaved}</p>
+          <button type="button" className="btn btn-sm" onClick={() => void undoSavedBookmark()}>
+            {strings.undoBookmark}
+          </button>
+        </div>
+      ) : null}
 
       <AssistantDrawer
         documentId={documentId}
