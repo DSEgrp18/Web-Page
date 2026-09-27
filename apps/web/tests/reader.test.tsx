@@ -603,6 +603,52 @@ describe("moving between chapters", () => {
   });
 });
 
+describe("pasted text", () => {
+  const NOTE = "Pasted text. It is divided into sections of about 3,000 characters, not pages.";
+
+  function pasted(): FakeBook {
+    const section = (index: number, text: string) => ({
+      ...readablePage(index, [text], String(index + 1)),
+      notes: [NOTE],
+    });
+    return book({
+      filename: "pasted.txt",
+      media_type: "text/plain",
+      notes: [NOTE],
+      pages: [section(0, FIRST), section(1, ON_PAGE_TWO)],
+    });
+  }
+
+  it("says section, never page", async () => {
+    openReader(new FakeServer({ books: [pasted()] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    expect(screen.getByRole("button", { name: strings.nextSection })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: strings.nextPage })).toBeNull();
+  });
+
+  it("has no original page beside it, and nothing to keep in step with one", async () => {
+    // It used to describe "the Word file" in an empty panel, and offer to
+    // keep two pages together when there was only one.
+    openReader(new FakeServer({ books: [pasted()] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    expect(screen.queryByText(strings.docxPreviewUnavailable)).toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByRole("button", { name: strings.expandOriginal })).toBeNull();
+    expect(screen.queryByRole("button", { name: strings.syncPages })).toBeNull();
+  });
+
+  it("says the pipeline's note once, and marks it as English", async () => {
+    openReader(new FakeServer({ books: [pasted()] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    const notes = screen.getAllByText(NOTE);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.closest("[lang]")?.getAttribute("lang")).toBe("en");
+  });
+});
+
 describe("telling the reader what they are missing", () => {
   it("says a page could not be read", async () => {
     const unreadable = readablePage(0, []);

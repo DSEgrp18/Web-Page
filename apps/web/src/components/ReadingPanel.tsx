@@ -147,13 +147,18 @@ export function ReadingPanel({
             <h3>{strings.documentNotesHeading}</h3>
             <ul>
               {documentNotes.map((note) => (
-                <li key={note}>{note}</li>
+                // The pipeline writes its notes in English; `lang` is what
+                // makes a screen reader switch voice for them instead of
+                // reading English with the Sinhala one. (docs/ui-audit.md F07)
+                <li key={note} lang="en">
+                  {note}
+                </li>
               ))}
             </ul>
           </div>
         ) : null}
 
-        {page ? <PageNotes page={page} /> : null}
+        {page ? <PageNotes page={page} documentNotes={documentNotes} /> : null}
 
         {loading ? (
           <p className="hint" aria-busy="true">
@@ -224,12 +229,17 @@ function splitWords(text: string): string[] {
  * CLAUDE.md forbids claiming full accessibility when content has not been
  * handled. This is where that promise is kept or broken.
  */
-function PageNotes({ page }: { page: Page }) {
-  const messages: string[] = [];
-  if (page.quality === "undecodable") messages.push(strings.qualityUndecodable);
-  else if (page.quality === "needs_review") messages.push(strings.qualityNeedsReview);
-  if (page.kind === "image") messages.push(strings.kindImage);
-  for (const note of page.notes) messages.push(note);
+function PageNotes({ page, documentNotes }: { page: Page; documentNotes: string[] }) {
+  // Ours are Sinhala; the pipeline's are English, and are marked so.
+  const messages: { text: string; lang?: "en" }[] = [];
+  if (page.quality === "undecodable") messages.push({ text: strings.qualityUndecodable });
+  else if (page.quality === "needs_review") messages.push({ text: strings.qualityNeedsReview });
+  if (page.kind === "image") messages.push({ text: strings.kindImage });
+  // A note already said about the whole book is not said again for the page:
+  // pasted text carried the same note on the book and on every section.
+  for (const note of page.notes) {
+    if (!documentNotes.includes(note)) messages.push({ text: note, lang: "en" });
+  }
 
   if (messages.length === 0) return null;
   return (
@@ -237,7 +247,9 @@ function PageNotes({ page }: { page: Page }) {
       <h3>{strings.pageNotesHeading}</h3>
       <ul>
         {messages.map((message) => (
-          <li key={message}>{message}</li>
+          <li key={message.text} lang={message.lang}>
+            {message.text}
+          </li>
         ))}
       </ul>
     </div>

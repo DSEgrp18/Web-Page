@@ -11,11 +11,13 @@
  * these strings and nothing else, so an awkward or wrong word is the whole
  * interface. See `apps/web/README.md`.
  *
- * A note on what is *not* here: page notes from the API are already
- * Sinhala-facing prose written by the server, and are shown as received.
- * Translating them twice would be two places to get it wrong. A job's failure
- * `detail` is different: it is an English diagnostic, so a failed book is
- * described from its stage instead (`jobFailureMessage`).
+ * A note on what is *not* here: page and book notes from the API. They are
+ * English prose written by the pipeline (`file_extract.py`, `pdf_extract.py`,
+ * `ocr.py`), shown as received and marked `lang="en"` so a screen reader
+ * reads them with an English voice. Translating them needs stable note codes
+ * from the API first (docs/ui-audit.md F07). A job's failure `detail` is an
+ * English diagnostic too, so a failed book is described from its stage
+ * instead (`jobFailureMessage`).
  */
 
 import type { Job } from "./types";

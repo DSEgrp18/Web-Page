@@ -407,6 +407,10 @@ export function Reader({
   }
 
   const title = book.title?.trim() || book.filename;
+  // Pasted text has no original page to show beside it: no PDF, no image, no
+  // file. It gets the reading panel alone, rather than a panel describing a
+  // "Word file" and tools for keeping two pages together.
+  const hasOriginal = !sections;
   const chapterIndex = chapterAt(book.chapters, pageIndex);
   const chapter = chapterIndex >= 0 ? book.chapters?.[chapterIndex] : undefined;
   const resumable =
@@ -530,32 +534,36 @@ export function Reader({
             {strings.contentsOpen}
           </button>
 
-          <button
-            type="button"
-            className="btn btn-quiet btn-sm"
-            aria-pressed={preferences.syncPages}
-            onClick={toggleSync}
-          >
-            <LinkIcon broken={!preferences.syncPages} />
-            {preferences.syncPages ? strings.syncPages : strings.syncPagesOff}
-          </button>
+          {hasOriginal ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-quiet btn-sm"
+                aria-pressed={preferences.syncPages}
+                onClick={toggleSync}
+              >
+                <LinkIcon broken={!preferences.syncPages} />
+                {preferences.syncPages ? strings.syncPages : strings.syncPagesOff}
+              </button>
 
-          <button
-            type="button"
-            className="btn btn-quiet btn-sm"
-            aria-pressed={collapsed === "start"}
-            onClick={() => setCollapsed(collapsed === "start" ? null : "start")}
-          >
-            {collapsed === "start" ? strings.restoreSplit : strings.expandOriginal}
-          </button>
-          <button
-            type="button"
-            className="btn btn-quiet btn-sm"
-            aria-pressed={collapsed === "end"}
-            onClick={() => setCollapsed(collapsed === "end" ? null : "end")}
-          >
-            {collapsed === "end" ? strings.restoreSplit : strings.expandReading}
-          </button>
+              <button
+                type="button"
+                className="btn btn-quiet btn-sm"
+                aria-pressed={collapsed === "start"}
+                onClick={() => setCollapsed(collapsed === "start" ? null : "start")}
+              >
+                {collapsed === "start" ? strings.restoreSplit : strings.expandOriginal}
+              </button>
+              <button
+                type="button"
+                className="btn btn-quiet btn-sm"
+                aria-pressed={collapsed === "end"}
+                onClick={() => setCollapsed(collapsed === "end" ? null : "end")}
+              >
+                {collapsed === "end" ? strings.restoreSplit : strings.expandReading}
+              </button>
+            </>
+          ) : null}
         </div>
       </header>
 
@@ -563,46 +571,59 @@ export function Reader({
 
       {/* Tabs at phone width. Both panels stay mounted — swapping them out
           would restart the PDF and the playback along with it. */}
-      <div className="workspace-tabs" role="tablist" aria-label={strings.workspaceTabs}>
-        {(["original", "reading"] as Side[]).map((side) => (
-          <button
-            key={side}
-            type="button"
-            role="tab"
-            id={`tab-${side}`}
-            aria-selected={tab === side}
-            aria-controls={`panel-${side}`}
-            className="workspace-tab"
-            onClick={() => setTab(side)}
-          >
-            {side === "original" ? strings.originalPanel : strings.readingPanel}
-          </button>
-        ))}
-      </div>
-
-      <div className="workspace-body" data-tab={tab}>
-        <SplitView
-          percent={preferences.splitPercent}
-          onPercent={(next) => set("splitPercent", next)}
-          collapsed={collapsed}
-          startLabel={strings.originalPanel}
-          endLabel={strings.readingPanel}
-          start={
-            <div
-              id="panel-original"
-              role="tabpanel"
-              aria-labelledby="tab-original"
-              className="pane"
+      {hasOriginal ? (
+        <div className="workspace-tabs" role="tablist" aria-label={strings.workspaceTabs}>
+          {(["original", "reading"] as Side[]).map((side) => (
+            <button
+              key={side}
+              type="button"
+              role="tab"
+              id={`tab-${side}`}
+              aria-selected={tab === side}
+              aria-controls={`panel-${side}`}
+              className="workspace-tab"
+              onClick={() => setTab(side)}
             >
-              {pdfPanel}
-            </div>
-          }
-          end={
-            <div id="panel-reading" role="tabpanel" aria-labelledby="tab-reading" className="pane">
-              {readingPanel}
-            </div>
-          }
-        />
+              {side === "original" ? strings.originalPanel : strings.readingPanel}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="workspace-body" data-tab={hasOriginal ? tab : "reading"}>
+        {hasOriginal ? (
+          <SplitView
+            percent={preferences.splitPercent}
+            onPercent={(next) => set("splitPercent", next)}
+            collapsed={collapsed}
+            startLabel={strings.originalPanel}
+            endLabel={strings.readingPanel}
+            start={
+              <div
+                id="panel-original"
+                role="tabpanel"
+                aria-labelledby="tab-original"
+                className="pane"
+              >
+                {pdfPanel}
+              </div>
+            }
+            end={
+              <div
+                id="panel-reading"
+                role="tabpanel"
+                aria-labelledby="tab-reading"
+                className="pane"
+              >
+                {readingPanel}
+              </div>
+            }
+          />
+        ) : (
+          <div id="panel-reading" className="pane">
+            {readingPanel}
+          </div>
+        )}
       </div>
 
       {contentsOpen ? (
