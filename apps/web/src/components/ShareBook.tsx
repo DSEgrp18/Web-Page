@@ -167,6 +167,12 @@ export function ShareBook({ documentId }: { documentId: string }) {
         <PrerenderSection documentId={documentId} />
       ) : null}
 
+      <p>
+        <Link href={`/library/${encodeURIComponent(documentId)}/reports`}>
+          {strings.reportsLink}
+        </Link>
+      </p>
+
       <form className="account-page" onSubmit={publish} noValidate>
         <section className="account-section card" aria-labelledby="review-heading">
           <h2 id="review-heading">{strings.reviewHeading}</h2>
