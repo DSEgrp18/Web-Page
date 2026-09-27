@@ -241,6 +241,21 @@ describe("one class, as its teacher", () => {
 
     expect(await screen.findByText(strings.noMembers)).toBeTruthy();
     expect(server.classes[0]!.members[0]!.state).toBe("removed");
+    // The row and its button are gone; focus waits on the students' heading.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { name: strings.membersHeading }),
+      ),
+    );
+  });
+
+  it("names the tab after the class", async () => {
+    const server = school();
+    server.classes.push(room());
+    renderApp(<ClassDetail classId="cls-a" />, server, TEACHER);
+
+    await screen.findByRole("heading", { name: "10 ශ්‍රේණිය", level: 1 });
+    await waitFor(() => expect(document.title).toBe(`10 ශ්‍රේණිය — ${strings.appName}`));
   });
 
   it("makes a new code, which retires the old one", async () => {
@@ -391,6 +406,11 @@ describe("sharing a book", () => {
 
     expect(await shared.findByText(strings.notShared)).toBeTruthy();
     expect(politeText()).toContain(strings.stoppedSharing);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { name: strings.sharedWithHeading }),
+      ),
+    );
   });
 
   it("tells a student that only teachers share", async () => {
