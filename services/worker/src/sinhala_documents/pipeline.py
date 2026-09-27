@@ -36,7 +36,7 @@ from sinhala_tts.segmentation import Segment, segment_text
 
 from .blocks import locate
 from .chapters import Chapter, find_chapters
-from .file_extract import extract_docx, extract_image
+from .file_extract import extract_docx, extract_image, extract_text
 from .legacy_fm_abhaya import CONVERTER_VERSION
 from .model import (
     BoundingBox,
@@ -340,6 +340,10 @@ def prepare_document(
         if not isinstance(source, bytes):
             source = Path(source).read_bytes()
         extraction = extract_docx(source)
+    elif media_type == "text/plain":
+        if not isinstance(source, bytes):
+            source = Path(source).read_bytes()
+        extraction = extract_text(source)
     elif media_type in {"image/png", "image/jpeg"}:
         if not isinstance(source, bytes):
             source = Path(source).read_bytes()

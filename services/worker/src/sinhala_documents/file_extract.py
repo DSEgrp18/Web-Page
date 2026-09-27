@@ -1,4 +1,4 @@
-"""Extraction adapters for DOCX files and standalone page images."""
+"""Extraction adapters for DOCX files, pasted text and standalone page images."""
 
 from __future__ import annotations
 
@@ -9,6 +9,12 @@ from zipfile import ZipFile
 from .model import BoundingBox, DocumentExtraction, PageExtraction, PageKind, TextLine, TextSpan
 from .ocr import NOTE, OcrAdapter, OcrUnavailable, lines_from_words
 from .validation import parse_docx_document
+
+#: About how long one section of pasted text is, in characters. Pasted text has
+#: no pages, so it is cut into sections of about this size at line breaks.
+SECTION_CHARACTERS = 3_000
+
+_PASTED_NOTE = "Pasted text. It is divided into sections of about 3,000 characters, not pages."
 
 _WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _TEXT = f"{_WORD_NS}t"
@@ -75,6 +81,54 @@ def extract_docx(source: bytes) -> DocumentExtraction:
         notes.append(f"This Word document contains {image_count} image(s) that are not described.")
     page = PageExtraction(0, None, 612.0, 792.0, kind, tuple(lines), image_count, tuple(notes))
     return DocumentExtraction(pages=(page,), notes=tuple(notes))
+
+
+def extract_text(source: bytes) -> DocumentExtraction:
+    """Split pasted text into sections at line breaks, keeping every character.
+
+    There is no font to go by, so each line is classified from its text alone,
+    the way a PDF span with an unknown font is: text that looks like a legacy
+    encoding is marked for review and never converted, and another script is
+    withheld.
+    """
+    from .pdf_extract import _classify_span
+
+    text = source.decode("utf-8")
+    sections: list[list[str]] = [[]]
+    size = 0
+    for line in (line.strip() for line in text.splitlines()):
+        if not line:
+            continue
+        if size and size + len(line) > SECTION_CHARACTERS:
+            sections.append([])
+            size = 0
+        sections[-1].append(line)
+        size += len(line)
+
+    pages = []
+    for index, section in enumerate(s for s in sections if s):
+        lines = []
+        for number, line in enumerate(section):
+            method, quality, notes, _ = _classify_span(line, "")
+            top = 36.0 + number * 18.0
+            box = BoundingBox(36.0, top, 576.0, top + 16.0)
+            span = TextSpan(
+                text=line,
+                font="",
+                raw_font="text",
+                size=12.0,
+                box=box,
+                method=method,
+                quality=quality,
+                notes=notes,
+            )
+            lines.append(TextLine(spans=(span,), box=box))
+        pages.append(
+            PageExtraction(
+                index, None, 612.0, 792.0, PageKind.TEXT, tuple(lines), 0, (_PASTED_NOTE,)
+            )
+        )
+    return DocumentExtraction(pages=tuple(pages), notes=(_PASTED_NOTE,))
 
 
 def extract_image(

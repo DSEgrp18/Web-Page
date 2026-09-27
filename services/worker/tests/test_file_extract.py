@@ -6,7 +6,7 @@ from zipfile import ZipFile
 import pytest
 
 from sinhala_documents import DocumentRejected, check_document_bytes, prepare_document, validation
-from sinhala_documents.file_extract import extract_docx
+from sinhala_documents.file_extract import extract_docx, extract_text
 from sinhala_documents.ocr import OcrAdapter, OcrMode, OcrWord
 
 
@@ -135,3 +135,39 @@ def test_extensionless_pdf_is_recognised_from_its_header() -> None:
 def test_extension_and_contents_must_agree() -> None:
     with pytest.raises(DocumentRejected, match="not a PNG"):
         check_document_bytes(b"not an image", "page.png")
+
+
+class TestPastedText:
+    SINHALA = "ශ්‍රී ලංකාවේ අගනුවර කෝට්ටේ වේ."
+    # FM-Abhaya bytes pasted as though they were text: no font says so.
+    LEGACY = 'o;a; iïfma%IKh" ixLHdxl iïfma%IKh" fyda ixLHdxl ikaksfõokh hkq ,laIHfhka'
+
+    def test_is_accepted_as_utf8_text(self) -> None:
+        assert check_document_bytes(self.SINHALA.encode(), "pasted.txt") == "text/plain"
+
+    def test_over_the_limit_is_refused(self) -> None:
+        text = "අ" * (validation.MAX_TEXT_CHARACTERS + 1)
+        with pytest.raises(DocumentRejected):
+            check_document_bytes(text.encode(), "pasted.txt")
+
+    def test_is_cut_into_sections_at_line_breaks_keeping_every_character(self) -> None:
+        line = self.SINHALA * 40
+        extraction = extract_text("\n".join([line] * 6).encode())
+
+        assert len(extraction.pages) > 1
+        assert all(len(page.text) <= 3_000 + len(line) for page in extraction.pages)
+        kept = "".join(line.text for page in extraction.pages for line in page.lines)
+        assert kept == line * 6
+
+    def test_legacy_looking_text_asks_for_review_and_is_not_converted(self) -> None:
+        extraction = extract_text(f"{self.SINHALA}\n{self.LEGACY}".encode())
+
+        first, second = extraction.pages[0].lines
+        assert first.quality.value == "accepted"
+        assert second.quality.value == "needs_review"
+        assert second.text == self.LEGACY
+
+    def test_is_prepared_for_reading(self) -> None:
+        prepared = prepare_document(self.SINHALA.encode(), filename="pasted.txt")
+
+        assert prepared.segments and prepared.segments[0].display_text.startswith("ශ්‍රී")
