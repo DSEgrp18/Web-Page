@@ -210,6 +210,19 @@ export function Library() {
     [all, shelf, query, order],
   );
 
+  // How many books match, said once the reader pauses typing: the list
+  // changes silently under a screen reader otherwise. Not on every keystroke
+  // (that would be a progress tick), and never when the box is empty.
+  const matching = shown.length;
+  useEffect(() => {
+    if (!query.trim()) return;
+    const timer = window.setTimeout(
+      () => say(matching === 0 ? strings.noResultsHeading : strings.libraryCount(matching)),
+      700,
+    );
+    return () => window.clearTimeout(timer);
+  }, [matching, query, say]);
+
   const openUpload = () => setUploading(true);
   const closeUpload = useCallback(() => {
     restoreAddFocus.current = true;
@@ -416,6 +429,11 @@ function Welcome({
             <PlusIcon />
             {strings.addBook}
           </button>
+          {/* Both ways in from the start: pasting used to appear only once a
+              first book existed. */}
+          <Link className="btn" href="/library/paste">
+            {strings.pasteLink}
+          </Link>
           <p className="hint">{strings.welcomeSecondary}</p>
         </div>
       </div>

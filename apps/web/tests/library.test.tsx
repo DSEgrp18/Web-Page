@@ -35,6 +35,12 @@ describe("the welcome", () => {
     expect(screen.getByText(strings.welcomeBody)).toBeTruthy();
   });
 
+  it("offers pasted text as well as a file, before there are any books", async () => {
+    renderApp(<Library />, new FakeServer());
+    const paste = await screen.findByRole("link", { name: strings.pasteLink });
+    expect(paste.getAttribute("href")).toBe("/library/paste");
+  });
+
   it("shrinks out of the way once there are books", async () => {
     renderApp(<Library />, new FakeServer({ books: [book()] }));
     await screen.findByRole("heading", { name: strings.browseBooks });
@@ -85,6 +91,22 @@ describe("the shelf", () => {
 
     await user.click(screen.getByRole("button", { name: strings.clearSearch }));
     await screen.findByRole("heading", { name: "ඉතිහාසය.pdf" });
+  });
+
+  it("says how many books match once the reader stops typing", async () => {
+    const user = userEvent.setup();
+    renderApp(
+      <Library />,
+      new FakeServer({ books: [book(), book({ document_id: "doc-2", filename: "භූගෝලය.pdf" })] }),
+    );
+    const search = await screen.findByRole("searchbox", { name: strings.searchLibrary });
+
+    await user.type(search, "ඉතිහා");
+    await waitFor(() => expect(politeText()).toBe(strings.libraryCount(1)));
+
+    await user.clear(search);
+    await user.type(search, "zzzz");
+    await waitFor(() => expect(politeText()).toBe(strings.noResultsHeading));
   });
 
   it("puts focus back in the search field once the search is cleared", async () => {
