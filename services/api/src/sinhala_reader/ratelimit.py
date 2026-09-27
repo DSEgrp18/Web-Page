@@ -69,6 +69,8 @@ LIMITS: dict[str, Limit] = {
     "prerender": Limit(10, 60 * 60),
     # Each quiz walks the whole book; a student needs a few an hour, not hundreds.
     "quiz": Limit(20, 60 * 60),
+    # Reports are text an owner must read; a reader has a few, not a stream.
+    "report": Limit(30, 60 * 60),
     "question": Limit(60, 60 * 60),
     "upload": Limit(30, 24 * 60 * 60),
 }
