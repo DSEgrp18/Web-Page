@@ -42,8 +42,47 @@ describe("bookmarks screen", () => {
 
     expect(await screen.findByRole("heading", { name: strings.bookmarksHeading })).toBeTruthy();
     expect(screen.getByText(bookmark.display_text!)).toBeTruthy();
-    expect(screen.getByRole("link", { name: strings.bookmarkOpen }).getAttribute("href")).toBe(
-      "/library/doc-1?segment=0000-s0",
+    // Named with its book and page: a list of bookmarks is otherwise a list
+    // of identical links.
+    const open = screen.getByRole("link", { name: /සලකුණු කළ තැන විවෘත කරන්න.*ඉතිහාසය\.pdf.*12/ });
+    expect(open.textContent).toContain(strings.bookmarkOpen);
+    expect(open.getAttribute("href")).toBe("/library/doc-1?segment=0000-s0");
+  });
+
+  it("groups under the reader's own name for the book", async () => {
+    const server = serverWithBookmarks();
+    server.books[0]!.title = "ඉතිහාසය 11";
+    renderApp(<Bookmarks />, server);
+
+    expect(await screen.findByRole("heading", { name: "ඉතිහාසය 11" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: strings.bookmarkRemoveNamed("ඉතිහාසය 11", "12") }),
+    ).toBeTruthy();
+  });
+
+  it("moves focus to the book, or to the page, once a bookmark is removed", async () => {
+    const user = userEvent.setup();
+    const second = { ...bookmark, bookmark_id: "bmk-2", segment_id: "0000-s1" };
+    const server = serverWithBookmarks([bookmark, second]);
+    renderApp(<Bookmarks />, server);
+
+    const [first] = await screen.findAllByRole("button", {
+      name: strings.bookmarkRemoveNamed("ඉතිහාසය.pdf", "12"),
+    });
+    await user.click(first!);
+    // Another bookmark is left in the book: its heading.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "ඉතිහාසය.pdf" })),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: strings.bookmarkRemoveNamed("ඉතිහාසය.pdf", "12") }),
+    );
+    // The book's last one: the page's own heading.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { name: strings.bookmarksHeading }),
+      ),
     );
   });
 

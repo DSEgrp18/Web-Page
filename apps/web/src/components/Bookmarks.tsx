@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { useReader } from "@/components/ReaderProvider";
+import { bookTitle } from "@/lib/books";
 import { ApiError } from "@/lib/client";
 import { messageFor, strings } from "@/lib/strings";
 import type { Bookmark, DocumentSummary } from "@/lib/types";
@@ -30,6 +31,18 @@ export function Bookmarks() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  /** Where focus goes once a removed bookmark's card has left the page. */
+  const focusAfter = useRef<string | null>(null);
+  const pageHeading = useRef<HTMLHeadingElement>(null);
+
+  // The removed card took its focused button with it. Focus goes to its
+  // book's heading, or to the page's own when that was the book's last one.
+  useEffect(() => {
+    const target = focusAfter.current;
+    if (!target) return;
+    focusAfter.current = null;
+    (document.getElementById(target) ?? pageHeading.current)?.focus();
+  }, [groups]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,6 +93,7 @@ export function Bookmarks() {
 
   const remove = useCallback(
     async (documentId: string, bookmark: Bookmark) => {
+      if (removing) return;
       setRemoving(bookmark.bookmark_id);
       try {
         await api.deleteBookmark(documentId, bookmark.bookmark_id);
@@ -97,6 +111,7 @@ export function Bookmarks() {
             )
             .filter((group) => group.bookmarks.length > 0),
         );
+        focusAfter.current = `book-${documentId}`;
         say(strings.bookmarkRemoved);
       } catch (cause) {
         const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.errorServer;
@@ -106,7 +121,7 @@ export function Bookmarks() {
         setRemoving(null);
       }
     },
-    [alert, api, say],
+    [alert, api, removing, say],
   );
 
   const count = groups.reduce((total, group) => total + group.bookmarks.length, 0);
@@ -115,7 +130,9 @@ export function Bookmarks() {
     <div className="bookmarks-page">
       <header className="bookmarks-heading">
         <p className="eyebrow">{strings.appName}</p>
-        <h1>{strings.bookmarksHeading}</h1>
+        <h1 ref={pageHeading} tabIndex={-1}>
+          {strings.bookmarksHeading}
+        </h1>
         <p>{strings.bookmarksIntro}</p>
       </header>
 
@@ -141,7 +158,10 @@ export function Bookmarks() {
               className="bookmark-group"
               aria-labelledby={`book-${group.document.document_id}`}
             >
-              <h2 id={`book-${group.document.document_id}`}>{group.document.filename}</h2>
+              {/* The reader's own name for the book, as in the library. */}
+              <h2 id={`book-${group.document.document_id}`} tabIndex={-1}>
+                {bookTitle(group.document)}
+              </h2>
               <ul className="bookmark-list">
                 {group.bookmarks.map((bookmark) => {
                   const page =
@@ -173,14 +193,20 @@ export function Bookmarks() {
                             href={`/library/${encodeURIComponent(bookmark.document_id)}?segment=${encodeURIComponent(bookmark.segment_id)}`}
                           >
                             {strings.bookmarkOpen}
+                            {/* Ten of these on a page are ten identical links
+                                without the book and the page. */}
+                            <span className="visually-hidden">
+                              {" "}
+                              — {bookTitle(group.document)}, {pageName}
+                            </span>
                           </Link>
                         ) : null}
                         <button
                           type="button"
                           className="btn"
                           onClick={() => void remove(group.document.document_id, bookmark)}
-                          disabled={removing === bookmark.bookmark_id}
-                          aria-label={strings.bookmarkRemoveNamed(group.document.filename, page)}
+                          aria-disabled={removing === bookmark.bookmark_id || undefined}
+                          aria-label={strings.bookmarkRemoveNamed(bookTitle(group.document), page)}
                         >
                           {strings.bookmarkRemove}
                         </button>
