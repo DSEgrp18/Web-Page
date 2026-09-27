@@ -486,6 +486,15 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
         CREATE INDEX problem_reports_by_document ON problem_reports (document_id);
         """,
     ),
+    (
+        "0016_compact_audio",
+        """
+        -- Audio may be Ogg Opus as well as WAV. Each clip says which, so audio
+        -- made before the switch keeps playing as what it is.
+        ALTER TABLE audio ADD COLUMN media_type text NOT NULL DEFAULT 'audio/wav'
+            CHECK (media_type IN ('audio/wav', 'audio/ogg'));
+        """,
+    ),
 )
 
 
@@ -782,9 +791,11 @@ class PostgresStore(Store):
             connection.execute(
                 """
                 INSERT INTO audio (cache_key, document_id, owner, segment_id, wav,
-                                   duration_seconds, is_real_model, voice_id, model_version)
+                                   duration_seconds, is_real_model, voice_id, model_version,
+                                   media_type)
                 VALUES (%(cache_key)s, %(document_id)s, %(owner)s, %(segment_id)s, %(wav)s,
-                        %(duration_seconds)s, %(is_real_model)s, %(voice_id)s, %(model_version)s)
+                        %(duration_seconds)s, %(is_real_model)s, %(voice_id)s, %(model_version)s,
+                        %(media_type)s)
                 ON CONFLICT (document_id, cache_key) DO NOTHING
                 """,
                 {
@@ -797,6 +808,7 @@ class PostgresStore(Store):
                     "is_real_model": record.is_real_model,
                     "voice_id": record.voice_id,
                     "model_version": record.model_version,
+                    "media_type": record.media_type,
                 },
             )
         return record
@@ -1749,6 +1761,7 @@ def _audio(row: dict[str, Any]) -> AudioRecord:
         is_real_model=row["is_real_model"],
         voice_id=row["voice_id"],
         model_version=row["model_version"],
+        media_type=row["media_type"],
     )
 
 

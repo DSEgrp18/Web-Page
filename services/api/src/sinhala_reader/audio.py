@@ -19,6 +19,7 @@ to the person listening:
 from __future__ import annotations
 
 import io
+import os
 import threading
 import wave
 
@@ -31,6 +32,58 @@ from .storage import AudioRecord, Store
 #: browser decodes without a codec; the model's float output is louder than the
 #: format allows only if it clips, which the audio checks already look for.
 _SAMPLE_WIDTH = 2
+
+
+#: ``wav`` (the default) or ``opus``. Opus is about 24 kbps, some 11 MB an hour
+#: against WAV's 173 MB, which is what makes downloading a chapter to a cheap
+#: phone reasonable. It stays off until a blind listening comparison (RQ4 in
+#: docs/product-plan.md) shows it costs the voice nothing a listener can hear.
+AUDIO_FORMAT_ENV = "SINHALA_READER_AUDIO_FORMAT"
+AUDIO_FORMATS = ("wav", "opus")
+
+#: libsndfile's Opus bitrate falls linearly from about 256 kbps at level 0 to
+#: about 6 kbps at level 1; 0.93 is about 24 kbps, measured.
+_OPUS_LEVEL = 0.93
+
+#: The sample rates Opus encodes. Anything else stays WAV rather than being
+#: resampled here, where nobody would hear what resampling did.
+_OPUS_RATES = {8_000, 12_000, 16_000, 24_000, 48_000}
+
+
+def audio_format() -> str:
+    """The configured format. Fatal on anything unknown, never a silent default."""
+    value = os.environ.get(AUDIO_FORMAT_ENV, "wav").strip().lower() or "wav"
+    if value not in AUDIO_FORMATS:
+        raise RuntimeError(f"{AUDIO_FORMAT_ENV}={value!r}: expected one of {AUDIO_FORMATS}.")
+    return value
+
+
+def extension_for(media_type: str) -> str:
+    return "ogg" if media_type == "audio/ogg" else "wav"
+
+
+def encode_opus(samples: np.ndarray, sample_rate: int) -> bytes:
+    """Float samples to Ogg Opus, mono, about 24 kbps. Clipped, as WAV is."""
+    import soundfile  # only where Opus is chosen: the voice images carry it
+
+    clipped = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
+    buffer = io.BytesIO()
+    soundfile.write(
+        buffer,
+        clipped,
+        sample_rate,
+        format="OGG",
+        subtype="OPUS",
+        compression_level=_OPUS_LEVEL,
+    )
+    return buffer.getvalue()
+
+
+def encode(samples: np.ndarray, sample_rate: int, fmt: str) -> tuple[bytes, str]:
+    """Encoded audio and its media type, in ``fmt`` where that can be done."""
+    if fmt == "opus" and sample_rate in _OPUS_RATES:
+        return encode_opus(samples, sample_rate), "audio/ogg"
+    return encode_wav(samples, sample_rate), "audio/wav"
 
 
 def encode_wav(samples: np.ndarray, sample_rate: int) -> bytes:
@@ -63,10 +116,17 @@ class SynthesisService:
     complexity would pay for itself.
     """
 
-    def __init__(self, adapter: TtsAdapter, store: Store, voice_id: str = "si-female") -> None:
+    def __init__(
+        self,
+        adapter: TtsAdapter,
+        store: Store,
+        voice_id: str = "si-female",
+        encoding: str | None = None,
+    ) -> None:
         self._adapter = adapter
         self._store = store
         self._voice_id = voice_id
+        self._format = encoding or audio_format()
         self._locks: dict[str, threading.Lock] = {}
         self._guard = threading.Lock()
 
@@ -130,12 +190,14 @@ class SynthesisService:
                 document_version=document_version,
                 prepared=prepared,
             )
+            encoded, media_type = encode(result.samples, result.sample_rate, self._format)
             record = AudioRecord(
                 cache_key=result.metadata.cache_key(),
                 document_id=document_id,
                 owner=owner,
                 segment_id=segment_id,
-                wav=encode_wav(result.samples, result.sample_rate),
+                wav=encoded,
+                media_type=media_type,
                 duration_seconds=result.metadata.duration_seconds,
                 is_real_model=result.metadata.is_real_model,
                 voice_id=result.metadata.voice_id,

@@ -478,6 +478,16 @@ class TestAudio:
         assert got.wav == wav
         assert got == record
 
+    def test_says_what_format_it_is(self, store: Store) -> None:
+        document = a_document()
+        store.put_document(document)
+        record = an_audio_record(document, wav=b"OggS", media_type="audio/ogg")
+
+        store.put_audio(record)
+        got = store.get_audio(record.cache_key, record.document_id, ALICE)
+
+        assert got is not None and got.media_type == "audio/ogg"
+
     def test_cached_audio_is_still_private(self, store: Store) -> None:
         """CLAUDE.md: keep private audio access-controlled even when cached.
 

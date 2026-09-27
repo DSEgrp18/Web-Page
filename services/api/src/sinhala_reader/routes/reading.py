@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from sinhala_tts.adapter import TextNotSpeakableError
 
+from ..audio import extension_for
 from ..schemas import (
     AudioManifest,
     BookmarkBody,
@@ -103,11 +104,13 @@ def register(app: FastAPI, deps: Deps) -> None:
 
         return Response(
             content=record.wav,
-            media_type="audio/wav",
+            media_type=record.media_type,
             headers={
                 REAL_MODEL_HEADER: "true" if record.is_real_model else "false",
                 "Cache-Control": "private, max-age=3600",
-                "Content-Disposition": f'inline; filename="{segment_id}.wav"',
+                "Content-Disposition": (
+                    f'inline; filename="{segment_id}.{extension_for(record.media_type)}"'
+                ),
             },
         )
 
