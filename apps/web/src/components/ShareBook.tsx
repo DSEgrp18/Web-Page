@@ -129,6 +129,8 @@ export function ShareBook({ documentId }: { documentId: string }) {
     try {
       await api.unpublish(documentId, classId);
       setPublication(await api.getPublication(documentId));
+      // The class's entry, and the button that was pressed, are gone.
+      document.getElementById("shared-with")?.focus();
       say(strings.stoppedSharing);
     } catch (error) {
       setFailure(explain(error, {}));
@@ -144,7 +146,9 @@ export function ShareBook({ documentId }: { documentId: string }) {
       {notice}
 
       <section className="account-section card" aria-labelledby="shared-with">
-        <h2 id="shared-with">{strings.sharedWithHeading}</h2>
+        <h2 id="shared-with" tabIndex={-1}>
+          {strings.sharedWithHeading}
+        </h2>
         {publication?.stale ? <p className="notice notice-warn">{strings.staleShare}</p> : null}
         {!publication || publication.class_ids.length === 0 ? (
           <p>{strings.notShared}</p>

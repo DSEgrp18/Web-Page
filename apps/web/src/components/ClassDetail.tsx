@@ -12,6 +12,7 @@ import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
 import { strings } from "@/lib/strings";
 import type { IssuedReset, JoinedClass, MemberDetail, TaughtClass } from "@/lib/types";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 function isTaught(room: TaughtClass | JoinedClass): room is TaughtClass {
   return "join_code" in room;
@@ -38,6 +39,8 @@ export function ClassDetail({ classId }: { classId: string }) {
   const [issued, setIssued] = useState<IssuedReset | null>(null);
   /** The row's button that asked for a code: where focus goes back to. */
   const resetReturn = useRef<HTMLButtonElement | null>(null);
+  // The tab is named after the class once it is known, not just "classes".
+  useDocumentTitle(room?.name);
 
   useEffect(() => {
     let cancelled = false;
@@ -242,7 +245,9 @@ function Members({
   const shown = room.members.filter((m) => m.state !== "removed");
   return (
     <section className="account-section card" aria-labelledby="members-heading">
-      <h2 id="members-heading">{strings.membersHeading}</h2>
+      <h2 id="members-heading" tabIndex={-1}>
+        {strings.membersHeading}
+      </h2>
       {shown.length === 0 ? (
         <p>{strings.noMembers}</p>
       ) : (
@@ -293,10 +298,12 @@ function Members({
                         className="btn btn-quiet btn-sm"
                         type="button"
                         onClick={() =>
+                          // The student's row goes, and this button with it:
+                          // focus waits on the table's heading instead.
                           void act(
                             () => api.setMember(room.class_id, member.user_id, "remove"),
                             strings.memberRemoved(member.display_name),
-                          )
+                          ).then(() => document.getElementById("members-heading")?.focus())
                         }
                       >
                         {strings.removeNamed(member.display_name)}
