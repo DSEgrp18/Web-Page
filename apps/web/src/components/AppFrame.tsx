@@ -78,6 +78,13 @@ export function AppFrame({ children }: { children: ReactNode }) {
                   >
                     {strings.progressNav}
                   </Link>
+                  <Link
+                    className="nav-link"
+                    href="/offline"
+                    aria-current={pathname === "/offline" ? "page" : undefined}
+                  >
+                    {strings.offlineNav}
+                  </Link>
                 </nav>
                 <div className="shell-actions">
                   <Settings />
