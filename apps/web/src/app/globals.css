@@ -397,8 +397,10 @@ textarea {
   border-color: var(--bad-ink);
 }
 
+/* Smaller type and padding, never a smaller target: `--tap` is the floor for
+   every control, and a "small" button is still something a thumb must hit. */
 .btn-sm {
-  min-height: 36px;
+  min-height: var(--tap);
   padding: 0 var(--s3);
   font-size: var(--text-xs);
 }
@@ -425,10 +427,17 @@ label {
   margin-bottom: var(--s2);
 }
 
+/* `input:not([type])` because an input with no type attribute is a text field
+   that `[type="text"]` does not match; the recovery code, the class code and
+   the pasted text's title were grey browser boxes until this said so. */
+input:not([type]),
 input[type="text"],
+input[type="email"],
 input[type="search"],
 input[type="number"],
 input[type="password"],
+input[type="url"],
+input[type="tel"],
 select,
 textarea {
   width: 100%;
@@ -448,6 +457,14 @@ textarea {
 ::placeholder {
   color: var(--ink-muted);
   opacity: 1;
+}
+
+/* A disclosure's summary is a control like any other. `list-item` stays, so
+   the browser still draws the open/closed marker that says which it is. */
+summary {
+  min-block-size: var(--tap);
+  padding-block: var(--s2);
+  cursor: pointer;
 }
 
 .hint {
@@ -526,6 +543,7 @@ textarea {
 .brand {
   display: inline-flex;
   align-items: center;
+  min-block-size: var(--tap);
   gap: var(--s3);
   text-decoration: none;
   color: inherit;
@@ -563,6 +581,10 @@ textarea {
   min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  /* `minmax(0, 1fr)`, not the implicit `auto`: an auto column is as wide as
+     its widest child's minimum, so one unbreakable row of nav links made
+     every signed-in page scroll sideways at phone width. */
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .shell-header {
@@ -593,7 +615,7 @@ textarea {
 .nav-link {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: var(--tap);
   padding: 0 var(--s4);
   border-radius: var(--r-pill);
   text-decoration: none;
@@ -650,6 +672,7 @@ textarea {
   inline-size: min(46rem, 100%);
   margin-inline: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s5);
 }
 
@@ -814,7 +837,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
+  min-height: var(--tap);
   padding: 0 var(--s2);
   border-radius: var(--r-pill);
   font-size: var(--text-sm);
@@ -959,6 +982,8 @@ textarea {
 
 .account-page {
   display: grid;
+  /* As for `.shell`: never wider than the page because of a wide child. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s5);
   inline-size: min(40rem, 100%);
   margin-inline: auto;
@@ -987,6 +1012,13 @@ textarea {
 
 .class-item:last-child {
   border-block-end: 0;
+}
+
+/* Wide tables scroll inside their own box, never the page (accessible UI
+   guide, section 7). */
+.table-scroll {
+  max-inline-size: 100%;
+  overflow-x: auto;
 }
 
 /* A table read by row: each student's name heads the row it acts on. */
@@ -1063,6 +1095,7 @@ textarea {
 
 .library {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s6);
 }
 
@@ -1551,10 +1584,38 @@ textarea {
  */
 .workspace {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  /* Named, not counted: an error notice appears and disappears between the bar
+     and the tabs, and a row list counted by position would hand the growing
+     row to whatever happened to be third. */
+  grid-template-areas:
+    "bar bar"
+    "notice notice"
+    "tabs tabs"
+    "body body"
+    "player ask";
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto 1fr auto;
   block-size: calc(100dvh - var(--header-h) - 1px);
   min-block-size: 0;
-  background: var(--paper);
+  /* Seen only beside the player, where the ask button sits: the panel colour
+     makes that corner part of the player's row rather than a gap in it. */
+  background: var(--panel);
+}
+
+.workspace > .workspace-bar {
+  grid-area: bar;
+}
+.workspace > .notice {
+  grid-area: notice;
+}
+.workspace > .workspace-tabs {
+  grid-area: tabs;
+}
+.workspace > .workspace-body {
+  grid-area: body;
+}
+.workspace > .player {
+  grid-area: player;
 }
 
 .workspace-loading {
@@ -1628,7 +1689,7 @@ textarea {
 
 .workspace-tab {
   flex: 1;
-  min-block-size: 44px;
+  min-block-size: var(--tap);
   border: 1px solid transparent;
   border-radius: var(--r-pill);
   background: transparent;
@@ -2042,7 +2103,7 @@ textarea {
 
 .player-speed {
   inline-size: auto;
-  min-block-size: 40px;
+  min-block-size: var(--tap);
   border-radius: var(--r-pill);
   padding-inline: var(--s3);
 }
@@ -2087,12 +2148,17 @@ textarea {
    14. The assistant
    ========================================================================== */
 
+/*
+ * In the row beside the player, not floating over the page. Fixed to the
+ * viewport it covered "report a problem" and "saved chapters" at the foot of
+ * the reading panel, and whatever else was beneath it at another width or
+ * zoom (WCAG 2.4.11). Here it covers nothing, and it sits where it is in the
+ * tab order: after the player.
+ */
 .assistant-fab {
-  position: fixed;
-  inset-block-end: 5.5rem;
-  inset-inline-end: var(--s5);
-  z-index: 35;
-  box-shadow: var(--shadow-3);
+  grid-area: ask;
+  align-self: center;
+  margin: var(--s2) var(--s4);
 }
 
 .assistant {
@@ -2457,7 +2523,7 @@ h4 {
 }
 
 .nav-link {
-  min-height: 42px;
+  min-height: var(--tap);
   padding: 0 1.15rem;
   border-radius: var(--r-pill);
   color: var(--ink-muted);
@@ -2487,6 +2553,9 @@ h4 {
 }
 
 .account-name {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
   background: transparent;
   color: var(--ink-muted);
   font-family: var(--font-latin);
@@ -2713,14 +2782,13 @@ h4 {
 }
 
 .segmented {
-  min-height: 50px;
   padding: 0.25rem;
   border-color: var(--edge);
   background: color-mix(in srgb, var(--panel) 52%, transparent);
 }
 
 .segment {
-  min-height: 40px;
+  min-height: var(--tap);
   padding-inline: 0.85rem;
   font-weight: 600;
   color: var(--ink-muted);
@@ -2857,10 +2925,15 @@ h4 {
     order: 3;
     width: 100%;
     justify-content: stretch;
+    /* Five links do not fit on one line at 360 px; they wrap rather than
+       push the page sideways. */
+    flex-wrap: wrap;
+    border-radius: var(--r-lg);
   }
 
   .nav-link {
-    flex: 1;
+    flex: 1 1 auto;
+    justify-content: center;
     text-align: center;
   }
 
@@ -2931,5 +3004,43 @@ h4 {
 
   .book-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * No room for a header that stays put.
+ *
+ * On a phone, and at 300% zoom on a laptop (about 427 x 300 CSS pixels), the
+ * wrapped masthead was a quarter to two fifths of the screen, and it covered
+ * the same share of every page as the reader scrolled. It scrolls away here.
+ * Em-based, so it answers text zoom as well as window size.
+ */
+@media (max-width: 48em), (max-height: 40em) {
+  .shell-header {
+    position: static;
+  }
+}
+
+/*
+ * The reader, when the screen is short.
+ *
+ * The workspace is a full-height layout whose panels scroll inside it, which
+ * is right on a laptop and wrong at 300% zoom: the bar, the tabs and the
+ * player took every pixel and left the reading panel 0 px tall. Here the page
+ * simply scrolls, and every part of it is as tall as its content.
+ */
+@media (max-height: 40em) {
+  .workspace {
+    block-size: auto;
+  }
+
+  .workspace-body,
+  .split,
+  .split-panel,
+  .pane,
+  .panel,
+  .reading-body {
+    block-size: auto;
+    overflow: visible;
   }
 }
