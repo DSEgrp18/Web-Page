@@ -53,6 +53,9 @@ export function ProsePageView({
         <p>
           <a className="btn" href={REPORT_URL} rel="noopener noreferrer">
             {strings.reportBarrier}
+          </a>{" "}
+          <a className="btn" href="/report?kind=accessibility">
+            {strings.reportInApp}
           </a>
         </p>
       ) : null}
