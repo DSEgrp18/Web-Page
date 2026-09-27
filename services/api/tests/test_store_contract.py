@@ -1193,12 +1193,54 @@ class TestQuizzes:
         assert (answer.choice, answer.correct) == (2, True)
         assert store.quiz_answers(quiz.quiz_id, BOB) == []
 
+    def test_an_answer_keeps_its_review_schedule(self, store: Store) -> None:
+        quiz = self._quiz(store, ALICE)
+        store.put_quiz_answer(
+            QuizAnswer(quiz.quiz_id, ALICE, "q1", 1, True, box=3, due_on="2026-09-14")
+        )
+
+        (answer,) = store.quiz_answers(quiz.quiz_id, ALICE)
+        assert (answer.box, answer.due_on) == (3, "2026-09-14")
+
     def test_goes_with_its_book(self, store: Store) -> None:
         quiz = self._quiz(store, ALICE)
 
         store.delete_document(quiz.document_id, ALICE)
 
         assert store.quiz_for(quiz.quiz_id, ALICE) is None
+
+
+class TestHeard:
+    def _book(self, store: Store) -> Document:
+        store.put_user(a_user("alice@example.lk", user_id=ALICE))
+        return store.put_document(a_document(owner=ALICE))
+
+    def test_adds_to_what_was_heard_of_the_same_version(self, store: Store) -> None:
+        document = self._book(store)
+        store.mark_heard(document.document_id, ALICE, "v1", [0, 9])
+        store.mark_heard(document.document_id, ALICE, "v1", [3])
+
+        heard = store.get_heard(document.document_id, ALICE)
+
+        assert heard is not None and heard.version == "v1"
+        assert [i for i in range(16) if heard.bits[i // 8] >> i % 8 & 1] == [0, 3, 9]
+        assert store.get_heard(document.document_id, BOB) is None
+
+    def test_starts_again_for_a_new_version(self, store: Store) -> None:
+        document = self._book(store)
+        store.mark_heard(document.document_id, ALICE, "v1", [0, 9])
+
+        heard = store.mark_heard(document.document_id, ALICE, "v2", [1])
+
+        assert (heard.version, heard.bits) == ("v2", bytes([0b10]))
+
+    def test_goes_with_its_book(self, store: Store) -> None:
+        document = self._book(store)
+        store.mark_heard(document.document_id, ALICE, "v1", [0])
+
+        store.delete_document(document.document_id, ALICE)
+
+        assert store.get_heard(document.document_id, ALICE) is None
 
 
 class TestAudit:
