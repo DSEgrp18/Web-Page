@@ -89,6 +89,8 @@ def _fill(template, book: dict[str, str]):
         return None
     if isinstance(template, str):
         return template.format(**book)
+    if isinstance(template, list):
+        return [_fill(value, book) for value in template]
     return {key: _fill(value, book) for key, value in template.items()}
 
 
