@@ -56,8 +56,9 @@ describe("the front door", () => {
     const { container } = render(<LandingPage />);
     const steps = within(container.querySelector<HTMLElement>(".landing-steps")!);
 
+    // `queryAll`: every step has shipped now, and none is marked.
     const notYet = landing.steps.filter((step) => !step.ready).length;
-    expect(steps.getAllByText(landing.notYet)).toHaveLength(notYet);
+    expect(steps.queryAllByText(landing.notYet)).toHaveLength(notYet);
   });
 
   it("has no audio or video to start by itself", () => {
