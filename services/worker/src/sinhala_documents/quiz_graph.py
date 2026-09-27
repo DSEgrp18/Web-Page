@@ -122,8 +122,16 @@ def draft_questions(
     *,
     target: int = TARGET_QUESTIONS,
     clock: Callable[[], float] = time.monotonic,
+    _check: Callable[[Candidate, dict[int, SourcePassage]], Rejection | None] = verify,
+    _blind: bool = True,
 ) -> GraphResult:
-    """Run the bounded draft → verify → (revise | blind check) → accept loop."""
+    """Run the bounded draft → verify → (revise | blind check) → accept loop.
+
+    ``_check`` and ``_blind`` exist for the RQ1 ablation in ``evaluation/`` and
+    nowhere else: the product never passes them, no setting reaches them, and
+    ``evaluation/tests/test_boundary.py`` fails if anything outside
+    ``evaluation/`` does. Questions made with either changed never reach a reader.
+    """
     from langgraph.errors import GraphRecursionError  # the worker's only import site
     from langgraph.graph import END, START, StateGraph
 
@@ -164,7 +172,7 @@ def draft_questions(
             )
         except (KeyError, TypeError, ValueError):
             return {"draft": None, "verdict": UNREADABLE_DRAFT}
-        rejection: Rejection | None = verify(candidate, by_number)
+        rejection: Rejection | None = _check(candidate, by_number)
         return {"draft": candidate, "verdict": str(rejection) if rejection else None}
 
     def blind_check(state: _State) -> _State:
@@ -198,6 +206,9 @@ def draft_questions(
     def after_draft(state: _State) -> str:
         if state.get("verdict"):
             return "discard"
+        if not _blind:
+            result.accepted.append(state["draft"])  # type: ignore[arg-type]
+            return "next_seed"
         return "end" if spent() else "blind_check"
 
     def after_blind(state: _State) -> str:
@@ -216,7 +227,9 @@ def draft_questions(
     graph.add_edge(START, "next_seed")
     graph.add_conditional_edges("next_seed", after_seed, {"draft": "draft", "end": END})
     graph.add_conditional_edges(
-        "draft", after_draft, {"discard": "discard", "blind_check": "blind_check", "end": END}
+        "draft",
+        after_draft,
+        {"discard": "discard", "blind_check": "blind_check", "next_seed": "next_seed", "end": END},
     )
     graph.add_conditional_edges(
         "blind_check", after_blind, {"discard": "discard", "next_seed": "next_seed"}
