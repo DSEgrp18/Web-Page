@@ -71,6 +71,13 @@ export function AppFrame({ children }: { children: ReactNode }) {
                   >
                     {strings.classesNav}
                   </Link>
+                  <Link
+                    className="nav-link"
+                    href="/progress"
+                    aria-current={pathname === "/progress" ? "page" : undefined}
+                  >
+                    {strings.progressNav}
+                  </Link>
                 </nav>
                 <div className="shell-actions">
                   <Settings />

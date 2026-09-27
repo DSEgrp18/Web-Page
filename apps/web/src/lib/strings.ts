@@ -86,6 +86,33 @@ export const strings = {
   accountDeleted: "ඔබේ ගිණුම මකා දැමුණා.",
   // -- classes -------------------------------------------------------------
   classesNav: "පන්ති",
+  progressNav: "ප්‍රගතිය",
+  progressHeading: "මගේ ප්‍රගතිය",
+  progressSummary: (complete: number, chapters: number, due: number) =>
+    `ඔබ පරිච්ඡේද ${chapters} න් ${complete}ක් සම්පූර්ණයෙන් අසා ඇත; අද ප්‍රශ්න ${due}ක් නැවත බැලීමට ඇත.`,
+  progressNoBooks: "තවම පොත් නැත. පොතක් එක් කළ පසු ඔබේ ප්‍රගතිය මෙහි පෙනේ.",
+  progressCaption: (title: string) => `${title} — පරිච්ඡේද අනුව`,
+  progressChapter: "පරිච්ඡේදය",
+  progressHeard: "අසා ඇති",
+  progressAnswered: "නිවැරදි පිළිතුරු",
+  progressDue: "නැවත බැලීමට",
+  progressWholeBook: "මුළු පොත",
+  progressOpening: "පළමු පරිච්ඡේදයට පෙර",
+  progressHeardCell: (heard: number, sentences: number) =>
+    sentences === 0 ? "—" : `${Math.round((heard / sentences) * 100)}%`,
+  progressAnsweredCell: (correct: number, answered: number) =>
+    answered === 0 ? "—" : `${answered} න් ${correct}`,
+  reviseHeading: "ඊළඟට නැවත බලන්න",
+  reviseNothing: "අද නැවත බැලීමට ප්‍රශ්න නැත.",
+  reviseLink: (title: string, due: number) => `${title} — ප්‍රශ්න ${due}ක්`,
+  reviewingDue: (count: number) => `නැවත බැලීමට ඇති ප්‍රශ්න ${count}ක්.`,
+  classProgressHeading: "සිසුන්ගේ ප්‍රගතිය",
+  classProgressHow:
+    "ප්‍රගතිය බෙදා ගැනීමට තෝරාගත් සිසුන් පමණක්, මෙම පන්තියට බෙදාගත් පොත් සඳහා පමණක් මෙහි පෙනේ.",
+  classProgressNobody: "තවම කිසිදු සිසුවෙක් ප්‍රගතිය බෙදාගෙන නැත.",
+  classNotSharing: (count: number) => `සිසුන් ${count} දෙනෙක් ප්‍රගතිය බෙදා නොගනී.`,
+  classProgressDownload: "පැතුරුම්පතක් ලෙස බාගන්න",
+  classProgressNoBooks: "මෙම පන්තියට බෙදාගත් පොත් නැත.",
   classesHeading: "මගේ පන්ති",
   joinHeading: "පන්තියකට එක් වන්න",
   joinCodeLabel: "පන්ති කේතය",
