@@ -757,6 +757,17 @@ not by a teacher". **A class quiz needs a teacher's approval.**
 
 ### 11.1 Evaluation: the dissertation's contribution
 
+> **The kit landed; the studies have not run.** `evaluation/` holds `protocol.md`, the
+> rater rubric, draft consent and assent forms (awaiting ethics approval, legal review
+> and translation), and `swara_eval`: one command per step for RQ1 (three conditions,
+> a blind sheet, and the verifier's false accepts and rejects), retrieval Recall@5,
+> RQ3 session summaries with UMUX-Lite, and RQ4 first-audio latency, megabytes per hour
+> and a blind WAV/Opus listening set. The RQ1 bypass is two private arguments of
+> `draft_questions` (`_check`, `_blind`), and `evaluation/tests/test_boundary.py` fails
+> the build if anything under `services/` or `apps/` passes them. `write_result`
+> refuses per-person keys, and `verify-repo-hygiene.sh` fails on tracked
+> `evaluation/data/` or non-aggregate results. No result has been measured yet.
+
 A new `evaluation/` folder holds the protocol, ethics and consent templates, the runners,
 and the analysis. **Only aggregate results are committed.** `scripts/verify-repo-hygiene.sh`
 is extended to enforce that.
