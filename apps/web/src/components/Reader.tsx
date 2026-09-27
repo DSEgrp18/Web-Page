@@ -11,6 +11,7 @@ import { PdfPanel } from "@/components/PdfPanel";
 import { PlayerBar } from "@/components/PlayerBar";
 import { usePreferences } from "@/components/PreferencesProvider";
 import { ReadingPanel } from "@/components/ReadingPanel";
+import { SaveOffline } from "@/components/SaveOffline";
 import { useReader } from "@/components/ReaderProvider";
 import { SplitView } from "@/components/SplitView";
 import { ApiError } from "@/lib/client";
@@ -471,6 +472,7 @@ export function Reader({
           {player.currentId ? strings.reportSentenceLink : strings.reportLink}
         </Link>
       </div>
+      <SaveOffline documentId={documentId} page={pageIndex} />
     </>
   );
 
