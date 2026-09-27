@@ -590,8 +590,24 @@ export function Reader({
               id={`tab-${side}`}
               aria-selected={tab === side}
               aria-controls={`panel-${side}`}
+              // The tab pattern's keys, which `role="tab"` promises: one
+              // stop in the tab order, and Left/Right/Home/End between the
+              // two. Selection follows focus; both panels stay mounted.
+              tabIndex={tab === side ? 0 : -1}
               className="workspace-tab"
               onClick={() => setTab(side)}
+              onKeyDown={(event) => {
+                const to: Side | undefined =
+                  event.key === "ArrowLeft" || event.key === "Home"
+                    ? "original"
+                    : event.key === "ArrowRight" || event.key === "End"
+                      ? "reading"
+                      : undefined;
+                if (!to) return;
+                event.preventDefault();
+                setTab(to);
+                document.getElementById(`tab-${to}`)?.focus();
+              }}
             >
               {side === "original" ? strings.originalPanel : strings.readingPanel}
             </button>
