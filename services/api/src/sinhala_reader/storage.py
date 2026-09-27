@@ -528,6 +528,8 @@ class AudioRecord:
     owner: str
     segment_id: str
     wav: bytes
+    """The encoded audio, in the format ``media_type`` names (WAV or Ogg Opus)."""
+
     duration_seconds: float
     is_real_model: bool
     """False for the development tone.
@@ -538,6 +540,7 @@ class AudioRecord:
 
     voice_id: str
     model_version: str
+    media_type: str = "audio/wav"
 
 
 class Store(ABC):

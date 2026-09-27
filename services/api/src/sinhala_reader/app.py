@@ -39,7 +39,7 @@ from sinhala_tts.adapter import TtsAdapter
 from .accounts import router as accounts_router
 from .adapters import build_adapter, warm
 from .answers import build_answerer
-from .audio import SynthesisService
+from .audio import SynthesisService, audio_format
 from .practice import draft_quiz, offered_generators
 from .preparation import (
     PreparationService,
@@ -119,7 +119,8 @@ class Deps:
         self.preparation = PreparationService(
             self.store, dispatch=self._dispatcher(run_in_background)
         )
-        self.synthesis = SynthesisService(self.adapter, self.store)
+        # Read here, at the composition root, so an unknown format stops the start.
+        self.synthesis = SynthesisService(self.adapter, self.store, encoding=audio_format())
         #: Model-drafted questions run on the queue, or inline in a test. Never
         #: on a thread here: that would load LangGraph into the API process.
         self.draft_quiz = self._quiz_dispatcher(run_in_background)

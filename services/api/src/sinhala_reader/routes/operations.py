@@ -11,6 +11,7 @@ from sinhala_tts.adapter import health as adapter_health
 from .. import passwords
 from ..adapters import ADAPTER_ENV, adapter_mode, loaded_model_version
 from ..answers import answer_limitations, answers_mode
+from ..audio import AUDIO_FORMAT_ENV, audio_format
 from ..queue import QUEUE_ENV, REDIS_URL_ENV, queue_mode, uses_celery
 from ..recognition import ocr_limitations, ocr_mode
 from ..security import (
@@ -67,6 +68,12 @@ def register(app: FastAPI, deps: Deps) -> None:
             limitations.append(
                 "The voice failed to load, so nothing can be narrated. "
                 + (report.detail or "No reason was recorded.")
+            )
+        if audio_format() == "opus":
+            limitations.append(
+                "New audio is stored as Ogg Opus at about 24 kbps. It has not yet been "
+                "compared with WAV in a blind listening test, and Safari before 18.4 on an "
+                f"iPhone cannot play it. Unset {AUDIO_FORMAT_ENV} to go back to WAV."
             )
         if not uses_celery():
             limitations.append(
