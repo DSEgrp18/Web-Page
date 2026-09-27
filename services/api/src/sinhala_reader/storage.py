@@ -402,6 +402,27 @@ class QuizAnswer:
     correct: bool
     answered_at: str = field(default_factory=_now)
 
+    box: int = 1
+    """The Leitner box, 1 to 5. A right answer moves it up, a wrong one to 1."""
+
+    due_on: str = ""
+    """The Colombo date it comes up for review, ``YYYY-MM-DD``."""
+
+
+@dataclass(frozen=True)
+class Heard:
+    """Which sentences of one version of a book a reader has listened to.
+
+    A bitmap by segment index: about 625 bytes for a 5,000-sentence book. A
+    different version is different text, so it starts again empty.
+    """
+
+    document_id: str
+    user_id: str
+    version: str
+    bits: bytes
+    updated_at: str = field(default_factory=_now)
+
 
 @dataclass(frozen=True)
 class Classroom:
@@ -778,6 +799,29 @@ class Store(ABC):
     @abstractmethod
     def quiz_answers(self, quiz_id: str, user_id: str) -> list[QuizAnswer]: ...
 
+    def mark_heard(self, document_id: str, user_id: str, version: str, indices: list[int]) -> Heard:
+        """Add sentences to what this reader has heard of this version."""
+        from .track import set_bits
+
+        found = self.get_heard(document_id, user_id)
+        bits = found.bits if found is not None and found.version == version else b""
+        return self.put_heard(Heard(document_id, user_id, version, set_bits(bits, indices), _now()))
+
+    @abstractmethod
+    def put_heard(self, heard: Heard) -> Heard: ...
+
+    @abstractmethod
+    def get_heard(self, document_id: str, user_id: str) -> Heard | None:
+        """Keyed by the reader. Callers decide whose they may ask for."""
+
+    def sharing_members(self, class_id: str, teacher_id: str) -> list[Membership]:
+        """Active members who chose to share their progress, for their teacher only."""
+        return [
+            m
+            for m in self.members(class_id, teacher_id)
+            if m.state == MemberState.ACTIVE and m.share_progress
+        ]
+
     @abstractmethod
     def record(self, event: AuditEvent) -> None: ...
 
@@ -945,6 +989,7 @@ class InMemoryStore(Store):
         self._teacher_resets: dict[str, TeacherReset] = {}
         self._quizzes: dict[str, Quiz] = {}
         self._quiz_answers: dict[tuple[str, str, str], QuizAnswer] = {}
+        self._heard: dict[tuple[str, str], Heard] = {}
         self._audit: list[AuditEvent] = []
         self._classes: dict[str, Classroom] = {}
         self._members: dict[tuple[str, str], Membership] = {}
@@ -1001,6 +1046,8 @@ class InMemoryStore(Store):
                 self._drop_quiz(quiz_id)
             self._prepared.pop(document_id, None)
             self._progress.pop(self._progress_key(document_id, owner), None)
+            for key in [k for k in self._heard if k[0] == document_id]:
+                del self._heard[key]
             for bookmark_id, bookmark in list(self._bookmarks.items()):
                 if bookmark.document_id == document_id:
                     del self._bookmarks[bookmark_id]
@@ -1233,6 +1280,8 @@ class InMemoryStore(Store):
                 self._drop_quiz(quiz_id)
             for key in [k for k in self._quiz_answers if k[1] == user_id]:
                 del self._quiz_answers[key]
+            for key in [k for k in self._heard if k[1] == user_id]:
+                del self._heard[key]
             for student, reset in list(self._teacher_resets.items()):
                 if reset.issued_by == user_id:
                     self._teacher_resets[student] = replace(reset, issued_by=None)
@@ -1326,6 +1375,15 @@ class InMemoryStore(Store):
             return [
                 a for (q, u, _), a in self._quiz_answers.items() if q == quiz_id and u == user_id
             ]
+
+    def put_heard(self, heard: Heard) -> Heard:
+        with self._lock:
+            self._heard[(heard.document_id, heard.user_id)] = heard
+        return heard
+
+    def get_heard(self, document_id: str, user_id: str) -> Heard | None:
+        with self._lock:
+            return self._heard.get((document_id, user_id))
 
     def put_teacher_reset(self, reset: TeacherReset) -> TeacherReset:
         with self._lock:

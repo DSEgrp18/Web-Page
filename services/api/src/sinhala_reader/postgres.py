@@ -51,6 +51,7 @@ from .storage import (
     CodeTaken,
     Document,
     EmailTaken,
+    Heard,
     Job,
     JobState,
     Membership,
@@ -440,6 +441,26 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             correct     boolean NOT NULL,
             answered_at text NOT NULL,
             PRIMARY KEY (quiz_id, user_id, question_id)
+        );
+        """,
+    ),
+    (
+        "0014_track",
+        """
+        -- Spaced review lives on the answer: its Leitner box and when it is due.
+        ALTER TABLE quiz_answers ADD COLUMN box integer NOT NULL DEFAULT 1
+            CHECK (box BETWEEN 1 AND 5);
+        ALTER TABLE quiz_answers ADD COLUMN due_on text NOT NULL DEFAULT '';
+
+        -- Which sentences each reader has heard, as a bitmap by segment index.
+        -- One version at a time: corrected text starts again.
+        CREATE TABLE heard (
+            document_id text NOT NULL REFERENCES documents (document_id) ON DELETE CASCADE,
+            user_id     text NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+            version     text NOT NULL,
+            bits        bytea NOT NULL,
+            updated_at  text NOT NULL,
+            PRIMARY KEY (document_id, user_id)
         );
         """,
     ),
@@ -1058,11 +1079,12 @@ class PostgresStore(Store):
             connection.execute(
                 """
                 INSERT INTO quiz_answers (quiz_id, user_id, question_id, choice, correct,
-                                          answered_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                                          answered_at, box, due_on)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (quiz_id, user_id, question_id) DO UPDATE SET
                     choice = EXCLUDED.choice, correct = EXCLUDED.correct,
-                    answered_at = EXCLUDED.answered_at
+                    answered_at = EXCLUDED.answered_at, box = EXCLUDED.box,
+                    due_on = EXCLUDED.due_on
                 """,
                 (
                     answer.quiz_id,
@@ -1071,6 +1093,8 @@ class PostgresStore(Store):
                     answer.choice,
                     answer.correct,
                     answer.answered_at,
+                    answer.box,
+                    answer.due_on,
                 ),
             )
         return answer
@@ -1082,6 +1106,28 @@ class PostgresStore(Store):
                 (quiz_id, user_id),
             ).fetchall()
         return [QuizAnswer(**row) for row in rows]
+
+    def put_heard(self, heard: Heard) -> Heard:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO heard (document_id, user_id, version, bits, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (document_id, user_id) DO UPDATE SET
+                    version = EXCLUDED.version, bits = EXCLUDED.bits,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (heard.document_id, heard.user_id, heard.version, heard.bits, heard.updated_at),
+            )
+        return heard
+
+    def get_heard(self, document_id: str, user_id: str) -> Heard | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM heard WHERE document_id = %s AND user_id = %s",
+                (document_id, user_id),
+            ).fetchone()
+        return None if row is None else Heard(**{**row, "bits": bytes(row["bits"])})
 
     def put_teacher_reset(self, reset: TeacherReset) -> TeacherReset:
         with self._pool.connection() as connection:
