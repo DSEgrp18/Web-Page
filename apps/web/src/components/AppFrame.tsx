@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
 import { BrandMark } from "@/components/BrandMark";
@@ -99,7 +99,12 @@ export function AppFrame({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main id="main" className={isWorkspace ? "shell-main shell-main-wide" : "shell-main"}>
+        {/* Focusable from script, so the skip link's jump lands in it. */}
+        <main
+          id="main"
+          tabIndex={-1}
+          className={isWorkspace ? "shell-main shell-main-wide" : "shell-main"}
+        >
           {signedIn ? (
             <>
               {/* Not over the book: the workspace owns its whole height. It
@@ -161,8 +166,23 @@ function SignedOut({ pathname }: { pathname: string }) {
     if (document.activeElement === document.body) heading.current?.focus();
   }, []);
 
+  // The tab says what is on screen: "sign in", not the page that is not
+  // showing. The route's own title comes back when this panel goes.
+  useEffect(() => {
+    const before = document.title;
+    document.title = `${strings.signInHeading} — ${strings.appName}`;
+    return () => {
+      document.title = before;
+    };
+  }, []);
+
+  // The query goes too: a class link's code must survive signing in. This
+  // panel only renders in the browser, once the session check has answered.
+  const [search] = useState(() => (typeof window === "undefined" ? "" : window.location.search));
   const next =
-    pathname === "/library" || pathname === "/" ? "" : `?next=${encodeURIComponent(pathname)}`;
+    pathname === "/library" || pathname === "/"
+      ? ""
+      : `?next=${encodeURIComponent(pathname + search)}`;
   return (
     <div className="account-screen">
       <img

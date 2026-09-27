@@ -101,7 +101,8 @@ export function PublicFrame({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main id="main" className="shell-main">
+        {/* Focusable from script, so the skip link's jump lands in it. */}
+        <main id="main" tabIndex={-1} className="shell-main">
           {children}
         </main>
 
