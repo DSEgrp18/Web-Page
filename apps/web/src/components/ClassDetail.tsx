@@ -246,64 +246,68 @@ function Members({
       {shown.length === 0 ? (
         <p>{strings.noMembers}</p>
       ) : (
-        <table className="member-table">
-          <caption className="visually-hidden">{strings.membersHeading}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{strings.memberColName}</th>
-              <th scope="col">{strings.memberColState}</th>
-              <th scope="col">{strings.memberColShares}</th>
-              <th scope="col">{strings.memberColActions}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((member) => (
-              <tr key={member.user_id}>
-                <th scope="row">{member.display_name}</th>
-                <td>{strings.memberState(member.state)}</td>
-                <td>{member.share_progress ? strings.yes : strings.no}</td>
-                <td>
-                  <div className="notice-actions">
-                    {member.state === "pending" ? (
+        // Scrolls inside its own box at phone width. Its buttons already take
+        // focus, so the box needs no tab stop of its own.
+        <div className="table-scroll">
+          <table className="member-table">
+            <caption className="visually-hidden">{strings.membersHeading}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{strings.memberColName}</th>
+                <th scope="col">{strings.memberColState}</th>
+                <th scope="col">{strings.memberColShares}</th>
+                <th scope="col">{strings.memberColActions}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((member) => (
+                <tr key={member.user_id}>
+                  <th scope="row">{member.display_name}</th>
+                  <td>{strings.memberState(member.state)}</td>
+                  <td>{member.share_progress ? strings.yes : strings.no}</td>
+                  <td>
+                    <div className="notice-actions">
+                      {member.state === "pending" ? (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          type="button"
+                          onClick={() =>
+                            void act(
+                              () => api.setMember(room.class_id, member.user_id, "approve"),
+                              strings.memberApproved(member.display_name),
+                            )
+                          }
+                        >
+                          {strings.approveNamed(member.display_name)}
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-sm"
+                          type="button"
+                          onClick={(event) => onReset(member, event.currentTarget)}
+                        >
+                          {strings.resetNamed(member.display_name)}
+                        </button>
+                      )}
                       <button
-                        className="btn btn-primary btn-sm"
+                        className="btn btn-quiet btn-sm"
                         type="button"
                         onClick={() =>
                           void act(
-                            () => api.setMember(room.class_id, member.user_id, "approve"),
-                            strings.memberApproved(member.display_name),
+                            () => api.setMember(room.class_id, member.user_id, "remove"),
+                            strings.memberRemoved(member.display_name),
                           )
                         }
                       >
-                        {strings.approveNamed(member.display_name)}
+                        {strings.removeNamed(member.display_name)}
                       </button>
-                    ) : (
-                      <button
-                        className="btn btn-sm"
-                        type="button"
-                        onClick={(event) => onReset(member, event.currentTarget)}
-                      >
-                        {strings.resetNamed(member.display_name)}
-                      </button>
-                    )}
-                    <button
-                      className="btn btn-quiet btn-sm"
-                      type="button"
-                      onClick={() =>
-                        void act(
-                          () => api.setMember(room.class_id, member.user_id, "remove"),
-                          strings.memberRemoved(member.display_name),
-                        )
-                      }
-                    >
-                      {strings.removeNamed(member.display_name)}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

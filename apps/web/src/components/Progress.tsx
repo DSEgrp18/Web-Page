@@ -89,27 +89,37 @@ function chapterName(chapter: ChapterProgress, only: boolean): string {
 /** One book, chapter by chapter. Shared with the teacher's view of a student. */
 export function BookTable({ book }: { book: BookProgress }) {
   const only = book.chapters.length === 1;
+  // Four columns do not fit at 360 px. The table scrolls inside its own box
+  // rather than pushing the page sideways, and the box can take focus so the
+  // keyboard can scroll it too.
   return (
-    <table className="member-table">
-      <caption>{strings.progressCaption(book.title)}</caption>
-      <thead>
-        <tr>
-          <th scope="col">{strings.progressChapter}</th>
-          <th scope="col">{strings.progressHeard}</th>
-          <th scope="col">{strings.progressAnswered}</th>
-          <th scope="col">{strings.progressDue}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {book.chapters.map((chapter) => (
-          <tr key={`${chapter.first_page}-${chapter.title ?? ""}`}>
-            <th scope="row">{chapterName(chapter, only)}</th>
-            <td>{strings.progressHeardCell(chapter.heard, chapter.sentences)}</td>
-            <td>{strings.progressAnsweredCell(chapter.correct, chapter.answered)}</td>
-            <td>{chapter.due}</td>
+    <div
+      className="table-scroll"
+      role="region"
+      aria-label={strings.progressCaption(book.title)}
+      tabIndex={0}
+    >
+      <table className="member-table">
+        <caption>{strings.progressCaption(book.title)}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{strings.progressChapter}</th>
+            <th scope="col">{strings.progressHeard}</th>
+            <th scope="col">{strings.progressAnswered}</th>
+            <th scope="col">{strings.progressDue}</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {book.chapters.map((chapter) => (
+            <tr key={`${chapter.first_page}-${chapter.title ?? ""}`}>
+              <th scope="row">{chapterName(chapter, only)}</th>
+              <td>{strings.progressHeardCell(chapter.heard, chapter.sentences)}</td>
+              <td>{strings.progressAnsweredCell(chapter.correct, chapter.answered)}</td>
+              <td>{chapter.due}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

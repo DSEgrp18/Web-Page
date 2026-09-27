@@ -40,9 +40,11 @@ export default tseslint.config(
       // aria-valuenow. The rule treats `separator` as non-interactive because
       // the non-focusable form is, and cannot tell the two apart — so the role
       // is named here once rather than disabled at the one place it is used.
+      // A labelled `region` is the other: a table too wide for a phone scrolls
+      // inside it, and a keyboard can only scroll what it can focus.
       "jsx-a11y/no-noninteractive-tabindex": [
         "error",
-        { tags: [], roles: ["tabpanel", "separator"], allowExpressionValues: true },
+        { tags: [], roles: ["tabpanel", "separator", "region"], allowExpressionValues: true },
       ],
     },
   },
