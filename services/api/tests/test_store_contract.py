@@ -40,11 +40,13 @@ from sinhala_reader.storage import (
     JobState,
     MemberState,
     PageDecision,
+    ProblemReport,
     Progress,
     Publication,
     Quiz,
     QuizAnswer,
     QuizStatus,
+    ReportKind,
     RightsBasis,
     Role,
     Session,
@@ -1565,3 +1567,39 @@ class TestPublishing:
         self._publish(store, teacher, again, room)
         store.delete_class(room.class_id, teacher.user_id)
         assert store.readable_document(again.document_id, student.user_id) is None
+
+
+class TestReports:
+    def test_the_owner_reads_them_newest_first_and_nobody_else(self, store: Store) -> None:
+        store.put_user(a_user("alice@example.lk", user_id=ALICE))
+        store.put_user(a_user("bob@example.lk", user_id=BOB))
+        document = store.put_document(a_document(owner=ALICE))
+        for when in ("2026-09-01T00:00:00Z", "2026-09-02T00:00:00Z"):
+            store.put_report(
+                ProblemReport(
+                    new_id("rpt"),
+                    BOB,
+                    ReportKind.PRONUNCIATION,
+                    "x",
+                    document_id=document.document_id,
+                    segment_id="s1",
+                    created_at=when,
+                )
+            )
+
+        found = store.reports_on(document.document_id, ALICE)
+
+        assert [r.created_at[:10] for r in found] == ["2026-09-02", "2026-09-01"]
+        assert found[0].kind == ReportKind.PRONUNCIATION
+        assert store.reports_on(document.document_id, BOB) == []
+
+    def test_go_with_the_book(self, store: Store) -> None:
+        store.put_user(a_user("alice@example.lk", user_id=ALICE))
+        document = store.put_document(a_document(owner=ALICE))
+        store.put_report(
+            ProblemReport(new_id("rpt"), ALICE, ReportKind.OTHER, "x", document.document_id)
+        )
+
+        store.delete_document(document.document_id, ALICE)
+
+        assert store.reports_on(document.document_id, ALICE) == []

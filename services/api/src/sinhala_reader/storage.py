@@ -409,6 +409,34 @@ class QuizAnswer:
     """The Colombo date it comes up for review, ``YYYY-MM-DD``."""
 
 
+class ReportKind(StrEnum):
+    PRONUNCIATION = "pronunciation"
+    EXTRACTION = "extraction"
+    QUESTION = "question"
+    ACCESSIBILITY = "accessibility"
+    OTHER = "other"
+
+
+@dataclass(frozen=True)
+class ProblemReport:
+    """Something a reader says is wrong: a sentence, a question, or the site.
+
+    ``document_id`` is ``None`` for a report about the site itself, which only
+    an operator reads. A book's owner sees the reports on their book, without
+    who sent them.
+    """
+
+    report_id: str
+    reporter: str
+    kind: ReportKind
+    message: str
+    document_id: str | None = None
+    segment_id: str | None = None
+    quiz_id: str | None = None
+    question_id: str | None = None
+    created_at: str = field(default_factory=_now)
+
+
 @dataclass(frozen=True)
 class Heard:
     """Which sentences of one version of a book a reader has listened to.
@@ -814,6 +842,13 @@ class Store(ABC):
     def get_heard(self, document_id: str, user_id: str) -> Heard | None:
         """Keyed by the reader. Callers decide whose they may ask for."""
 
+    @abstractmethod
+    def put_report(self, report: ProblemReport) -> ProblemReport: ...
+
+    @abstractmethod
+    def reports_on(self, document_id: str, owner: str) -> list[ProblemReport]:
+        """Reports on a book, newest first, for its owner only; empty for anyone else."""
+
     def sharing_members(self, class_id: str, teacher_id: str) -> list[Membership]:
         """Active members who chose to share their progress, for their teacher only."""
         return [
@@ -990,6 +1025,7 @@ class InMemoryStore(Store):
         self._quizzes: dict[str, Quiz] = {}
         self._quiz_answers: dict[tuple[str, str, str], QuizAnswer] = {}
         self._heard: dict[tuple[str, str], Heard] = {}
+        self._reports: dict[str, ProblemReport] = {}
         self._audit: list[AuditEvent] = []
         self._classes: dict[str, Classroom] = {}
         self._members: dict[tuple[str, str], Membership] = {}
@@ -1048,6 +1084,8 @@ class InMemoryStore(Store):
             self._progress.pop(self._progress_key(document_id, owner), None)
             for key in [k for k in self._heard if k[0] == document_id]:
                 del self._heard[key]
+            for key in [k for k, r in self._reports.items() if r.document_id == document_id]:
+                del self._reports[key]
             for bookmark_id, bookmark in list(self._bookmarks.items()):
                 if bookmark.document_id == document_id:
                     del self._bookmarks[bookmark_id]
@@ -1282,6 +1320,8 @@ class InMemoryStore(Store):
                 del self._quiz_answers[key]
             for key in [k for k in self._heard if k[1] == user_id]:
                 del self._heard[key]
+            for key in [k for k, r in self._reports.items() if r.reporter == user_id]:
+                del self._reports[key]
             for student, reset in list(self._teacher_resets.items()):
                 if reset.issued_by == user_id:
                     self._teacher_resets[student] = replace(reset, issued_by=None)
@@ -1375,6 +1415,19 @@ class InMemoryStore(Store):
             return [
                 a for (q, u, _), a in self._quiz_answers.items() if q == quiz_id and u == user_id
             ]
+
+    def put_report(self, report: ProblemReport) -> ProblemReport:
+        with self._lock:
+            self._reports[report.report_id] = report
+        return report
+
+    def reports_on(self, document_id: str, owner: str) -> list[ProblemReport]:
+        with self._lock:
+            document = self._documents.get(document_id)
+            if document is None or document.owner != owner:
+                return []
+            found = [r for r in self._reports.values() if r.document_id == document_id]
+        return sorted(found, key=lambda r: (r.created_at, r.report_id), reverse=True)
 
     def put_heard(self, heard: Heard) -> Heard:
         with self._lock:
