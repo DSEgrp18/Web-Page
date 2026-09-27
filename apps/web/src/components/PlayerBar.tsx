@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef, type RefObject } from "react";
 
 import { strings } from "@/lib/strings";
 import type { usePlayer } from "@/lib/usePlayer";
@@ -38,6 +38,7 @@ export function PlayerBar({
   bookmarkLabel,
   bookmarkSaving,
   onBookmark,
+  bookmarkRef,
 }: {
   player: ReturnType<typeof usePlayer>;
   disabled: boolean;
@@ -47,8 +48,11 @@ export function PlayerBar({
   bookmarkLabel: string;
   bookmarkSaving: boolean;
   onBookmark: () => void;
+  /** So the reader can give focus back here once "undo" has been used. */
+  bookmarkRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const speedId = useId();
+  const playRef = useRef<HTMLButtonElement>(null);
   const playing = player.status === "playing";
   const busy = player.status === "loading";
 
@@ -66,6 +70,7 @@ export function PlayerBar({
         </button>
 
         <button
+          ref={playRef}
           type="button"
           className="btn btn-primary btn-icon player-play"
           onClick={player.toggle}
@@ -90,7 +95,12 @@ export function PlayerBar({
         <button
           type="button"
           className="btn btn-quiet btn-sm"
-          onClick={player.stop}
+          onClick={() => {
+            player.stop();
+            // Stop disables itself, and a disabled button loses focus to
+            // <body>. Play is the next thing a reader who stopped will want.
+            playRef.current?.focus();
+          }}
           disabled={disabled || player.status === "idle"}
         >
           {strings.stop}
@@ -111,11 +121,18 @@ export function PlayerBar({
       </p>
 
       <div className="player-tools">
+        {/* Busy while saving, but not `disabled`: disabling the button that
+            has focus drops focus to <body>. It says it is busy, and ignores
+            a second press, instead. */}
         <button
+          ref={bookmarkRef}
           type="button"
           className="btn btn-quiet btn-sm"
-          onClick={onBookmark}
-          disabled={disabled || !player.currentId || bookmarkSaving}
+          onClick={() => {
+            if (!bookmarkSaving) onBookmark();
+          }}
+          disabled={disabled || !player.currentId}
+          aria-disabled={bookmarkSaving || undefined}
         >
           <BookmarkIcon />
           {bookmarkLabel}
