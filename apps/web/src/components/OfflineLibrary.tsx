@@ -27,6 +27,23 @@ export function OfflineLibrary() {
   const [saved, setSaved] = useState<SavedChapter[] | null>(null);
   const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null);
   const [open, setOpen] = useState<SavedChapter | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  /**
+   * Where focus goes once the list is back on screen: the Listen button of
+   * the chapter just left, or the page heading after a removal. Both moves
+   * replace the element that had focus, which otherwise drops it to <body>.
+   */
+  const focusAfter = useRef<string | null>(null);
+
+  useEffect(() => {
+    const target = focusAfter.current;
+    if (open || !target) return;
+    focusAfter.current = null;
+    const listen = document.querySelector<HTMLButtonElement>(
+      `[data-listen="${CSS.escape(target)}"]`,
+    );
+    (listen ?? heading.current)?.focus();
+  }, [open, saved]);
 
   const load = useCallback(async () => {
     setSaved(await listSaved().catch(() => []));
@@ -59,15 +76,28 @@ export function OfflineLibrary() {
 
   async function remove(entry: SavedChapter) {
     await removeSaved(entry);
+    focusAfter.current = "heading";
     say(strings.offlineRemoved(entry.chapter ?? entry.title));
     await load();
   }
 
-  if (open) return <OfflinePlayer entry={open} onBack={() => setOpen(null)} />;
+  if (open) {
+    return (
+      <OfflinePlayer
+        entry={open}
+        onBack={() => {
+          focusAfter.current = open.key;
+          setOpen(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="account-page">
-      <h1>{strings.offlineHeading}</h1>
+      <h1 ref={heading} tabIndex={-1}>
+        {strings.offlineHeading}
+      </h1>
       <p className="hint">{strings.offlineHow}</p>
       {!offlineSupported() ? <p>{strings.offlineUnsupported}</p> : null}
       {estimate ? (
@@ -90,17 +120,27 @@ export function OfflineLibrary() {
                   {missing ? ` ${strings.offlineMissing(missing)}` : ""}
                 </p>
                 <div className="notice-actions">
+                  {/* The book is in the name as well as the chapter: two
+                      saved books both called "whole book" were two identical
+                      buttons to a screen reader. */}
                   <button
                     className="btn btn-primary btn-sm"
                     type="button"
+                    data-listen={entry.key}
                     onClick={() => setOpen(entry)}
                   >
                     {strings.offlineListen}
-                    <span className="visually-hidden"> — {name}</span>
+                    <span className="visually-hidden">
+                      {" "}
+                      — {entry.title} — {name}
+                    </span>
                   </button>
                   <button className="btn btn-sm" type="button" onClick={() => void remove(entry)}>
                     {strings.offlineRemove}
-                    <span className="visually-hidden"> — {name}</span>
+                    <span className="visually-hidden">
+                      {" "}
+                      — {entry.title} — {name}
+                    </span>
                   </button>
                 </div>
               </li>

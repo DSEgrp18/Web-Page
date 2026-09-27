@@ -105,6 +105,45 @@ describe("the saved chapters page", () => {
     expect(screen.getByText(new RegExp(strings.offlineNoAudio))).toBeTruthy();
     expect(screen.getByRole("button", { name: strings.play })).toBeTruthy();
   });
+
+  it("names the book, not only the chapter, on each chapter's buttons", async () => {
+    await saveChapter(MANIFEST, () => {}, network as typeof fetch);
+    renderApp(<OfflineLibrary />, new FakeServer({ books: [] }));
+
+    expect(
+      await screen.findByRole("button", { name: /අසන්න.*ඉතිහාසය.*පළමු පරිච්ඡේදය/ }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /ඉවත් කරන්න.*ඉතිහාසය.*පළමු පරිච්ඡේදය/ }),
+    ).toBeTruthy();
+  });
+
+  it("gives focus back to the chapter's listen button on leaving the player", async () => {
+    const user = userEvent.setup();
+    await saveChapter(MANIFEST, () => {}, network as typeof fetch);
+    renderApp(<OfflineLibrary />, new FakeServer({ books: [] }));
+
+    await user.click(await screen.findByRole("button", { name: /අසන්න.*ඉතිහාසය/ }));
+    await user.click(screen.getByRole("button", { name: strings.offlineBack }));
+
+    const listen = await screen.findByRole("button", { name: /අසන්න.*ඉතිහාසය/ });
+    await waitFor(() => expect(document.activeElement).toBe(listen));
+  });
+
+  it("puts focus on the page heading once a chapter is removed", async () => {
+    const user = userEvent.setup();
+    await saveChapter(MANIFEST, () => {}, network as typeof fetch);
+    renderApp(<OfflineLibrary />, new FakeServer({ books: [] }));
+
+    await user.click(await screen.findByRole("button", { name: /ඉවත් කරන්න/ }));
+
+    await screen.findByText(strings.offlineNothing);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { name: strings.offlineHeading }),
+      ),
+    );
+  });
 });
 
 describe("the save button in the reader", () => {
