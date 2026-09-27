@@ -243,6 +243,9 @@ export function Library() {
                 <PlusIcon />
                 {strings.addBook}
               </button>
+              <Link className="btn" href="/library/paste">
+                {strings.pasteLink}
+              </Link>
             </div>
 
             <div className="shelf-controls">
