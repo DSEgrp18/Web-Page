@@ -31,6 +31,7 @@ import { metadata as terms } from "../src/app/(public)/terms/page";
 import { metadata as recover } from "../src/app/(public)/recover/page";
 import { metadata as register } from "../src/app/(public)/register/page";
 import { metadata as signIn } from "../src/app/(public)/sign-in/page";
+import { metadata as notFound } from "../src/app/not-found";
 
 const ROUTES: Record<string, Metadata> = {
   library,
@@ -47,6 +48,7 @@ const ROUTES: Record<string, Metadata> = {
   accessibility,
   privacy,
   terms,
+  notFound,
 };
 
 /**
