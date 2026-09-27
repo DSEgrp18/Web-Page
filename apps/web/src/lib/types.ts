@@ -353,6 +353,33 @@ export interface MyAnswer {
   due: boolean;
 }
 
+export interface SearchHit {
+  segment_id: string;
+  page_index: number;
+  page_label: string | null;
+  text: string;
+}
+
+export interface SearchResults {
+  query: string;
+  exact: SearchHit[];
+  related: SearchHit[];
+}
+
+export type ReportKind = "pronunciation" | "extraction" | "question" | "accessibility" | "other";
+
+export interface ReportView {
+  report_id: string;
+  kind: string;
+  message: string;
+  segment_id: string | null;
+  /** The reported sentence, if it is still in the book. */
+  sentence: string | null;
+  quiz_id: string | null;
+  question_id: string | null;
+  created_at: string;
+}
+
 export interface ChapterProgress {
   /** Null for a book without chapters, or the pages before the first. */
   title: string | null;
