@@ -62,7 +62,7 @@ export function BookSearch({ documentId }: { documentId: string }) {
   return (
     <div className="account-page">
       <p>
-        <Link href={`/library/${encodeURIComponent(documentId)}`}>{strings.backToLibrary}</Link>
+        <Link href={`/library/${encodeURIComponent(documentId)}`}>{strings.backToReader}</Link>
       </p>
       <h1>{strings.searchHeading(title)}</h1>
       {notice}
