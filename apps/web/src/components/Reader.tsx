@@ -65,6 +65,8 @@ export function Reader({
   const { preferences, set } = usePreferences();
 
   const [book, setBook] = useState<DocumentDetail | null>(null);
+  /** Pasted text is read in sections, and must never be called pages. */
+  const sections = book?.media_type === "text/plain";
   // The tab is named after the book, once it is known (WCAG 2.4.2).
   useDocumentTitle(book ? book.title?.trim() || book.filename : null);
   const [pageIndex, setPageIndex] = useState(0);
@@ -173,13 +175,13 @@ export function Reader({
   useEffect(() => {
     if (!page) return;
     say(
-      `${strings.pageWord} ${page.page_index + 1}. ${strings.sentenceCount(page.segments.length)}`,
+      `${sections ? strings.sectionWord : strings.pageWord} ${page.page_index + 1}. ${strings.sentenceCount(page.segments.length)}`,
     );
     // Moving focus on arrival would yank a screen reader out of the heading it
     // is already reading. Moving it after "next page" is what tells the reader
     // the page actually changed.
     if (navigated.current) headingRef.current?.focus();
-  }, [page, say]);
+  }, [page, say, sections]);
 
   // -- playback ----------------------------------------------------------
 
@@ -439,17 +441,35 @@ export function Reader({
           onClick={() => goToPage(pageIndex - 1)}
           disabled={loading || pageIndex <= 0}
         >
-          {strings.previousPage}
+          {sections ? strings.previousSection : strings.previousPage}
         </button>
-        <span className="hint latin">{strings.ofPages(pageIndex + 1, book.page_count)}</span>
+        <span className="hint latin">
+          {(sections ? strings.ofSections : strings.ofPages)(pageIndex + 1, book.page_count)}
+        </span>
         <button
           type="button"
           className="btn btn-quiet btn-sm"
           onClick={() => goToPage(pageIndex + 1)}
           disabled={loading || pageIndex >= book.page_count - 1}
         >
-          {strings.nextPage}
+          {sections ? strings.nextSection : strings.nextPage}
         </button>
+      </div>
+      <div className="notice-actions">
+        <Link
+          className="btn btn-quiet btn-sm"
+          href={`/library/${encodeURIComponent(documentId)}/search`}
+        >
+          {strings.searchLink}
+        </Link>
+        <Link
+          className="btn btn-quiet btn-sm"
+          href={`/report?document=${encodeURIComponent(documentId)}${
+            player.currentId ? `&segment=${encodeURIComponent(player.currentId)}` : ""
+          }`}
+        >
+          {player.currentId ? strings.reportSentenceLink : strings.reportLink}
+        </Link>
       </div>
     </>
   );
