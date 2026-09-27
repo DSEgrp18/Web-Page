@@ -353,6 +353,29 @@ export interface MyAnswer {
   due: boolean;
 }
 
+export interface OfflineClip {
+  segment_id: string;
+  page_index: number;
+  page_label: string | null;
+  text: string;
+  /** Audio exists and can be saved now. */
+  ready: boolean;
+}
+
+export interface OfflineManifest {
+  document_id: string;
+  version: string;
+  title: string;
+  /** Null for a book without chapters. */
+  chapter: string | null;
+  first_page: number;
+  last_page: number;
+  clips: OfflineClip[];
+  ready: number;
+  total: number;
+  truncated: boolean;
+}
+
 export interface SearchHit {
   segment_id: string;
   page_index: number;

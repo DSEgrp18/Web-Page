@@ -60,6 +60,8 @@ const MAPPING = {
   MyAnswer: "MyAnswer",
   ChapterProgress: "ChapterProgress",
   SearchHit: "SearchHit",
+  OfflineClip: "OfflineClip",
+  OfflineManifest: "OfflineManifest",
   SearchResults: "SearchResults",
   ReportView: "ReportView",
   BookProgress: "BookProgress",
