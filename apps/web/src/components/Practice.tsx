@@ -26,7 +26,16 @@ const RESULT = { right: "notice", wrong: "notice notice-warn" } as const;
  * the options never submits anything; an explicit Check button does. The
  * result is static text, said once. There is no time limit anywhere.
  */
-export function Practice({ documentId, review }: { documentId: string; review?: string }) {
+export function Practice({
+  documentId,
+  review,
+  resume,
+}: {
+  documentId: string;
+  review?: string;
+  /** Back from the reader: this quiz, from this question (0-based). */
+  resume?: { quiz: string; question: number };
+}) {
   const { api, account } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -35,6 +44,7 @@ export function Practice({ documentId, review }: { documentId: string; review?: 
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const [startAt, setStartAt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +93,27 @@ export function Practice({ documentId, review }: { documentId: string; review?: 
     };
   }, [api, review, setFailure]);
 
+  // Back from "hear the source": the same quiz, carrying on where it was.
+  const resumeQuiz = resume?.quiz;
+  const resumeAt = resume?.question ?? 0;
+  useEffect(() => {
+    if (!resumeQuiz) return;
+    let cancelled = false;
+    api.getQuiz(resumeQuiz).then(
+      (quiz) => {
+        if (cancelled) return;
+        setStartAt(Math.min(resumeAt, quiz.questions.length));
+        setOpen(quiz);
+      },
+      (error) => {
+        if (!cancelled) setFailure(explain(error, {}));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [api, resumeQuiz, resumeAt, setFailure]);
+
   async function refresh() {
     setQuizzes(await api.listQuizzes(documentId));
   }
@@ -120,6 +151,7 @@ export function Practice({ documentId, review }: { documentId: string; review?: 
 
   async function openQuiz(quizId: string) {
     try {
+      setStartAt(0);
       setOpen(await api.getQuiz(quizId));
     } catch (error) {
       setFailure(explain(error, {}));
@@ -145,7 +177,13 @@ export function Practice({ documentId, review }: { documentId: string; review?: 
     return open.mine && open.for_class && open.status === "draft" ? (
       <Review quiz={open} onChange={setOpen} onBack={() => void back()} />
     ) : (
-      <TakeQuiz quiz={open} documentId={documentId} onBack={() => void back()} />
+      <TakeQuiz
+        key={`${open.quiz_id}-${startAt}`}
+        quiz={open}
+        documentId={documentId}
+        startAt={startAt}
+        onBack={() => void back()}
+      />
     );
   }
 
@@ -274,26 +312,41 @@ function Question({ text }: { text: string }) {
 function TakeQuiz({
   quiz,
   documentId,
+  startAt,
   onBack,
 }: {
   quiz: QuizDetail;
   documentId: string;
+  /** Resuming: the questions before this one were answered already. */
+  startAt: number;
   onBack: () => void;
 }) {
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(startAt);
   const [choice, setChoice] = useState<number | null>(null);
   const [result, setResult] = useState<AnswerResult | null>(null);
-  const [right, setRight] = useState(0);
-  const [finished, setFinished] = useState(false);
+  // Resuming, the score so far is the saved answers to the questions before.
+  const [right, setRight] = useState(() => {
+    const before = new Set(quiz.questions.slice(0, startAt).map((q) => q.question_id));
+    return quiz.answers.filter((a) => before.has(a.question_id) && a.correct).length;
+  });
+  const [finished, setFinished] = useState(startAt >= quiz.questions.length);
   const heading = useRef<HTMLHeadingElement>(null);
+  const nextButton = useRef<HTMLButtonElement>(null);
   const name = useId();
 
   useEffect(() => {
     heading.current?.focus();
   }, [index, finished]);
+
+  // Check is replaced by the result and the next step, and focus would go
+  // with it to <body>. The result has been said; "next" is where focus waits,
+  // with "hear the source" and "report" just before it.
+  useEffect(() => {
+    if (result) nextButton.current?.focus();
+  }, [result]);
 
   const question = quiz.questions[index];
   const total = quiz.questions.length;
@@ -378,7 +431,9 @@ function TakeQuiz({
               {result.segment_id ? (
                 <Link
                   className="btn"
-                  href={`/library/${encodeURIComponent(documentId)}?segment=${encodeURIComponent(result.segment_id)}`}
+                  // `quiz` and `question` bring the reader back here, to the
+                  // next question, from the book (plan section 8.7).
+                  href={`/library/${encodeURIComponent(documentId)}?segment=${encodeURIComponent(result.segment_id)}&quiz=${encodeURIComponent(quiz.quiz_id)}&question=${index + 1}`}
                 >
                   {strings.hearSource}
                 </Link>
@@ -389,7 +444,7 @@ function TakeQuiz({
               >
                 {strings.reportQuestionLink}
               </Link>
-              <button className="btn btn-primary" type="button" onClick={next}>
+              <button ref={nextButton} className="btn btn-primary" type="button" onClick={next}>
                 {index + 1 >= total ? strings.finishQuiz : strings.nextQuestion}
               </button>
             </div>

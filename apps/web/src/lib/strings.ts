@@ -333,6 +333,8 @@ export const strings = {
   finishQuiz: "අවසන් කරන්න",
   quizScore: (right: number, total: number) => `ප්‍රශ්න ${total} න් ${right}ක් නිවැරදියි.`,
   backToQuizzes: "ප්‍රශ්න කට්ටල වෙත ආපසු",
+  /** From the reader, after "hear the source": on to the next question. */
+  backToQuiz: "ප්‍රශ්නවලට ආපසු යන්න",
   correctIs: (answer: string) => `නිවැරදි පිළිතුර: ${answer}`,
   removeQuestion: (index: number) => `ප්‍රශ්නය ${index} ඉවත් කරන්න`,
   questionRemoved: "ප්‍රශ්නය ඉවත් කළා.",

@@ -56,10 +56,13 @@ type Side = "original" | "reading";
 export function Reader({
   documentId,
   bookmarkSegmentId,
+  backToQuiz,
 }: {
   documentId: string;
   /** From a bookmarks link; it is cued but never played automatically. */
   bookmarkSegmentId?: string;
+  /** From a quiz's "hear the source": where "back to the questions" goes. */
+  backToQuiz?: string;
 }) {
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
@@ -507,6 +510,12 @@ export function Reader({
           <span aria-hidden="true">‹ </span>
           {strings.backToLibrary}
         </Link>
+        {backToQuiz ? (
+          <Link className="btn btn-sm" href={backToQuiz}>
+            <span aria-hidden="true">‹ </span>
+            {strings.backToQuiz}
+          </Link>
+        ) : null}
 
         <div className="workspace-heading">
           <h1 ref={headingRef} tabIndex={-1} className="workspace-title">
