@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { AppFrame } from "../src/components/AppFrame";
 import { ClassDetail } from "../src/components/ClassDetail";
 import { Classes } from "../src/components/Classes";
+import JoinPage from "../src/app/(public)/join/[code]/page";
 import { Library } from "../src/components/Library";
 import { ShareBook } from "../src/components/ShareBook";
 import { strings } from "../src/lib/strings";
@@ -75,6 +76,32 @@ describe("joining a class", () => {
     const joined = await region(strings.joinedHeading);
     expect(await joined.findByText(strings.memberState("pending"))).toBeTruthy();
     expect(joined.getByText(new RegExp(strings.teacherOf("සුනිල්")))).toBeTruthy();
+  });
+
+  it("opens from a class link with the code filled in, and joins only when asked", async () => {
+    const server = school();
+    server.classes.push(room());
+    renderApp(<Classes joinCode="12345678" />, server, STUDENT);
+
+    const join = await region(strings.joinHeading);
+    expect((join.getByLabelText(strings.joinCodeLabel) as HTMLInputElement).value).toBe("12345678");
+    // Consent is never given by a link.
+    expect((join.getByLabelText(strings.shareProgressLabel) as HTMLInputElement).checked).toBe(
+      false,
+    );
+    expect(server.callsTo("POST", /\/classes\/join$/)).toEqual([]);
+  });
+
+  it("turns /join/<code> into the classes page, carrying only the digits", async () => {
+    await expect(
+      JoinPage({ params: Promise.resolve({ code: "1234-5678%3Cscript%3E" }) }),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(navigations.at(-1)).toBe("/classes?code=12345678");
+
+    await expect(JoinPage({ params: Promise.resolve({ code: "none" }) })).rejects.toThrow(
+      "NEXT_REDIRECT",
+    );
+    expect(navigations.at(-1)).toBe("/classes");
   });
 
   it("shares progress only when the reader ticks the box", async () => {

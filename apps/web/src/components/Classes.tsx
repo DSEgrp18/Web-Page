@@ -20,7 +20,7 @@ const STANDING_PILL = { active: "pill pill-ok", pending: "pill pill-warn" } as c
  * approves. The consent to share progress sits beside the code, unticked, so
  * nobody shares by not noticing a box.
  */
-export function Classes() {
+export function Classes({ joinCode }: { joinCode?: string } = {}) {
   const { api, account } = useReader();
   const [classes, setClasses] = useState<MyClasses | null>(null);
   const { setFailure, notice } = useFailure();
@@ -52,7 +52,7 @@ export function Classes() {
     <div className="account-page">
       <h1>{strings.classesHeading}</h1>
       {notice}
-      <JoinForm onJoined={load} />
+      <JoinForm onJoined={load} initialCode={joinCode} />
       {classes === null ? (
         <p className="hint" aria-busy="true">
           {strings.pageLoading}
@@ -69,11 +69,18 @@ export function Classes() {
   );
 }
 
-function JoinForm({ onJoined }: { onJoined: () => Promise<void> }) {
+function JoinForm({
+  onJoined,
+  initialCode,
+}: {
+  onJoined: () => Promise<void>;
+  /** From a class link. Filled in, never sent: joining is still a press. */
+  initialCode?: string;
+}) {
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(initialCode ?? "");
   const [share, setShare] = useState(false);
   const [busy, setBusy] = useState(false);
   const codeId = useId();

@@ -594,6 +594,34 @@ describe("signed out", () => {
     expect(link.getAttribute("href")).toBe("/sign-in?next=%2Fbookmarks");
   });
 
+  it("keeps a class link's code through signing in", async () => {
+    window.history.replaceState(null, "", "/classes?code=12345678");
+    renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      new FakeServer(),
+      "",
+    );
+
+    const link = await screen.findByRole("link", { name: strings.signInAction });
+    expect(link.getAttribute("href")).toBe("/sign-in?next=%2Fclasses%3Fcode%3D12345678");
+  });
+
+  it("names the tab for what is on screen, and gives the skip link somewhere to land", async () => {
+    renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      new FakeServer(),
+      "",
+    );
+
+    await screen.findByRole("heading", { name: strings.signedOutHeading });
+    expect(document.title).toBe(`${strings.signInHeading} — ${strings.appName}`);
+    expect(document.getElementById("main")?.getAttribute("tabindex")).toBe("-1");
+  });
+
   it("gets out of the way for a reader with a session", async () => {
     const server = new FakeServer();
     renderApp(

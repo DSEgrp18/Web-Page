@@ -39,6 +39,11 @@ vi.mock("next/navigation", () => ({
     refresh: () => {},
     prefetch: () => Promise.resolve(),
   }),
+  // As Next's does, it ends the render: nothing after it runs.
+  redirect: (href: string) => {
+    navigations.push(href);
+    throw new Error(`NEXT_REDIRECT ${href}`);
+  },
 }));
 
 // `next/font/google` needs the Next runtime; tests only need the CSS variables.
