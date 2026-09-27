@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { AnnouncerProvider } from "@/components/Announcer";
 import { PreferencesProvider } from "@/components/PreferencesProvider";
@@ -15,6 +15,10 @@ import { ReaderProvider } from "@/components/ReaderProvider";
  * reader at all.
  */
 export function Providers({ children }: { children: ReactNode }) {
+  // Only so /offline opens without a network; see public/sw.js.
+  useEffect(() => {
+    navigator.serviceWorker?.register("/sw.js").catch(() => {});
+  }, []);
   return (
     <PreferencesProvider>
       <AnnouncerProvider>
