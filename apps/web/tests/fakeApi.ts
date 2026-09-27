@@ -21,6 +21,8 @@ import type {
   Page,
   Progress,
   PublicationDetail,
+  ClassProgress,
+  ProgressReport,
   QuizDetail,
   ResetNotice,
   RightsBasis,
@@ -191,6 +193,18 @@ export class FakeServer {
   resetNotices: Record<string, ResetNotice> = {};
   /** True to offer model-drafted questions, as a deployment configured for them. */
   draftingOffered = false;
+  /** What /progress answers. */
+  report: ProgressReport = {
+    books: [],
+    chapters_complete: 0,
+    chapter_count: 0,
+    due: 0,
+    revise: [],
+  };
+  /** A teacher's view of their class's progress; null is an empty one. */
+  classProgressReport: ClassProgress | null = null;
+  /** Every sentence reported as heard, in order. */
+  heard: string[] = [];
   /** Quizzes, with the answers the fake checks against. */
   quizzes: (QuizDetail & { creator: string })[] = [];
   /** Books whose class audio has been voiced ahead of time. */
@@ -231,6 +245,25 @@ export class FakeServer {
     if (!owner) return this.json({ detail: "Sign in to continue." }, 401);
     if (UNSAFE.has(method) && headers.get("X-CSRF-Token") !== FAKE_CSRF) {
       return this.json({ detail: "This page is out of date." }, 403);
+    }
+
+    if (method === "GET" && path === "/progress") return this.json(this.report);
+    const heard = /^\/documents\/([^/]+)\/heard$/.exec(path);
+    if (method === "POST" && heard) {
+      const body = JSON.parse(String(init.body)) as { segment_ids: string[] };
+      this.heard.push(...body.segment_ids);
+      return new Response(null, { status: 204 });
+    }
+    const classProgress = /^\/classes\/([^/]+)\/progress$/.exec(path);
+    if (method === "GET" && classProgress) {
+      return this.json(
+        this.classProgressReport ?? {
+          class_id: classProgress[1],
+          name: "",
+          students: [],
+          not_sharing: 0,
+        },
+      );
     }
 
     if (path === "/classes" || path.startsWith("/classes/")) {
@@ -777,7 +810,7 @@ export class FakeServer {
       const correct = body.choice === question.answer;
       quiz.answers = [
         ...quiz.answers.filter((a) => a.question_id !== body.question_id),
-        { question_id: body.question_id, choice: body.choice, correct },
+        { question_id: body.question_id, choice: body.choice, correct, due: false },
       ];
       return this.json({
         correct,
