@@ -22,6 +22,7 @@ import type {
   Progress,
   PublicationDetail,
   ClassProgress,
+  OfflineManifest,
   ProgressReport,
   ReportView,
   SearchResults,
@@ -205,6 +206,8 @@ export class FakeServer {
   };
   /** A teacher's view of their class's progress; null is an empty one. */
   classProgressReport: ClassProgress | null = null;
+  /** What the offline manifest answers; null is a 404. */
+  offline: OfflineManifest | null = null;
   /** Text pasted to become a book. */
   pasted: { text: string; title: string | null }[] = [];
   /** Problem reports sent, as their bodies. */
@@ -258,6 +261,10 @@ export class FakeServer {
     }
 
     if (method === "GET" && path === "/progress") return this.json(this.report);
+    const offline = /^\/documents\/([^/]+)\/offline\?/.exec(path);
+    if (method === "GET" && offline) {
+      return this.offline ? this.json(this.offline) : this.notFound();
+    }
     if (method === "POST" && path === "/documents/text") {
       this.pasted.push(JSON.parse(String(init.body)) as { text: string; title: string | null });
       return this.json({ document_id: "doc-pasted", filename: "pasted.txt" }, 202);
