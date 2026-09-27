@@ -84,6 +84,13 @@ describe("searching a book", () => {
     expect(await violations(container)).toEqual([]);
   });
 
+  it("labels the way back as going back to the book", async () => {
+    renderApp(<BookSearch documentId="doc-1" />, oneBook());
+    const back = await screen.findByRole("link", { name: strings.backToReader });
+    expect(back.getAttribute("href")).toBe("/library/doc-1");
+    expect(screen.queryByRole("link", { name: strings.backToLibrary })).toBeNull();
+  });
+
   it("says plainly when nothing matched", async () => {
     const user = userEvent.setup();
     const server = oneBook();
@@ -121,6 +128,9 @@ describe("reporting a problem", () => {
     expect(server.reports).toEqual([
       { kind: "pronunciation", message: "වැරදියි", document_id: "doc-1", segment_id: "0000-s0" },
     ]);
+    // Back to the sentence, and saying so: it used to read "to the book list".
+    const back = screen.getByRole("link", { name: strings.backToReader });
+    expect(back.getAttribute("href")).toBe("/library/doc-1?segment=0000-s0");
   });
 
   it("needs a few words first", async () => {

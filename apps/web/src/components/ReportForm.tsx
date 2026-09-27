@@ -63,7 +63,13 @@ export function ReportForm({ target }: { target: ReportTarget }) {
     }
   }
 
-  const back = target.document ? `/library/${encodeURIComponent(target.document)}` : "/library";
+  // Back to the sentence the report was about, not just the book: the
+  // reader was in the middle of it.
+  const back = target.document
+    ? `/library/${encodeURIComponent(target.document)}${
+        target.segment ? `?segment=${encodeURIComponent(target.segment)}` : ""
+      }`
+    : "/library";
   return (
     <div className="account-page">
       <h1 ref={heading} tabIndex={-1}>
@@ -71,7 +77,7 @@ export function ReportForm({ target }: { target: ReportTarget }) {
       </h1>
       {sent ? (
         <p>
-          <Link href={back}>{strings.backToLibrary}</Link>
+          <Link href={back}>{target.document ? strings.backToReader : strings.backToLibrary}</Link>
         </p>
       ) : (
         <>
