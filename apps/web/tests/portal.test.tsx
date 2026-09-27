@@ -11,6 +11,7 @@ import HelpPage from "../src/app/(public)/help/page";
 import HowItWorksPage from "../src/app/(public)/how-it-works/page";
 import LandingPage from "../src/app/(public)/page";
 import PrivacyPage from "../src/app/(public)/privacy/page";
+import NotFound from "../src/app/not-found";
 import TermsPage from "../src/app/(public)/terms/page";
 import { AppFrame } from "../src/components/AppFrame";
 import { Library } from "../src/components/Library";
@@ -210,6 +211,25 @@ describe("the frames", () => {
     );
     expect(footer.getByRole("link", { name: strings.privacyNav })).toBeTruthy();
     expect(footer.getByRole("link", { name: strings.termsNav })).toBeTruthy();
+  });
+});
+
+describe("an address with nothing at it", () => {
+  it("says so in Sinhala, in the site's frame, with a way back", async () => {
+    document.documentElement.lang = "si";
+    renderApp(<NotFound />, new FakeServer(), "");
+
+    expect(screen.getByRole("heading", { level: 1, name: strings.errorNotFound })).toBeTruthy();
+    expect(screen.getByRole("link", { name: strings.libraryHeading }).getAttribute("href")).toBe(
+      "/library",
+    );
+    // The site's own navigation, not a dead end.
+    expect(screen.getByRole("banner")).toBeTruthy();
+    const results = await axe.run(document.body, {
+      runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(results.violations.map((v) => v.id)).toEqual([]);
   });
 });
 
