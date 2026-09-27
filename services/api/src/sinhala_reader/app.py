@@ -53,6 +53,7 @@ from .ratelimit import RateLimiter, build_rate_limiter
 from .routes import (
     classes,
     documents,
+    offline,
     operations,
     practice,
     publishing,
@@ -219,6 +220,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
     reading.register(app, deps)
     search.register(app, deps)
     reports.register(app, deps)
+    offline.register(app, deps)
     study.register(app, deps)
     classes.register(app, deps)
     publishing.register(app, deps)

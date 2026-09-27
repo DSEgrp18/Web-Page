@@ -62,6 +62,7 @@ ROUTES = [
     ("make a quiz", "POST", "/documents/{doc}/quizzes", {}, "read"),
     ("heard", "POST", "/documents/{doc}/heard", {"segment_ids": ["{seg}"]}, "read"),
     ("search", "GET", "/documents/{doc}/search?q=x", None, "read"),
+    ("offline", "GET", "/documents/{doc}/offline?page=0", None, "read"),
     (
         "report",
         "POST",
