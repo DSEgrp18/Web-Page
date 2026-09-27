@@ -104,6 +104,30 @@ describe("the two panels", () => {
   });
 });
 
+describe("the phone tabs", () => {
+  it("are one stop in the tab order, moved between with the arrow keys", async () => {
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    const original = screen.getByRole("tab", { name: strings.originalPanel });
+    const reading = screen.getByRole("tab", { name: strings.readingPanel });
+    expect(reading.getAttribute("aria-selected")).toBe("true");
+    expect(reading.tabIndex).toBe(0);
+    expect(original.tabIndex).toBe(-1);
+
+    reading.focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(document.activeElement).toBe(original);
+    expect(original.getAttribute("aria-selected")).toBe("true");
+    expect(original.tabIndex).toBe(0);
+
+    await user.keyboard("{End}");
+    expect(document.activeElement).toBe(reading);
+    expect(reading.getAttribute("aria-selected")).toBe("true");
+  });
+});
+
 describe("keeping the panels in step", () => {
   it("says which state the sync toggle is in, rather than leaving it to an icon", async () => {
     const user = userEvent.setup();
