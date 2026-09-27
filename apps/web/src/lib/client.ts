@@ -31,6 +31,7 @@ import type {
   AnswerResult,
   PrerenderStatus,
   ClassProgress,
+  OfflineManifest,
   ProgressReport,
   ReportKind,
   ReportView,
@@ -569,6 +570,13 @@ export class ReaderApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+  }
+
+  /** The chapter around a page, and which of its sentences have audio to save. */
+  offlineManifest(documentId: string, page: number): Promise<OfflineManifest> {
+    return this.json<OfflineManifest>(
+      `/documents/${encodeURIComponent(documentId)}/offline?page=${page}`,
+    );
   }
 
   listReports(documentId: string): Promise<ReportView[]> {

@@ -87,6 +87,30 @@ export const strings = {
   // -- classes -------------------------------------------------------------
   classesNav: "පන්ති",
   progressNav: "ප්‍රගතිය",
+  offlineNav: "සුරැකි පරිච්ඡේද",
+  offlineHeading: "අන්තර්ජාලය නැතිව ඇසීමට සුරැකි පරිච්ඡේද",
+  offlineHow:
+    "මේවා මෙම උපාංගයේ පමණක් සුරැකේ. ඔබ ගිණුමෙන් ඉවත් වූ විට සියල්ල මැකේ, මන්ද දුරකථන බෙදා ගන්නා බැවිනි.",
+  offlineUnsupported: "මෙම බ්‍රව්සරයට අන්තර්ජාලය නැතිව ඇසීමට පරිච්ඡේද සුරැකිය නොහැක.",
+  offlineNothing: "තවම කිසිවක් සුරැකී නැත. පොතක් තුළ, “මෙම පරිච්ඡේදය සුරකින්න” තෝරන්න.",
+  offlineSpace: (used: string, quota: string) =>
+    `මෙම අඩවිය මෙගාබයිට් ${quota} කින් ${used}ක් භාවිත කරයි.`,
+  offlineSize: (sentences: number, size: string) => `වාක්‍ය ${sentences}ක්, මෙගාබයිට් ${size}.`,
+  offlineMissing: (count: number) => `වාක්‍ය ${count}කට හඬ නැත.`,
+  offlineListen: "අසන්න",
+  offlineRemove: "ඉවත් කරන්න",
+  offlineRemoved: (name: string) => `${name} ඉවත් කරන ලදී.`,
+  offlineBack: "සුරැකි පරිච්ඡේද වෙත ආපසු",
+  offlineNoAudio: "හඬ නැත",
+  offlineSave: "මෙම පරිච්ඡේදය සුරකින්න",
+  offlineSaving: "පරිච්ඡේදය සුරකිමින්.",
+  offlineProgress: (done: number, total: number) => `වාක්‍ය ${total} න් ${done}ක් සුරැකිණි.`,
+  offlineSaved: (ready: number, total: number) =>
+    ready === total
+      ? `පරිච්ඡේදය සුරැකිණි: වාක්‍ය ${total}ම.`
+      : `පරිච්ඡේදය සුරැකිණි: වාක්‍ය ${total} න් ${ready}ක්. ඉතිරි ඒවාට තවම හඬ නැත.`,
+  offlineNoneVoiced:
+    "මෙම පරිච්ඡේදයේ කිසිදු වාක්‍යයකට තවම හඬ නැත. එය එක් වරක් අසා, හෝ ගුරුවරයාට පෙර-හඬ කිරීමට ඉඩ දී, නැවත උත්සාහ කරන්න.",
   pasteLink: "පෙළ අලවන්න",
   pasteHeading: "පෙළ අලවා කියවන්න",
   pasteHow:
