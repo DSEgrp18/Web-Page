@@ -514,7 +514,7 @@ stays quality-track item 34.
 - **Progress.** The teacher sees "412 of 3,120 sentences". It is announced politely at start, finish and failure only.
 - **Workers.** Compose gets a separate `voice-worker` (the tts image, `-Q audio --concurrency=1`), because two prefork processes would each load the 5.6 GB checkpoint.
 - **Cost.** On CPU the manifest measures 3.3–3.8× real time, which is **about 28 hours for one 168-page textbook**. That is workable overnight for one book, and not beyond. `SINHALA_READER_TTS=modal` adds a `ModalAdapter` that sends only spoken text, as `modal_app.py` already requires. It is blocked until the model upload to Modal succeeds.
-- **Storage** (`0014`): Opus at about 24 kbps. That is about 11 MB per hour against WAV's 173 MB, which matters for downloads on Tharindu's phone. Object storage (quality-track item 43) must land before production pre-render: one book stored as WAV in the database is about 1.7 GB.
+- **Storage** (`0015`): Opus at about 24 kbps. That is about 11 MB per hour against WAV's 173 MB, which matters for downloads on Tharindu's phone. Object storage (quality-track item 43) must land before production pre-render: one book stored as WAV in the database is about 1.7 GB.
 
 ---
 
@@ -684,7 +684,21 @@ not by a teacher". **A class quiz needs a teacher's approval.**
 
 ## 9. Phase 4 — Track
 
-- **What has been heard** (`0015`): a bitmap of heard segments per reader and book, reported by `usePlayer` together with the existing progress saves. A book of about 5,000 sentences needs about 625 bytes. A chapter counts as heard when its whole page range has been.
+> **Landed.** `sinhala_reader/track.py` (the Leitner schedule, the heard bitmap and
+> the per-chapter rows, framework free), `routes/track.py` (`POST
+> /documents/{id}/heard`, `GET /progress`, `GET /classes/{id}/progress` and its
+> `.csv`), migration `0014_track`, the `/progress` page, revision through the quiz
+> screen (`/library/[id]/practice?review=<quiz>`), and the teacher's section on the
+> class page. Differences from the design below, each deliberate: the review card
+> is the answer row itself (`quiz_answers.box`, `due_on`), since each reader keeps
+> one latest answer per question; answering again before a question is due changes
+> nothing, so re-taking a quiz the same day is not spacing; there is no "Best"
+> column, because only the latest answer is kept, so the columns are Chapter ·
+> Heard · Answered correctly · Due; and the teacher sees answers to the class's own
+> published quizzes only, never a student's personal ones. The consent checkbox at
+> join and in `/classes` already existed from Phase 2.
+
+- **What has been heard** (`0014`): a bitmap of heard segments per reader and book, reported by `usePlayer` together with the existing progress saves. A book of about 5,000 sentences needs about 625 bytes. A chapter counts as heard when its whole page range has been.
 - **Spaced review:** Leitner boxes 1–5, reviewed after 1, 2, 4, 8 and 16 days, counted in `Asia/Colombo` time.
   - A correct answer moves a question up one box. A wrong answer sends it back to box 1.
   - It uses the quiz screen.
@@ -775,8 +789,8 @@ as the hardening track. Each phase gate also checks the quality-track items it c
 | `0011_publishing` | Published books, pinned versions, rights attestations, page reviews (landed) |
 | `0012_teacher_resets` | Thirty-minute reset codes a teacher makes for their own students, and whether the student has been told |
 | `0013_quizzes` | Quizzes (questions as one JSON document per quiz) and each reader's latest answers (landed) |
-| `0014_compact_audio` | Opus audio |
-| `0015_tracking` | Heard segments, review cards |
+| `0014_track` | Heard segments, and each answer's Leitner box and due date (landed) |
+| `0015_compact_audio` | Opus audio |
 | `0016_feedback` | Problem reports |
 
 Numbers are fixed when a migration merges. Those for later phases are the order we expect,
