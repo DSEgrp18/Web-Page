@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { describe, expect, it } from "vitest";
@@ -64,7 +64,55 @@ describe("practising on a book", () => {
 
     await waitFor(() => expect(politeText()).toContain(strings.rightAnswer));
     const source = screen.getByRole("link", { name: strings.hearSource });
-    expect(source.getAttribute("href")).toBe("/library/doc-1?segment=0000-s0");
+    // The sentence, and the way back: this quiz, at the next question.
+    expect(source.getAttribute("href")).toMatch(
+      /^\/library\/doc-1\?segment=0000-s0&quiz=[^&]+&question=1$/,
+    );
+  });
+
+  it("waits on the next question once an answer is checked", async () => {
+    // Check is replaced by the result, and focus went with it to <body>.
+    const user = userEvent.setup();
+    await startedQuiz(user);
+
+    await user.click(screen.getByRole("radio", { name: "කෝට්ටේ" }));
+    await user.click(screen.getByRole("button", { name: strings.checkAnswer }));
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: strings.nextQuestion }),
+      ),
+    );
+  });
+
+  it("carries on from the next question after hearing the source", async () => {
+    const user = userEvent.setup();
+    const server = await startedQuiz(user);
+    await user.click(screen.getByRole("radio", { name: "කෝට්ටේ" }));
+    await user.click(screen.getByRole("button", { name: strings.checkAnswer }));
+    const href = (await screen.findByRole("link", { name: strings.hearSource })).getAttribute(
+      "href",
+    )!;
+    const back = new URL(href, "http://reader.test").searchParams;
+
+    // The reader went to the book; coming back opens the quiz again.
+    cleanup();
+    renderApp(
+      <Practice
+        documentId="doc-1"
+        resume={{ quiz: back.get("quiz")!, question: Number(back.get("question")) }}
+      />,
+      server,
+    );
+
+    expect(await screen.findByRole("heading", { name: strings.questionOf(2, 2) })).toBeTruthy();
+    await user.click(within(screen.getByRole("group")).getAllByRole("radio")[0]!);
+    await user.click(screen.getByRole("button", { name: strings.checkAnswer }));
+    await user.click(await screen.findByRole("button", { name: strings.finishQuiz }));
+    // The first answer, given before leaving, still counts.
+    const score = await screen.findByRole("heading", { name: /නිවැරදියි/ });
+    expect(score.textContent).toMatch(/^ප්‍රශ්න 2 න් [12]ක් නිවැරදියි\.$/);
+    expect(score.textContent).not.toBe(strings.quizScore(0, 2));
   });
 
   it("says the right answer when the choice was wrong", async () => {

@@ -603,6 +603,28 @@ describe("moving between chapters", () => {
   });
 });
 
+describe("coming from a quiz", () => {
+  it("offers the way back to the questions", async () => {
+    renderApp(
+      <Reader
+        documentId="doc-1"
+        bookmarkSegmentId="0000-s0"
+        backToQuiz="/library/doc-1/practice?quiz=quiz-1&question=1"
+      />,
+      new FakeServer({ books: [book()] }),
+    );
+
+    const back = await screen.findByRole("link", { name: strings.backToQuiz });
+    expect(back.getAttribute("href")).toBe("/library/doc-1/practice?quiz=quiz-1&question=1");
+  });
+
+  it("offers nothing of the kind otherwise", async () => {
+    openReader(new FakeServer({ books: [book()] }));
+    await screen.findByRole("button", { name: FIRST });
+    expect(screen.queryByRole("link", { name: strings.backToQuiz })).toBeNull();
+  });
+});
+
 describe("pasted text", () => {
   const NOTE = "Pasted text. It is divided into sections of about 3,000 characters, not pages.";
 
