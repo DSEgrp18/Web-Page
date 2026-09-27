@@ -514,7 +514,7 @@ stays quality-track item 34.
 - **Progress.** The teacher sees "412 of 3,120 sentences". It is announced politely at start, finish and failure only.
 - **Workers.** Compose gets a separate `voice-worker` (the tts image, `-Q audio --concurrency=1`), because two prefork processes would each load the 5.6 GB checkpoint.
 - **Cost.** On CPU the manifest measures 3.3–3.8× real time, which is **about 28 hours for one 168-page textbook**. That is workable overnight for one book, and not beyond. `SINHALA_READER_TTS=modal` adds a `ModalAdapter` that sends only spoken text, as `modal_app.py` already requires. It is blocked until the model upload to Modal succeeds.
-- **Storage** (`0015`): Opus at about 24 kbps. That is about 11 MB per hour against WAV's 173 MB, which matters for downloads on Tharindu's phone. Object storage (quality-track item 43) must land before production pre-render: one book stored as WAV in the database is about 1.7 GB.
+- **Storage** (`0016`): Opus at about 24 kbps. That is about 11 MB per hour against WAV's 173 MB, which matters for downloads on Tharindu's phone. Object storage (quality-track item 43) must land before production pre-render: one book stored as WAV in the database is about 1.7 GB.
 
 ---
 
@@ -712,11 +712,26 @@ not by a teacher". **A class quiz needs a teacher's approval.**
 
 ## 10. Phase 5 — Reader additions
 
+> **5a–5c landed; 5d is deferred.** Pasted text: `extract_text` in
+> `sinhala_documents/file_extract.py` (stored as `pasted.txt`, classified line by
+> line with the same check as a PDF span of unknown font), `POST /documents/text`,
+> and `/library/paste`; the reader says "section" wherever a pasted book would
+> otherwise say "page". Search: `routes/search.py` and `/library/[id]/search`, with
+> the BM25 index kept per book version in a small in-process cache. Reports:
+> migration `0015_reports`, `routes/reports.py`, `/report` (linked from the reader,
+> each quiz question and the accessibility statement) and `/library/[id]/reports`
+> (linked from the share page). Deliberate differences: a book's owner reads its
+> reports, and no report says who sent it; a report about the site has no book and
+> only an operator reads it, from the database, since admins have no screen. **5d
+> offline download waits for Opus storage (`0016`) and object storage**: building
+> it on WAV served from the database would cache about 173 MB per hour of audio on
+> a shared phone.
+
 - **5a Pasted text.** This is a `CLAUDE.md` initial-release item that was never built.
   - `POST /documents/text` takes up to 200,000 characters and splits them into parts of about 3,000 characters at paragraph breaks. The interface calls them **"sections", never pages**.
   - Pasted text arrives without font information, so text in a legacy encoding is flagged `needs_review` and never converted.
 - **5b In-book search.** `GET /documents/{id}/search` returns two lists: exact matches in book order, and BM25 matches over the memoised passages. Results cue without playing, and the reading position is kept. This merges quality-track item 20.
-- **5c Report a problem** (`0016`). Available from any sentence, any quiz question and the accessibility statement. The report kinds are pronunciation, extraction, question, accessibility and other. A teacher sees reports on their own books.
+- **5c Report a problem** (`0015`). Available from any sentence, any quiz question and the accessibility statement. The report kinds are pronunciation, extraction, question, accessibility and other. A teacher sees reports on their own books.
 - **5d Offline chapter download** (#32).
   - A download manifest lists a chapter's pre-rendered Opus clips.
   - A hand-written `sw.js` caches only explicit downloads.
@@ -790,8 +805,8 @@ as the hardening track. Each phase gate also checks the quality-track items it c
 | `0012_teacher_resets` | Thirty-minute reset codes a teacher makes for their own students, and whether the student has been told |
 | `0013_quizzes` | Quizzes (questions as one JSON document per quiz) and each reader's latest answers (landed) |
 | `0014_track` | Heard segments, and each answer's Leitner box and due date (landed) |
-| `0015_compact_audio` | Opus audio |
-| `0016_feedback` | Problem reports |
+| `0015_reports` | Problem reports (landed) |
+| `0016_compact_audio` | Opus audio |
 
 Numbers are fixed when a migration merges. Those for later phases are the order we expect,
 and may shift if work lands in a different order.
