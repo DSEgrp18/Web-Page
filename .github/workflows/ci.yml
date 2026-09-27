@@ -206,6 +206,15 @@ jobs:
             echo "::error::Database or queue tests were skipped. They must run in CI."
             exit 1
           fi
+      - name: Evaluation kit
+        # Here because this job already has everything the kit measures: the
+        # worker's pipeline, the verifier and graph, and the API's encoder. It
+        # also holds the line that the RQ1 ablation switches stay in evaluation/.
+        working-directory: evaluation
+        run: |
+          ruff check .
+          ruff format --check .
+          python -m pytest
       - name: Check the reader interface against this API's schema
         # Here rather than in the frontend job because the schema comes from
         # FastAPI itself, and this is the job that already has FastAPI. No
