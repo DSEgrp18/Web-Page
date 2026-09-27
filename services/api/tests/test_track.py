@@ -110,7 +110,7 @@ class TestWhatAReaderHasHeard:
 def answer_wrong(school: School, doc: str, who) -> str:
     quiz = school.client.post(f"/documents/{doc}/quizzes", json={}, headers=who).json()
     question = quiz["questions"][0]
-    wrong = (question.get("answer") or 0) + 1
+    wrong = ((question.get("answer") or 0) + 1) % len(question["options"])
     school.client.post(
         f"/quizzes/{quiz['quiz_id']}/answers",
         json={"question_id": question["question_id"], "choice": wrong},
