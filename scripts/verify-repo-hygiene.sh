@@ -83,8 +83,32 @@ else
   echo "OK: no tracked file exceeds ${max_bytes} bytes."
 fi
 
+echo "== Evaluation data =="
+# docs/product-plan.md §11.1: only aggregate results are committed. Raw study
+# material (ratings, session logs, timings, audio) stays in evaluation/data/.
+mapfile -t raw < <(git ls-files -- evaluation/data)
+for hit in "${raw[@]:-}"; do
+  [[ -z "${hit}" ]] && continue
+  echo "FAIL: ${hit} is tracked (raw evaluation data stays out of Git)." >&2
+  status=1
+done
+mapfile -t results < <(git ls-files -- evaluation/results)
+for hit in "${results[@]:-}"; do
+  [[ -z "${hit}" ]] && continue
+  case "${hit}" in
+    *.json|*.md|*/.gitkeep) ;;
+    *) echo "FAIL: ${hit}: evaluation/results holds aggregate JSON or Markdown only." >&2
+       status=1 ;;
+  esac
+  if [[ "${hit}" == *.json ]] && grep -Eiq '"(participant|participant_id|rater|rater_id|email|item_id)"' "${hit}"; then
+    echo "FAIL: ${hit} has a per-person or per-item field; results hold aggregates only." >&2
+    status=1
+  fi
+done
+[[ "${status}" -eq 0 ]] && echo "OK: evaluation holds aggregates only."
+
 echo "== Ignore rules =="
-for path in models/ data/uploads/ generated_audio/ .env; do
+for path in models/ data/uploads/ generated_audio/ .env evaluation/data/; do
   if ! git check-ignore -q "${path}" 2>/dev/null; then
     echo "FAIL: ${path} is not covered by .gitignore." >&2
     status=1

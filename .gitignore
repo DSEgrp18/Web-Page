@@ -78,3 +78,7 @@ Thumbs.db
 
 # Local design export scratch (never commit)
 .tmp-penpot-design/
+
+# Raw evaluation material: ratings, session logs, timings, audio. Aggregates
+# go in evaluation/results/ instead; see evaluation/README.md.
+evaluation/data/
