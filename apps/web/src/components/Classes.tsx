@@ -48,10 +48,19 @@ export function Classes({ joinCode }: { joinCode?: string } = {}) {
     };
   }, [api, setFailure]);
 
+  const teaching =
+    classes && account?.role === "teacher" ? (
+      <Teaching classes={classes.teaching} onCreated={load} />
+    ) : null;
+  // A teacher comes here for the classes they teach, so those come first —
+  // unless a class link brought them, to join one.
+  const teachingFirst = teaching !== null && !joinCode;
+
   return (
-    <div className="account-page">
+    <div className="account-page account-page-wide">
       <h1>{strings.classesHeading}</h1>
       {notice}
+      {teachingFirst ? teaching : null}
       <JoinForm onJoined={load} initialCode={joinCode} />
       {classes === null ? (
         <p className="hint" aria-busy="true">
@@ -60,9 +69,7 @@ export function Classes({ joinCode }: { joinCode?: string } = {}) {
       ) : (
         <>
           <Joined classes={classes.joined} onChanged={load} />
-          {account?.role === "teacher" ? (
-            <Teaching classes={classes.teaching} onCreated={load} />
-          ) : null}
+          {teachingFirst ? null : teaching}
         </>
       )}
     </div>
