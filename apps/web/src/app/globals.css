@@ -2501,12 +2501,16 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
     justify-content: space-between;
   }
 
+  /* Every choice on screen at once, two by two: scrolled sideways inside
+     its pill, the last filter was off the edge where nobody could see it. */
   .segmented {
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: var(--r-lg);
   }
 
   .segment {
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .player {
@@ -3017,20 +3021,27 @@ h4 {
     display: none;
   }
 
+  /* Five links do not fit on one line at 360 px; they wrap rather than push
+     the page sideways. Unboxed, at their own width, they wrap into two rows
+     instead of three, and the masthead gives the page back a sixth of a
+     phone screen. */
   .shell-nav {
     order: 3;
     width: 100%;
-    justify-content: stretch;
-    /* Five links do not fit on one line at 360 px; they wrap rather than
-       push the page sideways. */
+    justify-content: flex-start;
     flex-wrap: wrap;
-    border-radius: var(--r-lg);
+    gap: var(--s1);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
   }
 
   .nav-link {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     justify-content: center;
     text-align: center;
+    padding-inline: var(--s3);
   }
 
   .shell-header-inner {
@@ -3080,10 +3091,6 @@ h4 {
     min-width: 0;
   }
 
-  .segmented {
-    overflow-x: auto;
-  }
-
   .shelf-sort {
     justify-content: space-between;
   }
@@ -3114,14 +3121,16 @@ h4 {
 }
 
 /*
- * The reader, when the screen is short.
+ * The reader, when the screen is short or narrow.
  *
  * The workspace is a full-height layout whose panels scroll inside it, which
  * is right on a laptop and wrong at 300% zoom: the bar, the tabs and the
- * player took every pixel and left the reading panel 0 px tall. Here the page
- * simply scrolls, and every part of it is as tall as its content.
+ * player took every pixel and left the reading panel 0 px tall. On a phone it
+ * was 130 px, because the masthead there is static and three times the height
+ * the full-height layout subtracts. Here the page simply scrolls, and every
+ * part of it is as tall as its content.
  */
-@media (max-height: 40em) {
+@media (max-width: 48em), (max-height: 40em) {
   .workspace {
     block-size: auto;
   }
@@ -3134,5 +3143,79 @@ h4 {
   .reading-body {
     block-size: auto;
     overflow: visible;
+  }
+}
+
+/*
+ * On a phone, the player stays in reach.
+ *
+ * The page scrolls (above), so the player would scroll away with the end of
+ * the chapter. It is pinned to the foot of the screen instead, with the ask
+ * button inside its row: pinned beside it, the space next to the button would
+ * show the page scrolling underneath. Not on a short screen — at 300% zoom a
+ * pinned player would take a third of the view — and the page keeps room
+ * below its end so the last sentence is never under it.
+ */
+@media (max-width: 48em) and (min-height: 40.0625em) {
+  .workspace {
+    grid-template-areas:
+      "bar"
+      "notice"
+      "tabs"
+      "body"
+      "player";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace > .player {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 10;
+    /* Room for the ask button, which sits over this end of the row. */
+    padding-inline-end: calc(56px + 2 * var(--s3));
+    box-shadow: var(--shadow-2);
+  }
+
+  .workspace > .assistant-fab {
+    grid-area: player;
+    position: sticky;
+    inset-block-end: var(--s3);
+    z-index: 11;
+    justify-self: end;
+    align-self: end;
+    margin: 0 var(--s3) var(--s3) 0;
+  }
+
+  /* A focused sentence scrolled to by the keyboard stops above the player,
+     not behind it (2.4.11). */
+  html:has(.workspace) {
+    scroll-padding-block-end: 9rem;
+  }
+
+  /* Two columns of tools, not four rows of them. */
+  .workspace-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    inline-size: 100%;
+  }
+
+  .workspace-tools .btn {
+    justify-content: flex-start;
+    text-align: start;
+    padding-inline: var(--s2);
+  }
+
+  .workspace-heading {
+    flex-basis: 8rem;
+  }
+
+  .player-tools {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+  }
+
+  .player-tools > .btn {
+    flex: 1 1 auto;
+    min-inline-size: 0;
   }
 }
