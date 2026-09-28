@@ -85,6 +85,8 @@ people. **Medium** — a real barrier or inconsistency with a workaround.
 | F40 | Classes, as a teacher | Open `/classes` | "Join a class" comes first and "classes you teach" last. | A teacher's own classes first. | Low | Phase 3 |
 | F41 | Reader | Press next sentence while paused | Playback resumes. A press, so within the rules, but worth a decision. | — | Low | Needs a decision |
 | F42 | Everywhere | Sign in, or delete a class | After a navigation the reader asked for (sign-in to the library, deleting a class to the class list), focus is left on `<body>`; Next's route announcer reads the new title. | A shared rule: focus the new page's heading, checked with NVDA against a double announcement (plan 0.7). | Medium | Not fixed: needs one mechanism for every route, and an NVDA check |
+| F43 | Every signed-in page | Load any page while the API is stopped or still loading the voice (E1) | The sign-in form, as if the reader had been signed out; signing in then failed with "an unexpected error". | Say the reader is starting or cannot be reached, and offer to try again. | High | Fixed in Phase 2: a separate `unreachable` failure, marked by the pass-through, and a "cannot be reached" panel with a retry, each with a test |
+| F44 | Saved chapters | Open `/offline` with the phone offline | The session gate stands in front of it: the "cannot be reached" panel now (the sign-in form before Phase 2), never the chapters saved for exactly this. | Let the saved chapters open without a session check when there is no connection, or say where they are. | Medium | Not fixed: letting a page past the session gate needs a decision, since the chapters belong to whoever saved them on a shared phone |
 
 ## Not tested, and why
 
