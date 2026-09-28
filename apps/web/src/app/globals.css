@@ -666,6 +666,13 @@ summary {
 .shell-main-wide {
   max-width: none;
   padding: 0;
+  min-block-size: 0;
+}
+
+/* Around the reading workspace, the frame is one screen tall and no more, so
+   the workspace's own rows, not the page, do the scrolling. */
+.shell:has(> .shell-main-wide) {
+  block-size: 100dvh;
 }
 
 .shell-footer {
@@ -1185,7 +1192,7 @@ summary {
 /* Inside the box, not across its top edge: a long legend (the basis for
    sharing is a whole question) otherwise wraps over the border. Floating a
    legend takes it out of the border's notch; it is still the legend. */
-.decision legend {
+.decision legend:not(.visually-hidden) {
   float: inline-start;
   inline-size: 100%;
   padding: 0;
@@ -1806,7 +1813,9 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
     "player ask";
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto auto auto 1fr auto;
-  block-size: calc(100dvh - var(--header-h) - 1px);
+  /* The rest of the screen under the masthead, however tall the masthead is
+     at this width: the page frame is exactly one screen tall around it. */
+  block-size: 100%;
   min-block-size: 0;
   /* Seen only beside the player, where the ask button sits: the panel colour
      makes that corner part of the player's row rather than a gap in it. */
@@ -2766,9 +2775,10 @@ h4 {
 }
 
 .account-name {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
   min-block-size: var(--tap);
+  padding-block: calc((var(--tap) - 1.5em) / 2);
+  line-height: var(--leading-tight);
   background: transparent;
   color: var(--ink-muted);
   /* A reader's name is as likely to be Sinhala as not. */
@@ -2983,9 +2993,11 @@ h4 {
   font-weight: 400;
 }
 
+/* The filters take the width their words need, on one line each; the
+   search field takes the rest. */
 .shelf-controls {
   display: grid;
-  grid-template-columns: minmax(16rem, 1.25fr) minmax(25rem, 1fr) auto;
+  grid-template-columns: minmax(14rem, 1fr) auto auto;
   gap: 0.75rem;
   padding-block: 0.3rem;
 }
@@ -3013,6 +3025,7 @@ h4 {
 .segment {
   min-height: var(--tap);
   padding-inline: 0.85rem;
+  white-space: nowrap;
   font-weight: 600;
   color: var(--ink-muted);
 }
@@ -3130,24 +3143,15 @@ h4 {
   }
 }
 
-@media (max-width: 760px) {
-  :root {
-    --header-h: 4.5rem;
-  }
-
-  .shell-header-inner {
-    padding-inline: 1rem;
-  }
-
-  .brand-latin,
-  .account-name {
-    display: none;
-  }
-
-  /* Five links do not fit on one line at 360 px; they wrap rather than push
-     the page sideways. Unboxed, at their own width, they wrap into two rows
-     instead of three, and the masthead gives the page back a sixth of a
-     phone screen. */
+/*
+ * The masthead, when its one row does not fit.
+ *
+ * Brand, five links, settings and the account need about 60em. Below that
+ * the links take a row of their own, rather than push the page sideways (they
+ * did, by up to 67 px, between 780 and 920 px wide). Unboxed, at their own
+ * width, they wrap into two rows on a phone instead of three.
+ */
+@media (max-width: 60em) {
   .shell-nav {
     order: 3;
     width: 100%;
@@ -3170,6 +3174,25 @@ h4 {
   .shell-header-inner {
     flex-wrap: wrap;
     padding-block: 0.65rem;
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --header-h: 4.5rem;
+  }
+
+  .shell-header-inner {
+    padding-inline: 1rem;
+  }
+
+  .brand-latin {
+    display: none;
+  }
+
+  /* Shortened, never removed: it is the only way to the account page. */
+  .account-name {
+    max-inline-size: 7rem;
   }
 
   .shell-main {
@@ -3254,6 +3277,10 @@ h4 {
  * part of it is as tall as its content.
  */
 @media (max-width: 48em), (max-height: 40em) {
+  .shell:has(> .shell-main-wide) {
+    block-size: auto;
+  }
+
   .workspace {
     block-size: auto;
   }
