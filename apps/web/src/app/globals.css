@@ -72,6 +72,16 @@
   --text-2xl: 1.8125rem;
   --text-3xl: 2.375rem;
 
+  /* Headings scale between a phone and a desktop size. Each is a rem floor
+     plus a little of the window width, so text zoom still enlarges it: a
+     size made of vw alone would ignore zoom, which 1.4.4 forbids. */
+  --text-h1: clamp(1.8125rem, 1.45rem + 1.4vw, 2.5rem);
+  --text-h2: clamp(1.4375rem, 1.25rem + 0.8vw, 1.8125rem);
+  --text-h3: clamp(1.1875rem, 1.1rem + 0.35vw, 1.4375rem);
+  /* The one large voice on a screen: the library's and the front door's
+     title. Never below a phone's h1 plus a step. */
+  --text-display: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem);
+
   /* Sinhala leading. Anything below 1.5 stacks vowel marks into the line above. */
   --leading-tight: 1.5;
   --leading-normal: 1.7;
@@ -107,8 +117,21 @@
 
   /* -- layout ----------------------------------------------------------- */
   --shell-max: 92rem;
+  /* Column widths. A form or a settings page reads best narrow; lists and
+     tables of classes, progress and bookmarks want the room; prose wants a
+     line a reader can follow back to its start. */
+  --page-narrow: 40rem;
+  --page: 64rem;
+  --measure: 46rem;
   --header-h: 5rem;
   --tap: 48px; /* every control is at least this tall */
+
+  /* -- focus and form controls ------------------------------------------ */
+  --focus-width: 3px;
+  --focus-offset: 2px;
+  /* A checkbox or radio: large enough to see at a glance, drawn by us so its
+     edge measures 3:1 in both themes (the browser's does not in dark). */
+  --check-size: 1.375rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -276,8 +299,8 @@ a {
    paper and 5.62:1 on the wash, so it clears the 3:1 that 2.4.11 asks of a
    focus indicator on every surface it can land on. */
 :focus-visible {
-  outline: 3px solid var(--green);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--green);
+  outline-offset: var(--focus-offset);
   border-radius: var(--r-sm);
 }
 
@@ -669,7 +692,7 @@ summary {
 /* A measure short enough to read, at any text size. */
 .prose-page,
 .landing {
-  inline-size: min(46rem, 100%);
+  inline-size: min(var(--measure), 100%);
   margin-inline: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -868,8 +891,8 @@ summary {
 /* The ring has to be on the label, because the input it belongs to is
    invisible and zero-opacity. */
 .segment:has(input:focus-visible) {
-  outline: 3px solid var(--green);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--green);
+  outline-offset: var(--focus-offset);
 }
 
 /* -- switch -------------------------------------------------------------- */
@@ -926,8 +949,8 @@ summary {
 }
 
 .switch:has(input:focus-visible) .switch-track {
-  outline: 3px solid var(--green);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--green);
+  outline-offset: var(--focus-offset);
 }
 
 .switch-label {
@@ -985,7 +1008,7 @@ summary {
   /* As for `.shell`: never wider than the page because of a wide child. */
   grid-template-columns: minmax(0, 1fr);
   gap: var(--s5);
-  inline-size: min(40rem, 100%);
+  inline-size: min(var(--page-narrow), 100%);
   margin-inline: auto;
 }
 
@@ -1460,8 +1483,8 @@ summary {
 }
 
 .contents-row:focus-visible {
-  outline: 3px solid var(--green);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--green);
+  outline-offset: var(--focus-offset);
 }
 
 /* Current is said by aria-current and shown by more than colour: a border and
@@ -1525,8 +1548,8 @@ summary {
 /* The input is visually hidden, so the ring has to be on the label. */
 .upload-dialog input[type="file"]:focus-visible + .dropzone,
 .dropzone:has(+ input:focus-visible) {
-  outline: 3px solid var(--green);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--green);
+  outline-offset: var(--focus-offset);
 }
 
 .chosen-file {
@@ -1662,8 +1685,8 @@ summary {
   outline: none;
 }
 .workspace-title:focus-visible {
-  outline: 3px solid var(--green);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--green);
+  outline-offset: var(--focus-offset);
 }
 
 .workspace-tools {
