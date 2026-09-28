@@ -610,3 +610,29 @@ describe("voicing a shared book for the class", () => {
     expect(screen.queryByRole("region", { name: strings.prerenderHeading })).toBeNull();
   });
 });
+
+describe("the order of the classes screen", () => {
+  /** The level-2 headings, in reading order. */
+  function sections(): string[] {
+    return screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent ?? "");
+  }
+
+  it("puts a teacher's own classes first", async () => {
+    renderApp(<Classes />, school(), TEACHER);
+    await screen.findByRole("heading", { name: strings.teachingHeading });
+    expect(sections()[0]).toBe(strings.teachingHeading);
+    expect(sections().indexOf(strings.joinHeading)).toBeGreaterThan(0);
+  });
+
+  it("puts joining first when a class link brought the teacher", async () => {
+    renderApp(<Classes joinCode="12345678" />, school(), TEACHER);
+    await screen.findByRole("heading", { name: strings.teachingHeading });
+    expect(sections()[0]).toBe(strings.joinHeading);
+  });
+
+  it("puts joining first for a student", async () => {
+    renderApp(<Classes />, school());
+    await screen.findByRole("heading", { name: strings.joinedHeading });
+    expect(sections()[0]).toBe(strings.joinHeading);
+  });
+});

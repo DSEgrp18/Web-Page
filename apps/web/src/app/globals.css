@@ -1012,6 +1012,19 @@ summary {
   margin-inline: auto;
 }
 
+/* A page of several independent parts — the classes screen — uses the room
+   a desktop has: parts side by side, the title and any notice across the top.
+   One column whenever two would be narrower than a form reads well. */
+.account-page-wide {
+  inline-size: min(var(--page), 100%);
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  align-items: start;
+}
+
+.account-page-wide > :is(h1, .notice, .hint) {
+  grid-column: 1 / -1;
+}
+
 .account-section {
   padding: var(--s5);
   display: grid;
