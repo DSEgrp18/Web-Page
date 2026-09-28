@@ -586,6 +586,8 @@ export const strings = {
   // -- failures ----------------------------------------------------------
   errorHeading: "දෝෂයක්",
   errorOffline: "සේවාදායකයට සම්බන්ධ විය නොහැක. සම්බන්ධතාවය පරීක්ෂා කර නැවත උත්සාහ කරන්න.",
+  errorUnreachable:
+    "ස්වර ආරම්භ වෙමින් පවතී, නැතහොත් දැන් එයට සම්බන්ධ විය නොහැක. මොහොතකින් නැවත උත්සාහ කරන්න.",
   errorSignedOut: "ඔබ ගිණුමෙන් ඉවත් වී ඇත. නැවත ඇතුළු වන්න.",
   errorForbidden: "මෙම පිටුව යල් පැන ගොස් ඇත. පිටුව නැවත පූරණය කර නැවත උත්සාහ කරන්න.",
   errorThrottled: "උත්සාහයන් බොහෝය. මඳ වේලාවකින් නැවත උත්සාහ කරන්න.",
@@ -759,6 +761,8 @@ export function messageFor(kind: string): string {
   switch (kind) {
     case "offline":
       return strings.errorOffline;
+    case "unreachable":
+      return strings.errorUnreachable;
     case "signed_out":
       return strings.errorSignedOut;
     case "forbidden":

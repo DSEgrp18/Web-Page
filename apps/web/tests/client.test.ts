@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, ReaderApi, type FailureKind } from "../src/lib/client";
+import { ApiError, AuthApi, ReaderApi, type FailureKind } from "../src/lib/client";
+import { passThrough } from "../src/lib/passThrough";
+import { messageFor, strings } from "../src/lib/strings";
 import { FAKE_CSRF, FakeServer, OWNER, readablePage } from "./fakeApi";
 
 function serverWithBook() {
@@ -70,6 +72,7 @@ describe("failures", () => {
     [429, "throttled"],
     [503, "server"],
     [500, "server"],
+    [502, "unreachable"],
   ];
 
   for (const [status, kind] of cases) {
@@ -90,6 +93,55 @@ describe("failures", () => {
     const error = await api.listDocuments().catch((cause) => cause);
     expect(error).toBeInstanceOf(ApiError);
     expect(error.kind).toBe("offline");
+  });
+
+  it("names a reader that is starting or down, as the pass-through reports it", async () => {
+    // The real pass-through, in front of an API that refuses the connection:
+    // what a reader gets while the API container is still loading.
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchImpl = vi.fn((url: string | URL | Request) =>
+      passThrough(new Request(`https://swara.test${String(url)}`), ["documents"], {
+        env: { READER_API_URL: "http://api.internal:8000" },
+        fetchImpl: vi.fn(async () => {
+          throw new TypeError("fetch failed");
+        }) as unknown as typeof fetch,
+      }),
+    ) as unknown as typeof fetch;
+
+    const error = await new ReaderApi(FAKE_CSRF, { fetchImpl })
+      .listDocuments()
+      .catch((cause) => cause);
+
+    expect(error).toMatchObject({ kind: "unreachable" });
+    expect(messageFor(error.kind)).toBe(strings.errorUnreachable);
+    errors.mockRestore();
+  });
+
+  it("names an unconfigured pass-through as unreachable, not as the API's own 503", async () => {
+    const unconfigured = vi.fn(async () =>
+      Response.json(
+        { detail: "The reading service is not configured." },
+        { status: 503, headers: { "x-reader-unreachable": "1" } },
+      ),
+    ) as unknown as typeof fetch;
+    await expect(
+      new ReaderApi(FAKE_CSRF, { fetchImpl: unconfigured }).listDocuments(),
+    ).rejects.toMatchObject({ kind: "unreachable" });
+  });
+
+  it("does not take an unreachable reader for a signed-out one", async () => {
+    // `me()` answers null for "nobody is signed in". A reader who is signed in
+    // must not be told so because the API was restarting.
+    const fetchImpl = vi.fn(
+      async () => new Response("Bad Gateway", { status: 502 }),
+    ) as unknown as typeof fetch;
+    await expect(new AuthApi({ fetchImpl }).me()).rejects.toMatchObject({ kind: "unreachable" });
+  });
+
+  it("has its own message for an unreachable reader, distinct from offline", () => {
+    expect(messageFor("unreachable")).toBe(strings.errorUnreachable);
+    expect(strings.errorUnreachable).not.toBe(strings.errorOffline);
+    expect(strings.errorUnreachable).not.toBe(strings.errorServer);
   });
 
   it("does not confuse a missing document with someone else's", async () => {
