@@ -183,6 +183,11 @@ export class FakeServer {
    */
   signedInAs: string | null = null;
   readonly accounts: FakeAccount[] = [];
+  /**
+   * Set to answer every request as the pass-through does while the API is
+   * starting or down: 502, marked. Nothing reaches the fake API behind it.
+   */
+  unreachable = false;
   /** Set to make every account request answer 429, as the rate limiter would. */
   throttleAccounts = false;
   /** Readers who are teachers; everyone else is a student, as registration makes them. */
@@ -250,6 +255,13 @@ export class FakeServer {
     const headers = new Headers(init.headers);
     const owner = this.signedInAs;
     this.calls.push({ method, path, owner, body: init.body, headers });
+
+    if (this.unreachable) {
+      return Response.json(
+        { detail: "The reading service is not answering." },
+        { status: 502, headers: { "x-reader-unreachable": "1" } },
+      );
+    }
 
     if (path.startsWith("/auth/")) return this.account(method, path, init, headers);
 

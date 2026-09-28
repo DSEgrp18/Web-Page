@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-import { AuthApi, ReaderApi, type ClientOptions } from "@/lib/client";
+import { ApiError, AuthApi, ReaderApi, type ClientOptions, type FailureKind } from "@/lib/client";
 import type { Account, SignedIn } from "@/lib/types";
 
 /**
@@ -15,10 +15,28 @@ import type { Account, SignedIn } from "@/lib/types";
  * token, in memory only. Anything a script can store, a script injected into
  * the page can read.
  */
-export type SessionStatus = "loading" | "signed_in" | "signed_out";
+export type SessionStatus = "loading" | "signed_in" | "signed_out" | "unavailable";
+
+/**
+ * Why the session could not be checked. Only these two: the question "who is
+ * signed in" was never answered, so saying "you are signed out" would be a
+ * guess, and the wrong one for a reader who is signed in and whose API is
+ * restarting.
+ */
+export type UnavailableKind = Extract<FailureKind, "offline" | "unreachable">;
+
+interface SessionCheck {
+  next: SessionStatus;
+  why: UnavailableKind | null;
+  me: Awaited<ReturnType<AuthApi["me"]>>;
+}
 
 interface ReaderValue {
   status: SessionStatus;
+  /** For `unavailable`: whether this browser is offline or the reader is not answering. */
+  unavailable: UnavailableKind | null;
+  /** Ask again who is signed in. Resolves with the status it arrived at. */
+  recheck: () => Promise<SessionStatus>;
   /** Shorthand for `status === "signed_in"`. */
   signedIn: boolean;
   account: Account | null;
@@ -68,26 +86,52 @@ export function ReaderProvider({
   const api = useMemo(() => new ReaderApi(null, clientOptions), [clientOptions]);
   const [status, setStatus] = useState<SessionStatus>("loading");
   const [account, setAccount] = useState<Account | null>(null);
+  const [unavailable, setUnavailable] = useState<UnavailableKind | null>(null);
+
+  /** Who the cookie belongs to, asked of the API. Sets nothing. */
+  const ask = useCallback(async (): Promise<SessionCheck> => {
+    try {
+      const me = await auth.me();
+      return { next: me ? "signed_in" : "signed_out", why: null, me };
+    } catch (error) {
+      const kind = error instanceof ApiError ? error.kind : null;
+      if (kind === "offline" || kind === "unreachable") {
+        // Nobody answered, so nobody said this reader is signed out.
+        return { next: "unavailable", why: kind, me: null };
+      }
+      // The API answered, and not with an account: the signed-out screen is
+      // where they can try again.
+      return { next: "signed_out", why: null, me: null };
+    }
+  }, [auth]);
+
+  const apply = useCallback(
+    ({ next, why, me }: SessionCheck) => {
+      if (next !== "unavailable") {
+        api.setCsrf(me?.csrf ?? null);
+        setAccount(me?.account ?? null);
+      }
+      setUnavailable(why);
+      setStatus(next);
+    },
+    [api],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const me = await auth.me();
-        if (cancelled) return;
-        api.setCsrf(me?.csrf ?? null);
-        setAccount(me?.account ?? null);
-        setStatus(me ? "signed_in" : "signed_out");
-      } catch {
-        // Offline or failing: nothing can be shown as this reader, and the
-        // signed-out screen is where they can try again.
-        if (!cancelled) setStatus("signed_out");
-      }
-    })();
+    void ask().then((result) => {
+      if (!cancelled) apply(result);
+    });
     return () => {
       cancelled = true;
     };
-  }, [auth, api]);
+  }, [ask, apply]);
+
+  const recheck = useCallback(async () => {
+    const result = await ask();
+    apply(result);
+    return result.next;
+  }, [ask, apply]);
 
   const begin = useCallback(
     (signedIn: SignedIn) => {
@@ -169,6 +213,8 @@ export function ReaderProvider({
   const value = useMemo(
     () => ({
       status,
+      unavailable,
+      recheck,
       signedIn: status === "signed_in",
       account,
       api,
@@ -183,6 +229,8 @@ export function ReaderProvider({
     }),
     [
       status,
+      unavailable,
+      recheck,
       account,
       api,
       signIn,
