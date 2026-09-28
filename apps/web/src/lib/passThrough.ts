@@ -33,6 +33,14 @@ export const BEHIND_PROXY_ENV = "READER_BEHIND_PROXY";
 
 export const TIMEOUT_MS = 120_000;
 
+/**
+ * Set on this handler's own answer when the API itself did not answer: it is
+ * not running, still starting, or not configured. The API's own 503s (a class
+ * code it could not make, sessions not set up) do not carry it, so the
+ * interface can tell "the reader is not there" from "the reader said no".
+ */
+export const UNREACHABLE_HEADER = "x-reader-unreachable";
+
 const REQUEST_HEADERS = [
   "accept",
   "accept-language",
@@ -59,8 +67,10 @@ const RESPONSE_HEADERS = [
   "x-reader-real-model",
 ];
 
-function problem(status: number, detail: string): Response {
-  return Response.json({ detail }, { status, headers: { "cache-control": "no-store" } });
+function problem(status: number, detail: string, unreachable = false): Response {
+  const headers: Record<string, string> = { "cache-control": "no-store" };
+  if (unreachable) headers[UNREACHABLE_HEADER] = "1";
+  return Response.json({ detail }, { status, headers });
 }
 
 /** The API address for a path under `/api`, or null if it is not configured. */
@@ -113,7 +123,7 @@ export async function passThrough(
   }: { env?: Env; fetchImpl?: typeof fetch; timeoutMs?: number } = {},
 ): Promise<Response> {
   const target = targetFor(request.url, path, env[API_URL_ENV]);
-  if (!target) return problem(503, "The reading service is not configured.");
+  if (!target) return problem(503, "The reading service is not configured.", true);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
   const timeout = AbortSignal.timeout(timeoutMs);
@@ -134,7 +144,7 @@ export async function passThrough(
     if (timeout.aborted) return problem(504, "The reading service took too long to answer.");
     if (request.signal.aborted) return problem(499, "The request was cancelled.");
     console.error("pass-through: the API could not be reached", cause);
-    return problem(502, "The reading service is not answering.");
+    return problem(502, "The reading service is not answering.", true);
   }
 
   return new Response(upstream.body, {

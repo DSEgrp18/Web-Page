@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { passThrough } from "../src/lib/passThrough";
+import { passThrough, UNREACHABLE_HEADER } from "../src/lib/passThrough";
 
 const ENV = { READER_API_URL: "http://api.internal:8000/" };
 
@@ -53,6 +53,7 @@ describe("the pass-through", () => {
     );
 
     expect(response.status).toBe(503);
+    expect(response.headers.get(UNREACHABLE_HEADER)).toBe("1");
   });
 
   it("drops every credential but the cookie", async () => {
@@ -198,7 +199,26 @@ describe("the pass-through", () => {
     );
 
     expect(response.status).toBe(502);
+    expect(response.headers.get(UNREACHABLE_HEADER)).toBe("1");
     errors.mockRestore();
+  });
+
+  it("does not mark the API's own refusals as unreachable, even if it tries", async () => {
+    const api = fakeApi(
+      () =>
+        new Response(JSON.stringify({ detail: "Could not make a code." }), {
+          status: 503,
+          headers: { "content-type": "application/json", [UNREACHABLE_HEADER]: "1" },
+        }),
+    );
+
+    const response = await passThrough(new Request("https://swara.test/api/classes"), ["classes"], {
+      env: ENV,
+      fetchImpl: api.fetchImpl,
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get(UNREACHABLE_HEADER)).toBeNull();
   });
 
   it("gives up after its timeout with 504", async () => {
