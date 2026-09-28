@@ -247,14 +247,14 @@ export function Library() {
         </p>
       ) : all.length === 0 ? null : (
         <>
-          {resume ? <ContinueCard book={resume} /> : null}
-
-          <section className="shelf" aria-labelledby="shelf-heading">
-            <div className="shelf-head">
-              <div>
-                <h1 id="shelf-heading">{strings.browseBooks}</h1>
-                <p className="hint">{strings.libraryCount(all.length)}</p>
-              </div>
+          {/* The page's title first, then "continue reading": a heading
+              outline that starts at h2 has no page for it to belong to. */}
+          <div className="shelf-head">
+            <div>
+              <h1 id="shelf-heading">{strings.browseBooks}</h1>
+              <p className="hint">{strings.libraryCount(all.length)}</p>
+            </div>
+            <div className="shelf-actions">
               <button
                 ref={addButton}
                 className="btn btn-primary"
@@ -268,7 +268,11 @@ export function Library() {
                 {strings.pasteLink}
               </Link>
             </div>
+          </div>
 
+          {resume ? <ContinueCard book={resume} /> : null}
+
+          <section className="shelf" aria-labelledby="shelf-heading">
             <div className="shelf-controls">
               <div className="search">
                 <label htmlFor={searchId} className="visually-hidden">

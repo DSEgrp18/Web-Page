@@ -1322,7 +1322,7 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
 
 .shelf-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--s3);
   flex-wrap: wrap;
@@ -2866,6 +2866,15 @@ h4 {
 .shelf-head > div {
   display: grid;
   gap: 0.2rem;
+}
+
+/* Adding and pasting are one decision — how a book comes in — so they sit
+   together, at the end of the title's row, and wrap under it when narrow. */
+.shelf-head > .shelf-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
 }
 
 .shelf-head h1 {
