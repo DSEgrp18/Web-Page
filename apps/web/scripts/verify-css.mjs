@@ -30,29 +30,11 @@ const root = process.argv[2] ?? fileURLToPath(new URL("..", import.meta.url));
 const src = join(root, "src");
 
 /**
- * Classes used without a rule when this check was added. Their buttons are
- * styled; what is missing is layout.
- * Bookmarks: the screen needs design work, tracked in its own issue.
+ * Classes used without a rule when this check was added. Their buttons were
+ * styled; what was missing was layout. The bookmarks screen, the only entry,
+ * was designed in the Phase 3 visual pass; the list is empty and stays so.
  */
-const KNOWN_UNSTYLED = new Map([
-  [
-    "src/components/Bookmarks.tsx",
-    new Set([
-      "bookmarks-page",
-      "bookmarks-heading",
-      "bookmarks-empty",
-      "bookmark-groups",
-      "bookmark-group",
-      "bookmark-list",
-      "bookmark-card",
-      "bookmark-page",
-      "bookmark-text",
-      "bookmark-note",
-      "bookmark-warning",
-      "bookmark-actions",
-    ]),
-  ],
-]);
+const KNOWN_UNSTYLED = new Map([]);
 
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

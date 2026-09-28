@@ -1025,6 +1025,107 @@ summary {
   grid-column: 1 / -1;
 }
 
+/* -- bookmarks ------------------------------------------------------------
+   One card per book, one row per bookmark: where it is, the sentence, the
+   reader's note, and what can be done with it. The sentence is book text, so
+   it keeps the reading leading. */
+.bookmarks-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s5);
+  inline-size: min(var(--page), 100%);
+  margin-inline: auto;
+}
+
+.bookmarks-heading {
+  display: grid;
+  gap: var(--s2);
+}
+
+.bookmarks-empty {
+  display: grid;
+  gap: var(--s3);
+  justify-items: start;
+  padding: var(--s5);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+}
+
+.bookmark-groups {
+  display: grid;
+  gap: var(--s5);
+}
+
+.bookmark-group {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s5);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+}
+
+.bookmark-group > h2 {
+  font-size: var(--text-h3);
+}
+
+.bookmark-list {
+  display: grid;
+}
+
+.bookmark-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3) var(--s5);
+  padding-block: var(--s4);
+  border-block-start: 1px solid var(--hair);
+}
+
+.bookmark-card > div:first-child {
+  flex: 1 1 22rem;
+  min-inline-size: 0;
+  display: grid;
+  gap: var(--s1);
+}
+
+.bookmark-page {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.bookmark-text {
+  font-size: var(--text-lg);
+  line-height: var(--leading-reading);
+  overflow-wrap: anywhere;
+}
+
+/* The reader's own words, set apart from the book's by a rule, not colour. */
+.bookmark-note {
+  padding-inline-start: var(--s3);
+  border-inline-start: 3px solid var(--gold);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.bookmark-warning {
+  justify-self: start;
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--warn-wash);
+  color: var(--warn-ink);
+  font-size: var(--text-sm);
+}
+
+.bookmark-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
 .account-section {
   padding: var(--s5);
   display: grid;
