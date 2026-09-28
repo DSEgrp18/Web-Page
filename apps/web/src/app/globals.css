@@ -1068,9 +1068,15 @@ summary {
   gap: var(--s1);
 }
 
+/* Inside the box, not across its top edge: a long legend (the basis for
+   sharing is a whole question) otherwise wraps over the border. Floating a
+   legend takes it out of the border's notch; it is still the legend. */
 .decision legend {
+  float: inline-start;
+  inline-size: 100%;
+  padding: 0;
+  margin-block-end: var(--s2);
   font-weight: 600;
-  padding-inline: var(--s1);
 }
 
 .account-details {
@@ -1093,10 +1099,78 @@ summary {
   min-height: var(--tap);
 }
 
-.check-row input {
-  inline-size: 1.25rem;
-  block-size: 1.25rem;
+/*
+ * Checkboxes and radios, drawn from the tokens.
+ *
+ * The browser's own are small, and in the dark theme Chromium paints an
+ * unchecked one as a grey square whose edge does not reach the 3:1 that 1.4.11
+ * asks of a control's boundary. These are real inputs still — same element,
+ * same keyboard, same announcement — with `appearance: none` and a 2px `--edge`
+ * border, which is measured in the contrast test on every surface. Checked is
+ * a filled box with a mark, not a colour change alone. The segmented control
+ * and the switch hide their inputs and are left alone.
+ */
+input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input) {
+  appearance: none;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  inline-size: var(--check-size);
+  block-size: var(--check-size);
   margin: 0;
+  border: 2px solid var(--edge);
+  border-radius: 6px;
+  background: var(--panel);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+input[type="radio"]:not(.segment input, .switch input) {
+  border-radius: 50%;
+}
+
+input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):checked {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input)::before {
+  content: "";
+  display: none;
+  background: var(--ink-on-green);
+}
+
+input[type="checkbox"]:not(.segment input, .switch input):checked::before {
+  display: block;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  clip-path: polygon(14% 44%, 0 58%, 40% 96%, 100% 22%, 86% 8%, 38% 68%);
+}
+
+input[type="radio"]:not(.segment input, .switch input):checked::before {
+  display: block;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+}
+
+input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* High contrast mode draws its own colours; the mark must use them. */
+@media (forced-colors: active) {
+  input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input) {
+    border-color: ButtonText;
+  }
+  input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):checked {
+    background: Highlight;
+    border-color: Highlight;
+  }
+  input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input)::before {
+    background: HighlightText;
+  }
 }
 
 /* Large, and spaced, so it can be read aloud or copied by eye without error. */
@@ -2834,15 +2908,15 @@ h4 {
   border-radius: var(--r-lg);
   transition:
     border-color var(--medium) var(--ease),
-    transform var(--medium) var(--ease),
     background var(--medium) var(--ease);
 }
 
+/* The edge answers the pointer; the card does not move. Nothing on the page
+   moves unless the reader pressed something. */
 .book-card:hover {
   border-color: color-mix(in srgb, var(--green) 65%, var(--hair));
   background: var(--panel);
   box-shadow: none;
-  transform: translateY(-3px);
 }
 
 .book-cover {
