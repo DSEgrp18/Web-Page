@@ -14,7 +14,7 @@ import { AppFrame } from "../src/components/AppFrame";
 import { Library } from "../src/components/Library";
 import { strings } from "../src/lib/strings";
 import { FAKE_CSRF, FakeServer } from "./fakeApi";
-import { politeText, renderApp } from "./render";
+import { assertiveText, politeText, renderApp } from "./render";
 import { navigations } from "./setup";
 
 const PASSWORD = "a-long-enough-password";
@@ -228,6 +228,106 @@ describe("signing out", () => {
     const logout = server.callsTo("POST", /^\/auth\/logout$/)[0]!;
     expect(logout.headers!.get("X-CSRF-Token")).toBe(FAKE_CSRF);
     await waitFor(() => expect(politeText()).toContain(strings.signedOut));
+  });
+});
+
+describe("when the reader cannot be reached", () => {
+  it("says so, instead of asking a signed-in reader to sign in", async () => {
+    const server = new FakeServer();
+    server.unreachable = true;
+    renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      server,
+    );
+
+    expect(await screen.findByRole("heading", { name: strings.errorHeading })).toBeTruthy();
+    expect(screen.getByText(strings.errorUnreachable)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: strings.signedOutHeading })).toBeNull();
+    expect(document.title).toBe(`${strings.errorHeading} — ${strings.appName}`);
+    // Nothing announced on arrival: the page says it, and the title does.
+    expect(assertiveText()).toBe("");
+  });
+
+  it("says it again when trying again finds it still down, keeping focus", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer();
+    server.unreachable = true;
+    renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      server,
+    );
+
+    const retry = await screen.findByRole("button", { name: strings.retry });
+    await user.click(retry);
+
+    await waitFor(() => expect(assertiveText()).toBe(strings.errorUnreachable));
+    expect(document.activeElement).toBe(retry);
+    expect(server.callsTo("GET", /^\/auth\/me$/)).toHaveLength(2);
+  });
+
+  it("opens the page they asked for once it answers", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer();
+    server.unreachable = true;
+    renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      server,
+    );
+
+    const retry = await screen.findByRole("button", { name: strings.retry });
+    server.unreachable = false;
+    await user.click(retry);
+
+    expect(await screen.findByRole("heading", { name: strings.welcomeHeading })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: strings.retry })).toBeNull();
+    expect(document.activeElement).toBe(document.getElementById("main"));
+  });
+
+  it("still sends a reader with no session to sign in", async () => {
+    const server = new FakeServer();
+    renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      server,
+      "",
+    );
+
+    expect(await screen.findByRole("heading", { name: strings.signedOutHeading })).toBeTruthy();
+    expect(screen.queryByText(strings.errorUnreachable)).toBeNull();
+  });
+
+  it("tells the signing-in reader why, not that something unexpected went wrong", async () => {
+    const user = userEvent.setup();
+    const server = withAccount();
+    renderApp(<SignInForm />, server, "");
+    await screen.findByLabelText(strings.emailLabel);
+    server.unreachable = true;
+
+    await user.type(screen.getByLabelText(strings.emailLabel), "nimali@example.lk");
+    await user.type(screen.getByLabelText(strings.passwordLabel), PASSWORD);
+    await user.click(screen.getByRole("button", { name: strings.signInAction }));
+
+    expect(await screen.findByText(strings.errorUnreachable)).toBeTruthy();
+  });
+
+  it("has no automatically detectable violations", async () => {
+    const server = new FakeServer();
+    server.unreachable = true;
+    const { container } = renderApp(
+      <AppFrame>
+        <Library />
+      </AppFrame>,
+      server,
+    );
+    await screen.findByRole("button", { name: strings.retry });
+    expect(await violations(container)).toEqual([]);
   });
 });
 

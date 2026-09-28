@@ -8,9 +8,9 @@ import { useAnnouncer } from "@/components/Announcer";
 import { BrandMark } from "@/components/BrandMark";
 import { ResetNoticeBanner } from "@/components/ResetNoticeBanner";
 import { SiteFooter } from "@/components/PublicFrame";
-import { useReader } from "@/components/ReaderProvider";
+import { useReader, type UnavailableKind } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
-import { strings } from "@/lib/strings";
+import { messageFor, strings } from "@/lib/strings";
 
 /**
  * The frame every screen sits in: a skip link, one masthead, one `<main>`.
@@ -30,12 +30,24 @@ import { strings } from "@/lib/strings";
  * where a reader who is signed out goes.
  */
 export function AppFrame({ children }: { children: ReactNode }) {
-  const { status } = useReader();
+  const { status, unavailable } = useReader();
   const pathname = usePathname() ?? "/library";
 
   // The workspace manages its own full-height layout and its own back link.
   const isWorkspace = /^\/library\/[^/]+$/.test(pathname);
   const signedIn = status === "signed_in";
+
+  // Leaving the "cannot be reached" panel takes its retry button, and focus
+  // with it. The sign-in panel places focus itself; the page they asked for
+  // starts at the top of `<main>`.
+  const main = useRef<HTMLElement>(null);
+  const wasUnavailable = useRef(false);
+  useEffect(() => {
+    if (wasUnavailable.current && signedIn && document.activeElement === document.body) {
+      main.current?.focus();
+    }
+    wasUnavailable.current = status === "unavailable";
+  }, [status, signedIn]);
 
   return (
     <>
@@ -101,6 +113,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
 
         {/* Focusable from script, so the skip link's jump lands in it. */}
         <main
+          ref={main}
           id="main"
           tabIndex={-1}
           className={isWorkspace ? "shell-main shell-main-wide" : "shell-main"}
@@ -118,6 +131,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
             <p className="hint" aria-busy="true">
               {strings.loadingSession}
             </p>
+          ) : status === "unavailable" && unavailable ? (
+            <Unavailable kind={unavailable} />
           ) : (
             <SignedOut pathname={pathname} />
           )}
@@ -150,6 +165,58 @@ function AccountBadge() {
         {strings.signOut}
       </button>
     </p>
+  );
+}
+
+/**
+ * When nobody answered "who is signed in": this browser is offline, or the
+ * reader behind the site is starting or down. Not the sign-in form, because
+ * nobody said this reader is signed out, and signing in would fail the same
+ * way. The page they asked for is still the address, so trying again is all
+ * there is to do.
+ */
+function Unavailable({ kind }: { kind: UnavailableKind }) {
+  const { recheck } = useReader();
+  const { alert } = useAnnouncer();
+  const [checking, setChecking] = useState(false);
+  const message = messageFor(kind);
+
+  useEffect(() => {
+    const before = document.title;
+    document.title = `${strings.errorHeading} — ${strings.appName}`;
+    return () => {
+      document.title = before;
+    };
+  }, []);
+
+  async function tryAgain() {
+    // Not `disabled`: a disabled button under the reader's focus drops it.
+    if (checking) return;
+    setChecking(true);
+    if ((await recheck()) === "unavailable") {
+      // Still nobody there. Said out loud, or the press seems to do nothing.
+      setChecking(false);
+      alert(message);
+    }
+    // Otherwise this panel goes, and `AppFrame` puts the reader at the top of
+    // the page they asked for.
+  }
+
+  return (
+    <section className="account-form card" aria-labelledby="unavailable-heading">
+      <h1 id="unavailable-heading" tabIndex={-1}>
+        {strings.errorHeading}
+      </h1>
+      <p className="notice notice-bad">{message}</p>
+      <button
+        type="button"
+        className="btn btn-primary"
+        aria-disabled={checking || undefined}
+        onClick={() => void tryAgain()}
+      >
+        {strings.retry}
+      </button>
+    </section>
   );
 }
 
