@@ -207,6 +207,31 @@ describe("the shelf", () => {
     expect(headings.some((heading) => heading.closest(".continue"))).toBe(true);
   });
 
+  it("starts with the page's title, then the book to continue, then the shelf", async () => {
+    renderApp(
+      <Library />,
+      new FakeServer({
+        books: [
+          book({
+            reading: {
+              segment_id: "0000-s2",
+              segment_index: 1,
+              updated_at: "2026-09-11T00:00:00Z",
+              stale: false,
+            },
+          }),
+        ],
+      }),
+    );
+    await screen.findAllByRole("heading", { name: /ඉතිහාසය\.pdf/ });
+    const headings = screen.getAllByRole("heading");
+    // An outline that opens on an h2 has no page for it to belong to.
+    expect(headings[0]!.tagName).toBe("H1");
+    expect(headings[0]!.textContent).toBe(strings.browseBooks);
+    expect(headings[1]!.closest(".continue")).not.toBeNull();
+    expect(headings[2]!.closest(".book-card")).not.toBeNull();
+  });
+
   it("stops polling once nothing is being prepared", async () => {
     const server = new FakeServer({ books: [book()] });
     renderApp(<Library />, server);
