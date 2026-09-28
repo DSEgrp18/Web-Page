@@ -99,3 +99,65 @@ test("the ask button covers no other control", async ({ page }) => {
   });
   expect(covered).toEqual([]);
 });
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 360, height: 780 } });
+
+  test("the book's text has room, and no sentence sits under the player", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    // The masthead there is static and three times the height the old
+    // full-height layout subtracted, which left the text 130 px.
+    const panel = page.locator("#panel-reading");
+    await expect(page.getByRole("button", { name: "සිංහල පොත කියවන්න." })).toBeVisible();
+    expect((await panel.boundingBox())?.height).toBeGreaterThan(200);
+
+    for (const name of ["සිංහල පොත කියවන්න.", "ඊළඟ වාක්‍යය මෙහි ඇත."]) {
+      const sentence = page.getByRole("button", { name });
+      await sentence.focus();
+      // What a tap at the middle of the focused sentence would hit: the
+      // sentence, not the player pinned over the page.
+      const hit = await sentence.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return element.contains(top);
+      });
+      expect(hit, name).toBe(true);
+    }
+  });
+
+  test("the player stays on screen, and the ask button covers none of it", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    await expect(page.getByRole("button", { name: "සිංහල පොත කියවන්න." })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0));
+
+    const player = page.getByRole("group", { name: /./ }).filter({ has: page.locator(".player-play") });
+    const box = await player.boundingBox();
+    expect(box && box.y + box.height).toBeLessThanOrEqual(780);
+
+    const covered = await page.evaluate(() => {
+      const ask = document.querySelector(".assistant-fab")?.getBoundingClientRect();
+      if (!ask) return ["no ask button"];
+      return [...document.querySelectorAll(".player button, .player select")]
+        .filter((element) => {
+          const b = element.getBoundingClientRect();
+          return b.left < ask.right && b.right > ask.left && b.top < ask.bottom && b.bottom > ask.top;
+        })
+        .map((element) => element.textContent.trim() || element.getAttribute("aria-label"));
+    });
+    expect(covered).toEqual([]);
+  });
+
+  test("every library filter is on screen", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library");
+    const filters = page.locator(".shelf-filters .segment");
+    await expect(filters.first()).toBeVisible();
+    for (const filter of await filters.all()) {
+      const box = await filter.boundingBox();
+      expect(box && box.x).toBeGreaterThanOrEqual(0);
+      expect(box && box.x + box.width).toBeLessThanOrEqual(360);
+    }
+  });
+});
