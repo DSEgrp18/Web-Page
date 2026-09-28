@@ -288,13 +288,30 @@ const SCREENS = [
     path: "/register",
     ready: (page) => page.getByRole("heading", { name: "ගිණුමක් සාදන්න" }),
   },
+  {
+    // The API is starting or down: every request answers as the pass-through
+    // does then, including "who is signed in".
+    name: "the reader cannot be reached",
+    path: "/library",
+    setup: (page) =>
+      page.route("**/api/**", (route) => {
+        if (!new URL(route.request().url()).pathname.startsWith("/api/")) return route.continue();
+        return route.fulfill({
+          status: 502,
+          headers: { "content-type": "application/json", "x-reader-unreachable": "1" },
+          body: JSON.stringify({ detail: "The reading service is not answering." }),
+        });
+      }),
+    ready: (page) => page.getByRole("button", { name: "නැවත උත්සාහ කරන්න" }),
+  },
 ];
 
 for (const scheme of ["light", "dark"]) {
   for (const screen of SCREENS) {
     test(`${screen.name} has no detectable violations in the ${scheme} theme`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-      await withOneBook(page, screen.account, screen.routes);
+      if (screen.setup) await screen.setup(page);
+      else await withOneBook(page, screen.account, screen.routes);
       await page.goto(screen.path);
       await expect(screen.ready(page)).toBeVisible();
       if (screen.open) await screen.open(page);
