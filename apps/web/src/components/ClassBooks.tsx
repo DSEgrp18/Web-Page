@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { BookCover } from "@/components/BookCover";
 import { useReader } from "@/components/ReaderProvider";
 import { bookTitle } from "@/lib/books";
 import { strings } from "@/lib/strings";
@@ -16,6 +17,10 @@ import type { ClassBook } from "@/lib/types";
  * cards have those buttons and some do not is a shelf that has to be learned.
  * Absent entirely when there are none, so a reader in no class hears nothing
  * about classes on their own library.
+ *
+ * Each card opens its book the way the reader's own cards do — one "open" or
+ * "continue" button naming the book — rather than from its title, so there is
+ * one way to open a book on this page, not two.
  */
 export function ClassBooks() {
   const { api } = useReader();
@@ -41,24 +46,30 @@ export function ClassBooks() {
   return (
     <section className="shelf" aria-labelledby="class-books-heading">
       <h2 id="class-books-heading">{strings.fromYourClasses}</h2>
-      <ul className="class-list">
-        {books.map(({ class_id, class_name, book }) => (
-          <li key={`${class_id}:${book.document_id}`} className="class-item">
-            <h3>
-              <Link href={`/library/${encodeURIComponent(book.document_id)}`}>
-                {bookTitle(book)}
-              </Link>
-            </h3>
-            <p className="hint">{strings.classBookFrom(class_name)}</p>
-            <Link
-              className="btn btn-quiet btn-sm"
-              href={`/library/${encodeURIComponent(book.document_id)}/practice`}
-            >
-              {strings.practiceLink}
-              <span className="visually-hidden"> — {bookTitle(book)}</span>
-            </Link>
-          </li>
-        ))}
+      <ul className="book-grid">
+        {books.map(({ class_id, class_name, book }) => {
+          const title = bookTitle(book);
+          const id = encodeURIComponent(book.document_id);
+          return (
+            <li key={`${class_id}:${book.document_id}`} className="book-card card">
+              <BookCover documentId={book.document_id} ready />
+              <div className="book-card-body">
+                <h3 className="book-card-title">{title}</h3>
+                <p className="hint">{strings.classBookFrom(class_name)}</p>
+                <div className="book-card-actions">
+                  <Link className="btn btn-primary btn-sm" href={`/library/${id}`}>
+                    {strings.continueOrOpen(book.reading !== null)}
+                    <span className="visually-hidden"> — {title}</span>
+                  </Link>
+                  <Link className="btn btn-quiet btn-sm" href={`/library/${id}/practice`}>
+                    {strings.practiceLink}
+                    <span className="visually-hidden"> — {title}</span>
+                  </Link>
+                </div>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

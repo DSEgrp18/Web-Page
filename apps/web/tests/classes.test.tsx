@@ -464,9 +464,11 @@ describe("the library", () => {
     renderApp(<Library />, server, STUDENT);
 
     const section = await region(strings.fromYourClasses);
-    expect(section.getByRole("link", { name: "ඉතිහාසය.pdf" }).getAttribute("href")).toBe(
+    // Opened as the reader's own books are, by a button that names the book.
+    expect(section.getByRole("link", { name: opensBook("ඉතිහාසය.pdf") }).getAttribute("href")).toBe(
       "/library/doc-1",
     );
+    expect(section.getByRole("heading", { name: "ඉතිහාසය.pdf" })).toBeTruthy();
     expect(section.getByText(strings.classBookFrom("10 ශ්‍රේණිය"))).toBeTruthy();
   });
 
