@@ -59,6 +59,7 @@ import type {
 
 export type FailureKind =
   | "offline" // the request never reached a server
+  | "unreachable" // this site answered, but the reader behind it did not: starting, or down
   | "signed_out" // no session, or it has ended: sign in again
   | "forbidden" // the page's CSRF token is out of date: reload
   | "throttled" // too many attempts: wait, then try again
@@ -88,7 +89,16 @@ export class ApiError extends Error {
   }
 }
 
-function kindFor(status: number): FailureKind {
+/**
+ * Set by the pass-through (`lib/passThrough.ts`) when the API did not answer.
+ * The name is repeated here because that module is server-only.
+ */
+export const UNREACHABLE_HEADER = "x-reader-unreachable";
+
+function kindFor(status: number, headers: Headers): FailureKind {
+  // A 502 is a gateway saying the service behind it did not answer, whichever
+  // gateway it was. The API's own 503s mean something else and are not marked.
+  if (status === 502 || headers.get(UNREACHABLE_HEADER) === "1") return "unreachable";
   if (status === 401) return "signed_out";
   if (status === 403) return "forbidden";
   if (status === 429) return "throttled";
@@ -135,7 +145,7 @@ async function send(
   if (!response.ok) {
     const retryAfter = Number(response.headers.get("retry-after"));
     throw new ApiError(
-      kindFor(response.status),
+      kindFor(response.status, response.headers),
       response.status,
       await detailOf(response),
       Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
