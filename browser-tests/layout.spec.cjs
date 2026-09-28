@@ -81,6 +81,25 @@ for (const path of ["/library", "/library/doc-1", "/"]) {
   });
 }
 
+test("no page scrolls sideways at any width from 320 to 1400 px", async ({ page }) => {
+  // The masthead's one row needs about 60em; between 780 and 920 px it pushed
+  // every signed-in page sideways, which a check at 320 px alone never saw.
+  await oneBook(page);
+  const over = [];
+  for (const path of ["/library", "/library/doc-1", "/"]) {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(path);
+    await expect(page.locator("main")).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    for (let width = 320; width <= 1400; width += 20) {
+      await page.setViewportSize({ width, height: 800 });
+      const by = await sideways(page);
+      if (by > 0) over.push(`${path} at ${width}: ${by} px`);
+    }
+  }
+  expect(over).toEqual([]);
+});
+
 test("the ask button covers no other control", async ({ page }) => {
   await oneBook(page);
   await page.goto("/library/doc-1");
