@@ -117,6 +117,17 @@ Object.defineProperty(HTMLMediaElement.prototype, "preservesPitch", {
   value: true,
 });
 
+// jsdom has no pointer capture. The dividers take the pointer on
+// `pointerdown` so a fast drag cannot outrun them; here that is a no-op, as
+// it is in a browser when nothing moves.
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = function setPointerCapture() {};
+  Element.prototype.releasePointerCapture = function releasePointerCapture() {};
+  Element.prototype.hasPointerCapture = function hasPointerCapture() {
+    return false;
+  };
+}
+
 /** Every `scrollIntoView` call, so follow-reading tests can assert without a layout engine. */
 export const scrollIntoViewCalls: Array<{
   behavior?: ScrollBehavior;
