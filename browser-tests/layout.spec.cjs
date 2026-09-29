@@ -176,6 +176,18 @@ test.describe("on a phone", () => {
     await expect(page.getByRole("button", { name: "පොත ගැන අසන්න" })).toBeVisible();
   });
 
+  test("a tab shows its panel even after 'expand' collapsed it", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    const sentence = page.getByRole("button", { name: "සිංහල පොත කියවන්න." });
+    await expect(sentence).toBeVisible();
+    // "Expand the original" hides the reading panel on a wide screen; here the
+    // tabs decide, and choosing the reading tab showed an empty screen.
+    await page.getByRole("button", { name: "මුල් පිටුව විශාල කරන්න" }).click();
+    await page.getByRole("tab", { name: "කියවීම" }).click();
+    await expect(sentence).toBeVisible();
+  });
+
   test("every library filter is on screen", async ({ page }) => {
     await oneBook(page);
     await page.goto("/library");
