@@ -4,8 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { usePreferences } from "@/components/PreferencesProvider";
 import { roleLabel } from "@/lib/roles";
-import { strings } from "@/lib/strings";
 import type { Page, Segment } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * The extracted Sinhala, as text.
@@ -56,6 +56,7 @@ export function ReadingPanel({
   onPlayIndex: (index: number) => void;
   documentNotes: string[];
 }) {
+  const strings = useStrings();
   const { preferences } = usePreferences();
   const scroller = useRef<HTMLDivElement>(null);
   const [followingLost, setFollowingLost] = useState(false);
@@ -170,7 +171,7 @@ export function ReadingPanel({
           <ol className="sentences">
             {segments.map((segment, index) => {
               const current = currentId === segment.segment_id;
-              const label = roleLabel(segment);
+              const label = roleLabel(segment, strings);
               return (
                 <li
                   key={segment.segment_id}
@@ -230,6 +231,7 @@ function splitWords(text: string): string[] {
  * handled. This is where that promise is kept or broken.
  */
 function PageNotes({ page, documentNotes }: { page: Page; documentNotes: string[] }) {
+  const strings = useStrings();
   // Ours are Sinhala; the pipeline's are English, and are marked so.
   const messages: { text: string; lang?: "en" }[] = [];
   if (page.quality === "undecodable") messages.push({ text: strings.qualityUndecodable });

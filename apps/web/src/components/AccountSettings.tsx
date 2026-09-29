@@ -12,7 +12,7 @@ import {
 import { useAnnouncer } from "@/components/Announcer";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * The account page: who you are, and the four things you can do about it.
@@ -24,6 +24,7 @@ import { strings } from "@/lib/strings";
  * must not be enough to take or erase someone's account.
  */
 export function AccountSettings() {
+  const strings = useStrings();
   const { account } = useReader();
   const [code, setCode] = useState<string | null>(null);
   const top = useRef<HTMLHeadingElement>(null);
@@ -81,6 +82,7 @@ function Section({ heading, children }: { heading: string; children: ReactNode }
 }
 
 function ChangePassword() {
+  const strings = useStrings();
   const { changePassword } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -100,10 +102,14 @@ function ChangePassword() {
       say(strings.passwordChanged);
     } catch (error) {
       setFailure(
-        explain(error, {
-          401: strings.errorWrongPassword,
-          422: strings.errorWeakPassword(MIN_PASSWORD_LENGTH),
-        }),
+        explain(
+          error,
+          {
+            401: strings.errorWrongPassword,
+            422: strings.errorWeakPassword(MIN_PASSWORD_LENGTH),
+          },
+          strings,
+        ),
       );
     } finally {
       setBusy(false);
@@ -144,6 +150,7 @@ function NewRecoveryCode({
   missing: boolean;
   onMade: (code: string) => void;
 }) {
+  const strings = useStrings();
   const { newRecoveryCode } = useReader();
   const { setFailure, notice } = useFailure();
   const [current, setCurrent] = useState("");
@@ -156,7 +163,7 @@ function NewRecoveryCode({
     try {
       onMade(await newRecoveryCode(current));
     } catch (error) {
-      setFailure(explain(error, { 401: strings.errorWrongPassword }));
+      setFailure(explain(error, { 401: strings.errorWrongPassword }, strings));
       setBusy(false);
     }
   }
@@ -186,6 +193,7 @@ function NewRecoveryCode({
 }
 
 function SignOutEverywhere() {
+  const strings = useStrings();
   const { signOutEverywhere } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -201,7 +209,7 @@ function SignOutEverywhere() {
           onClick={() => {
             signOutEverywhere().then(
               () => say(strings.signedOutEverywhere),
-              (error) => setFailure(explain(error, {})),
+              (error) => setFailure(explain(error, {}, strings)),
             );
           }}
         >
@@ -213,6 +221,7 @@ function SignOutEverywhere() {
 }
 
 function DeleteAccount() {
+  const strings = useStrings();
   const { deleteAccount } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -226,7 +235,7 @@ function DeleteAccount() {
       await deleteAccount(current);
       say(strings.accountDeleted);
     } catch (error) {
-      setFailure(explain(error, { 401: strings.errorWrongPassword }));
+      setFailure(explain(error, { 401: strings.errorWrongPassword }, strings));
     }
   }
 

@@ -12,9 +12,11 @@ import { Classes } from "../src/components/Classes";
 import { Library } from "../src/components/Library";
 import { Reader } from "../src/components/Reader";
 import { ShareBook } from "../src/components/ShareBook";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import { FakeServer, readablePage } from "./fakeApi";
 import { noticeText, opensBook, renderApp } from "./render";
+import { requestCookies } from "./setup";
+import { LOCALE_COOKIE } from "../src/lib/i18n";
 
 /**
  * The accessibility smoke test CLAUDE.md's CI section asks for.
@@ -104,15 +106,17 @@ beforeEach(() => {
 });
 
 describe("the document language", () => {
-  it("is declared as Sinhala on the html element", () => {
-    const markup = renderToStaticMarkup(
-      <RootLayout>
-        <p>අන්තර්ගතය</p>
-      </RootLayout>,
-    );
-    // Without this, NVDA and TalkBack read the Sinhala interface with an
-    // English synthesiser, which is unintelligible even when the words are right.
-    expect(markup).toContain('lang="si"');
+  // Without this, NVDA and TalkBack read the Sinhala interface with an
+  // English synthesiser, which is unintelligible even when the words are right.
+  it.each([
+    ["Sinhala with no cookie, the default", undefined, "si"],
+    ["Sinhala when chosen", "si", "si"],
+    ["English when chosen", "en", "en"],
+    ["Sinhala for a cookie it does not know", "fr", "si"],
+  ])("is declared as %s on the html element", async (_name, cookie, lang) => {
+    if (cookie) requestCookies.set(LOCALE_COOKIE, cookie);
+    const markup = renderToStaticMarkup(await RootLayout({ children: <p>අන්තර්ගතය</p> }));
+    expect(markup).toContain(`<html lang="${lang}"`);
   });
 });
 

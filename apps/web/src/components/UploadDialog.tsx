@@ -5,8 +5,9 @@ import { useCallback, useEffect, useId, useRef, useState, type DragEvent } from 
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
-import { messageFor, strings } from "@/lib/strings";
+import { messageFor } from "@/lib/strings";
 import type { DocumentDetail } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** What the API refuses above. Checked here too, so the reader hears it sooner. */
 const MAX_BYTES = 50 * 1024 * 1024;
@@ -39,6 +40,7 @@ export function UploadDialog({
   onClose: () => void;
   onUploaded: (created: DocumentDetail) => void | Promise<void>;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -148,7 +150,8 @@ export function UploadDialog({
       say(strings.preparing);
     } catch (cause) {
       setFiles(remaining);
-      const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.uploadFailed;
+      const message =
+        cause instanceof ApiError ? messageFor(cause.kind, strings) : strings.uploadFailed;
       setProblem(message);
       alert(message);
       setBusy(false);

@@ -15,10 +15,11 @@ import { SaveOffline } from "@/components/SaveOffline";
 import { useReader } from "@/components/ReaderProvider";
 import { SplitView } from "@/components/SplitView";
 import { ApiError } from "@/lib/client";
-import { messageFor, strings } from "@/lib/strings";
+import { messageFor } from "@/lib/strings";
 import type { Bookmark, Chapter, DocumentDetail, Page, Progress } from "@/lib/types";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { usePlayer } from "@/lib/usePlayer";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** Heard sentences are sent once this many have built up, or on a pause. */
 const HEARD_BATCH = 10;
@@ -64,6 +65,7 @@ export function Reader({
   /** From a quiz's "hear the source": where "back to the questions" goes. */
   backToQuiz?: string;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
   const { preferences, set } = usePreferences();
@@ -105,7 +107,8 @@ export function Reader({
 
   const fail = useCallback(
     (cause: unknown) => {
-      const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.errorServer;
+      const message =
+        cause instanceof ApiError ? messageFor(cause.kind, strings) : strings.errorServer;
       setError(message);
       alert(message);
     },

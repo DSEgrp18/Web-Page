@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useReader } from "@/components/ReaderProvider";
 import { openDocument, renderPage } from "@/lib/pdf";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** How wide the rendered page is, in CSS pixels. Cards are narrower; this is 2x. */
 const COVER_WIDTH = 320;
@@ -32,6 +32,7 @@ const COVER_WIDTH = 320;
  * screen reader announcing "image" before every title is noise.
  */
 export function BookCover({ documentId, ready }: { documentId: string; ready: boolean }) {
+  const strings = useStrings();
   const { signedIn } = useReader();
   const holder = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);

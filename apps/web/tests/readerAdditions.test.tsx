@@ -7,7 +7,7 @@ import { BookReports } from "../src/components/BookReports";
 import { BookSearch } from "../src/components/BookSearch";
 import { PasteText } from "../src/components/PasteText";
 import { ReportForm } from "../src/components/ReportForm";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import { FakeServer, readablePage } from "./fakeApi";
 import { noticeText, politeText, renderApp } from "./render";
 

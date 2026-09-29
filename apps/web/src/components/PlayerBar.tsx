@@ -2,8 +2,8 @@
 
 import { useId, useRef, type RefObject } from "react";
 
-import { strings } from "@/lib/strings";
 import type { usePlayer } from "@/lib/usePlayer";
+import { useStrings } from "@/components/LocaleProvider";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -51,6 +51,7 @@ export function PlayerBar({
   /** So the reader can give focus back here once "undo" has been used. */
   bookmarkRef?: RefObject<HTMLButtonElement | null>;
 }) {
+  const strings = useStrings();
   const speedId = useId();
   const playRef = useRef<HTMLButtonElement>(null);
   const playing = player.status === "playing";

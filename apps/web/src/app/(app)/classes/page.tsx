@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 
 import { Classes } from "@/components/Classes";
-import { strings } from "@/lib/strings";
+import { getStrings } from "@/lib/i18n.server";
 
-export const metadata: Metadata = { title: strings.classesHeading };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getStrings();
+  return { title: strings.classesHeading };
+}
 
 export default async function ClassesPage({
   searchParams,

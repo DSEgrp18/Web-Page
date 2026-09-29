@@ -6,8 +6,8 @@ import { useId, useRef, useState, type FormEvent } from "react";
 import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { ReportKind } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 const KINDS: ReportKind[] = ["pronunciation", "extraction", "question", "accessibility", "other"];
 
@@ -25,6 +25,7 @@ export interface ReportTarget {
  * what is wrong. It says plainly who will read it.
  */
 export function ReportForm({ target }: { target: ReportTarget }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -57,7 +58,7 @@ export function ReportForm({ target }: { target: ReportTarget }) {
       say(strings.reportSent);
       heading.current?.focus();
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     } finally {
       setBusy(false);
     }

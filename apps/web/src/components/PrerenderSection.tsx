@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { PrerenderStatus } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** How often to look again while the voice is working, in milliseconds. */
 const POLL_MS = 10_000;
@@ -19,6 +19,7 @@ const POLL_MS = 10_000;
  * starts and when it finishes.
  */
 export function PrerenderSection({ documentId }: { documentId: string }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -69,7 +70,7 @@ export function PrerenderSection({ documentId }: { documentId: string }) {
         say(strings.prerenderStarted);
       }
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 

@@ -2,9 +2,11 @@ import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 
 import { AnnouncerProvider } from "../src/components/Announcer";
+import { LocaleProvider } from "../src/components/LocaleProvider";
 import { PreferencesProvider } from "../src/components/PreferencesProvider";
 import { ReaderProvider } from "../src/components/ReaderProvider";
-import { strings } from "../src/lib/strings";
+import type { Locale } from "../src/lib/i18n";
+import { si as strings } from "../src/lib/strings";
 import type { FakeServer } from "./fakeApi";
 import { OWNER } from "./fakeApi";
 
@@ -17,17 +19,25 @@ import { OWNER } from "./fakeApi";
  * every render would rebuild the client, which would re-run every fetch effect,
  * forever.
  */
-export function renderApp(ui: ReactElement, server: FakeServer, owner: string = OWNER) {
+export function renderApp(
+  ui: ReactElement,
+  server: FakeServer,
+  owner: string = OWNER,
+  /** The interface language, as the root layout would pass it from the cookie. */
+  locale: Locale = "si",
+) {
   // Signed in as `owner`, as a browser holding that reader's cookie is. An
   // empty string starts signed out.
   server.signedInAs = owner || null;
   const clientOptions = { baseUrl: "http://api.test", fetchImpl: server.fetch };
   return render(
-    <PreferencesProvider>
-      <AnnouncerProvider>
-        <ReaderProvider clientOptions={clientOptions}>{ui}</ReaderProvider>
-      </AnnouncerProvider>
-    </PreferencesProvider>,
+    <LocaleProvider locale={locale}>
+      <PreferencesProvider>
+        <AnnouncerProvider>
+          <ReaderProvider clientOptions={clientOptions}>{ui}</ReaderProvider>
+        </AnnouncerProvider>
+      </PreferencesProvider>
+    </LocaleProvider>,
   );
 }
 

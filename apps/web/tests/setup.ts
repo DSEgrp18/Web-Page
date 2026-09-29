@@ -46,6 +46,17 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+// `next/headers` needs a request. Server components read the reader's
+// language from a cookie; a test sets it here, and each test starts without
+// one, which is Sinhala, the default.
+export const requestCookies = new Map<string, string>();
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      requestCookies.has(name) ? { name, value: requestCookies.get(name)! } : undefined,
+  }),
+}));
+
 // `next/font/google` needs the Next runtime; tests only need the CSS variables.
 vi.mock("next/font/google", () => {
   const face = (variable: string) => () => ({ className: "", variable, style: {} });
@@ -252,6 +263,7 @@ afterEach(() => {
   currentTime = 0;
   window.localStorage.clear();
   navigations.length = 0;
+  requestCookies.clear();
   window.history.replaceState(null, "", "/");
   // The preferences module caches its snapshot for the life of the module,
   // which outlives every test. Clearing storage alone would leave the next

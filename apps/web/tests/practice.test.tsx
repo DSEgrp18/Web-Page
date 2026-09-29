@@ -4,7 +4,7 @@ import axe from "axe-core";
 import { describe, expect, it } from "vitest";
 
 import { Practice } from "../src/components/Practice";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import { FakeServer, readablePage } from "./fakeApi";
 import { noticeText, politeText, renderApp } from "./render";
 

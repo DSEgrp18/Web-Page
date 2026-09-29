@@ -8,8 +8,9 @@ import { useReader } from "@/components/ReaderProvider";
 import { PANEL_MIN_REM } from "@/components/SplitView";
 import { ApiError } from "@/lib/client";
 import { ASSISTANT_MAX_REM, ASSISTANT_MIN_REM, DEFAULTS } from "@/lib/preferences";
-import { messageFor, strings } from "@/lib/strings";
+import { messageFor } from "@/lib/strings";
 import type { Exchange, StudyAnswer } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** How many earlier exchanges a question carries. The API accepts at most 6. */
 const HISTORY_LIMIT = 4;
@@ -42,6 +43,7 @@ function widestRem(): number {
  * widest, Enter the usual width.
  */
 function AssistantEdge({ panel }: { panel: React.RefObject<HTMLElement | null> }) {
+  const strings = useStrings();
   const { preferences, set } = usePreferences();
   const width = preferences.assistantWidth;
   const dragging = useRef(false);
@@ -190,6 +192,7 @@ export function AssistantDrawer({
   /** Turn to a page, and cue a sentence on it once it has loaded. */
   onGoToPage: (index: number, segmentId?: string) => void;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
   const { preferences } = usePreferences();
@@ -291,7 +294,8 @@ export function AssistantDrawer({
         );
         say(answer.abstained ? strings.studyAbstainedHeading : strings.answerFound);
       } catch (cause) {
-        const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.errorServer;
+        const message =
+          cause instanceof ApiError ? messageFor(cause.kind, strings) : strings.errorServer;
         setTurns((previous) =>
           previous.map((turn) => (turn.id === id ? { ...turn, error: message } : turn)),
         );

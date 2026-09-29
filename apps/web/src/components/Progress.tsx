@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 
 import { explain, useFailure } from "@/components/AccountForms";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { BookProgress, ChapterProgress, ProgressReport } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
+import type { Strings } from "@/lib/strings";
 
 /**
  * What a reader has heard, how their answers went, and what to revise next.
@@ -16,6 +17,7 @@ import type { BookProgress, ChapterProgress, ProgressReport } from "@/lib/types"
  * colour.
  */
 export function Progress() {
+  const strings = useStrings();
   const { api } = useReader();
   const { setFailure, notice } = useFailure();
   const [report, setReport] = useState<ProgressReport | null>(null);
@@ -27,7 +29,7 @@ export function Progress() {
         if (!cancelled) setReport(found);
       },
       (error) => {
-        if (!cancelled) setFailure(explain(error, {}));
+        if (!cancelled) setFailure(explain(error, {}, strings));
       },
     );
     return () => {
@@ -81,13 +83,14 @@ export function Progress() {
   );
 }
 
-function chapterName(chapter: ChapterProgress, only: boolean): string {
+function chapterName(chapter: ChapterProgress, only: boolean, strings: Strings): string {
   if (chapter.title) return chapter.title;
   return only ? strings.progressWholeBook : strings.progressOpening;
 }
 
 /** One book, chapter by chapter. Shared with the teacher's view of a student. */
 export function BookTable({ book }: { book: BookProgress }) {
+  const strings = useStrings();
   const only = book.chapters.length === 1;
   // Four columns do not fit at 360 px. The table scrolls inside its own box
   // rather than pushing the page sideways, and the box can take focus so the
@@ -112,7 +115,7 @@ export function BookTable({ book }: { book: BookProgress }) {
         <tbody>
           {book.chapters.map((chapter) => (
             <tr key={`${chapter.first_page}-${chapter.title ?? ""}`}>
-              <th scope="row">{chapterName(chapter, only)}</th>
+              <th scope="row">{chapterName(chapter, only, strings)}</th>
               <td>{strings.progressHeardCell(chapter.heard, chapter.sentences)}</td>
               <td>{strings.progressAnsweredCell(chapter.correct, chapter.answered)}</td>
               <td>{chapter.due}</td>

@@ -11,7 +11,7 @@ import {
   savedClip,
   type SavedChapter,
 } from "@/lib/offline";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 function megabytes(bytes: number): string {
   return (bytes / 1_000_000).toFixed(1);
@@ -23,6 +23,7 @@ function megabytes(bytes: number): string {
  * audio is shown and said to be missing rather than skipped in silence.
  */
 export function OfflineLibrary() {
+  const strings = useStrings();
   const { say } = useAnnouncer();
   const [saved, setSaved] = useState<SavedChapter[] | null>(null);
   const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null);
@@ -156,6 +157,7 @@ export function OfflineLibrary() {
 }
 
 function OfflinePlayer({ entry, onBack }: { entry: SavedChapter; onBack: () => void }) {
+  const strings = useStrings();
   const audio = useRef<HTMLAudioElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [index, setIndex] = useState<number | null>(null);

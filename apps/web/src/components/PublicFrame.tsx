@@ -7,17 +7,18 @@ import type { ReactNode } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { useReader } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
+import type { Strings } from "@/lib/strings";
 
 /** The public pages, in the order a newcomer would want them. */
-const PUBLIC_LINKS: [href: string, label: string][] = [
+const publicLinks = (strings: Strings): [href: string, label: string][] => [
   ["/how-it-works", strings.howItWorksNav],
   ["/for-teachers", strings.forTeachersNav],
   ["/help", strings.helpNav],
 ];
 
 /** What every page owes a reader, one link away from anywhere. */
-const FOOTER_LINKS: [href: string, label: string][] = [
+const footerLinks = (strings: Strings): [href: string, label: string][] => [
   ["/accessibility", strings.accessibilityNav],
   ["/privacy", strings.privacyNav],
   ["/terms", strings.termsNav],
@@ -30,12 +31,13 @@ const FOOTER_LINKS: [href: string, label: string][] = [
  * find out how to report it.
  */
 export function SiteFooter() {
+  const strings = useStrings();
   const pathname = usePathname();
   return (
     <footer className="shell-footer">
       <nav aria-label={strings.footerNavigation}>
         <ul className="footer-links">
-          {FOOTER_LINKS.map(([href, label]) => (
+          {footerLinks(strings).map(([href, label]) => (
             <li key={href}>
               <Link href={href} aria-current={pathname === href ? "page" : undefined}>
                 {label}
@@ -57,6 +59,7 @@ export function SiteFooter() {
  * a way back to their books, anyone else the way in.
  */
 export function PublicFrame({ children }: { children: ReactNode }) {
+  const strings = useStrings();
   const { status } = useReader();
   const pathname = usePathname();
 
@@ -70,7 +73,7 @@ export function PublicFrame({ children }: { children: ReactNode }) {
           <div className="shell-header-inner">
             <BrandMark />
             <nav className="shell-nav" aria-label={strings.publicNavigation}>
-              {PUBLIC_LINKS.map(([href, label]) => (
+              {publicLinks(strings).map(([href, label]) => (
                 <Link
                   key={href}
                   className="nav-link"

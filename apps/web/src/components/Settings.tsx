@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { usePreferences } from "@/components/PreferencesProvider";
-import { strings, themeName } from "@/lib/strings";
+import { themeName } from "@/lib/strings";
 import { TEXT_SCALES, type Theme } from "@/lib/preferences";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * Reading settings, in the masthead, on every screen.
@@ -23,6 +24,7 @@ import { TEXT_SCALES, type Theme } from "@/lib/preferences";
  * convenience on top of Escape, never the only way out.
  */
 export function Settings() {
+  const strings = useStrings();
   const { preferences, set } = usePreferences();
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -88,7 +90,7 @@ export function Settings() {
                   checked={preferences.theme === theme}
                   onChange={() => set("theme", theme)}
                 />
-                <span>{themeName(theme)}</span>
+                <span>{themeName(theme, strings)}</span>
               </label>
             ))}
           </div>

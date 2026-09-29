@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * Giving a book the reader's own name.
@@ -33,6 +32,7 @@ export function RenameDialog({
   onSave: (title: string) => void;
   returnFocusTo: React.RefObject<HTMLElement | null>;
 }) {
+  const strings = useStrings();
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(current);

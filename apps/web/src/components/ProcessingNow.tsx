@@ -3,8 +3,8 @@
 import { useEffect, useId, useState } from "react";
 
 import { API_BASE } from "@/lib/client";
-import { strings } from "@/lib/strings";
 import type { Readiness } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * What this server sends outside itself, as it is configured right now.
@@ -15,6 +15,7 @@ import type { Readiness } from "@/lib/types";
  * and this reads it rather than promising something that may not be true here.
  */
 export function ProcessingNow({ fetchImpl }: { fetchImpl?: typeof fetch } = {}) {
+  const strings = useStrings();
   const [state, setState] = useState<Readiness | "checking" | "unknown">("checking");
   const headingId = useId();
 

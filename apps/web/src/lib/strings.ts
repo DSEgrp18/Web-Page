@@ -1,6 +1,12 @@
 /**
  * Every word the interface says, in one place, in Sinhala.
  *
+ * Sinhala is the primary interface language and the default; English
+ * (`strings.en.ts`) is the optional second, with exactly these keys. A
+ * component takes the reader's dictionary from `useStrings()` (in the
+ * browser) or `getStrings()` (on the server), never by importing one of
+ * them directly, so the language follows the reader's choice.
+ *
  * CLAUDE.md makes Sinhala the primary UI language and requires controls,
  * errors, and status messages to be reviewed by a native speaker. Keeping them
  * in one module is what makes that review a single readable file rather than a
@@ -22,7 +28,7 @@
 
 import type { Job } from "./types";
 
-export const strings = {
+export const si = {
   // Swara — "voice" / "tone". The brand mark is an open book with a gold
   // ribbon; `apps/web/public/brand/` holds the artwork it is cut from.
   appName: "ස්වර",
@@ -617,6 +623,8 @@ export const strings = {
   settingFollowSentence: "කියවන වාක්‍යය අනුව ගමන් කරන්න",
   settingPageTurnSound: "පිටුව හැරවීමේ ශබ්දය",
   settingPageTurnSoundHelp: "තිර කියවනයක් භාවිත කරන විට මෙය ඔබට බාධා විය හැක.",
+  settingsLanguage: "අතුරු මුහුණතේ භාෂාව",
+  settingsLanguageHelp: "පොත් සැමවිටම ඒවායේම භාෂාවෙන් කියවේ.",
 
   // -- landing -----------------------------------------------------------
   welcomeHeading: "සිංහල පොත් කියවන්න, අසන්න",
@@ -745,10 +753,30 @@ export const strings = {
   suggestThisPage: "මෙම පිටුවේ ඇත්තේ කුමක්ද?",
   suggestExplain: "මෙය ගැන පොතේ කියන්නේ කුමක්ද?",
   conversationLabel: "ප්‍රශ්න හා පිළිතුරු",
+
+  // -- language ----------------------------------------------------------
+  /** Shown on an English page that is a draft of a Sinhala one. Never on a
+   * Sinhala page, but every key exists in both dictionaries. */
+  draftTranslation:
+    "මෙය සමාලෝචනය බලාපොරොත්තුවන කෙටුම්පත් පරිවර්තනයකි. සිංහල පිටුවෙන් වෙනස් තැනක සිංහල පිටුව අදාළ වේ.",
 } as const;
 
+/** A literal type widened to what every language must provide. */
+type Widen<T> = T extends string
+  ? string
+  : T extends (...args: infer A) => infer R
+    ? (...args: A) => Widen<R>
+    : T extends readonly (infer U)[]
+      ? readonly Widen<U>[]
+      : T extends object
+        ? { readonly [K in keyof T]: Widen<T[K]> }
+        : T;
+
+/** One language's words: the shape of the Sinhala, with any text in it. */
+export type Strings = Widen<typeof si>;
+
 /** What each theme choice is called. A switch, so a new theme cannot be missed. */
-export function themeName(theme: "system" | "light" | "dark"): string {
+export function themeName(theme: "system" | "light" | "dark", strings: Strings): string {
   switch (theme) {
     case "light":
       return strings.themeLight;
@@ -760,7 +788,7 @@ export function themeName(theme: "system" | "light" | "dark"): string {
 }
 
 /** The one message a reader hears for each way a request can fail. */
-export function messageFor(kind: string): string {
+export function messageFor(kind: string, strings: Strings): string {
   switch (kind) {
     case "offline":
       return strings.errorOffline;
@@ -789,7 +817,7 @@ export function messageFor(kind: string): string {
  * What a book being prepared is doing, as its card shows it: "reading pages:
  * page 12 of 168", or just "preparing" before the first page is done.
  */
-export function jobProgressMessage(job: Job | null): string {
+export function jobProgressMessage(job: Job | null, strings: Strings): string {
   if (!job || job.pages_done === null || job.pages_total === null || job.pages_total <= 0) {
     return strings.stateRunning;
   }
@@ -803,13 +831,13 @@ export function jobProgressMessage(job: Job | null): string {
 }
 
 /** Why a book stopped, in words a reader can act on. Never the server's detail. */
-export function jobFailureMessage(job: Job | null): string {
+export function jobFailureMessage(job: Job | null, strings: Strings): string {
   if (job?.stage === "stalled") return strings.failedStalled;
   if (job?.stage === "rejected") return strings.failedRejected;
   return strings.failedOther;
 }
 
-export function jobStateMessage(state: string): string {
+export function jobStateMessage(state: string, strings: Strings): string {
   switch (state) {
     case "queued":
       return strings.stateQueued;

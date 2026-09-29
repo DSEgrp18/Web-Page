@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { AppFrame } from "../src/components/AppFrame";
 import { Library } from "../src/components/Library";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import { FakeServer, OWNER, readablePage, type FakeBook } from "./fakeApi";
 import { assertiveText, opensBook, politeText, renderApp } from "./render";
 

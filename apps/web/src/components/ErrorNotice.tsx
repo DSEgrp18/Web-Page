@@ -1,6 +1,5 @@
 "use client";
-
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * A failure, shown on the page.
@@ -23,6 +22,7 @@ export function ErrorNotice({
   onRetry?: () => void;
   onDismiss?: () => void;
 }) {
+  const strings = useStrings();
   return (
     <div className="notice notice-bad">
       <h2>{strings.errorHeading}</h2>

@@ -10,7 +10,8 @@ import { ResetNoticeBanner } from "@/components/ResetNoticeBanner";
 import { SiteFooter } from "@/components/PublicFrame";
 import { useReader, type UnavailableKind } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
-import { messageFor, strings } from "@/lib/strings";
+import { messageFor } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * The frame every screen sits in: a skip link, one masthead, one `<main>`.
@@ -30,6 +31,7 @@ import { messageFor, strings } from "@/lib/strings";
  * where a reader who is signed out goes.
  */
 export function AppFrame({ children }: { children: ReactNode }) {
+  const strings = useStrings();
   const { status, unavailable } = useReader();
   const pathname = usePathname() ?? "/library";
 
@@ -145,6 +147,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
 }
 
 function AccountBadge() {
+  const strings = useStrings();
   const { account, signOut } = useReader();
   const { say } = useAnnouncer();
   return (
@@ -176,10 +179,11 @@ function AccountBadge() {
  * there is to do.
  */
 function Unavailable({ kind }: { kind: UnavailableKind }) {
+  const strings = useStrings();
   const { recheck } = useReader();
   const { alert } = useAnnouncer();
   const [checking, setChecking] = useState(false);
-  const message = messageFor(kind);
+  const message = messageFor(kind, strings);
 
   useEffect(() => {
     const before = document.title;
@@ -225,6 +229,7 @@ function Unavailable({ kind }: { kind: UnavailableKind }) {
  * here, to the page they asked for.
  */
 function SignedOut({ pathname }: { pathname: string }) {
+  const strings = useStrings();
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {

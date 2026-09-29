@@ -1,6 +1,9 @@
 /**
  * The long prose of the public pages, in one file, in Sinhala.
  *
+ * The text of record. `content.en.ts` is the optional English translation,
+ * with the same shape; `contentFor(locale)` picks one.
+ *
  * Like `strings.ts`, and for the same reason: a native speaker reviews one
  * readable file rather than hunting through components (#27).
  *
@@ -11,6 +14,9 @@
  * Every sentence here has to be true of the product as it is. What is not
  * built yet says so, rather than being described as if it were.
  */
+
+import { enContent } from "./content.en";
+import type { Locale } from "./i18n";
 
 export interface Section {
   heading: string;
@@ -24,12 +30,35 @@ export interface ProsePage {
   sections: Section[];
   /** When the page was last checked against the product, as ISO YYYY-MM-DD. */
   reviewed?: string;
+  /** A translation awaiting review: the page says so, and that the Sinhala applies. */
+  draft?: boolean;
+}
+
+export interface Landing {
+  heading: string;
+  tagline: string;
+  lead: string;
+  stepsHeading: string;
+  steps: readonly { title: string; body: string; ready: boolean }[];
+  notYet: string;
+  forHeading: string;
+  forBody: readonly string[];
+}
+
+export interface Content {
+  landing: Landing;
+  howItWorks: ProsePage;
+  forTeachers: ProsePage;
+  help: ProsePage;
+  accessibility: ProsePage;
+  privacy: ProsePage;
+  terms: ProsePage;
 }
 
 /** Where anyone, signed in or not, can report a barrier or a problem today. */
 export const REPORT_URL = "https://github.com/DSEgrp18/Web-Page/issues";
 
-export const landing = {
+export const landing: Landing = {
   heading: "ස්වර",
   tagline: "සිංහල පොත් අසන්න, තේරුම් ගන්න, පාඩම් කරන්න",
   lead: "ස්වර අන්ධ හා දෘෂ්ටිආබාධිත පාඨකයන් සහ සිසුන් සඳහා සාදන ලද සිංහල අධ්‍යයන වේදිකාවකි. ඔබේ පාඩම් පොත එක් කර, එය ශබ්දයෙන් අසා, ඒ ගැන ප්‍රශ්න අසන්න.",
@@ -62,7 +91,7 @@ export const landing = {
     "තිර කියවනයක් (NVDA, TalkBack) හෝ විශාලනය භාවිත කරන සිසුන් සහ පාඨකයන්.",
     "පන්තියක් සඳහා පොතක් එක් වරක් සකසා දීමට කැමති ගුරුවරුන්.",
   ],
-} as const;
+};
 
 export const howItWorks: ProsePage = {
   title: "ක්‍රියා කරන ආකාරය",
@@ -281,3 +310,9 @@ export const terms: ProsePage = {
     },
   ],
 };
+
+/** The public pages in the reader's language. */
+export function contentFor(locale: Locale): Content {
+  if (locale === "en") return enContent;
+  return { landing, howItWorks, forTeachers, help, accessibility, privacy, terms };
+}

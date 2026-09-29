@@ -3,8 +3,8 @@
 import { useEffect, useId, useState } from "react";
 
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { ResetNotice } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 const WHEN = new Intl.DateTimeFormat("si-LK", { dateStyle: "long", timeStyle: "short" });
 
@@ -18,6 +18,7 @@ const WHEN = new Intl.DateTimeFormat("si-LK", { dateStyle: "long", timeStyle: "s
  * heading to find it by, and it stays until dismissed.
  */
 export function ResetNoticeBanner() {
+  const strings = useStrings();
   const { api } = useReader();
   const [notice, setNotice] = useState<ResetNotice | null>(null);
   const headingId = useId();

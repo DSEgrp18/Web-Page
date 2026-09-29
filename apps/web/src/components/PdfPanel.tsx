@@ -5,7 +5,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { useReader } from "@/components/ReaderProvider";
 import { openDocument, renderPage } from "@/lib/pdf";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;
 const MIN_ZOOM = 0.5;
@@ -96,6 +96,7 @@ function useOriginalUrl(documentId: string) {
 }
 
 function ImagePanel({ documentId, filename }: { documentId: string; filename: string }) {
+  const strings = useStrings();
   const { url, failed } = useOriginalUrl(documentId);
   return (
     <section className="panel pdf-panel" aria-label={strings.originalPanel}>
@@ -116,6 +117,7 @@ function ImagePanel({ documentId, filename }: { documentId: string; filename: st
 }
 
 function DocumentDownloadPanel({ documentId, filename }: { documentId: string; filename: string }) {
+  const strings = useStrings();
   const { url, failed } = useOriginalUrl(documentId);
   return (
     <section className="panel pdf-panel" aria-label={strings.originalPanel}>
@@ -146,6 +148,7 @@ function PdfDocumentPanel({
   pageCount: number;
   onPageChange: (index: number) => void;
 }) {
+  const strings = useStrings();
   const { signedIn } = useReader();
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
@@ -339,6 +342,7 @@ function PageStepper({
   onPageChange: (index: number) => void;
   inputId: string;
 }) {
+  const strings = useStrings();
   const [value, setValue] = useState(String(pageIndex + 1));
 
   return (
@@ -412,6 +416,7 @@ function Thumbnails({
   pageCount: number;
   onPageChange: (index: number) => void;
 }) {
+  const strings = useStrings();
   const WINDOW = 6;
   const from = Math.max(0, pageIndex - WINDOW);
   const to = Math.min(pageCount - 1, pageIndex + WINDOW);

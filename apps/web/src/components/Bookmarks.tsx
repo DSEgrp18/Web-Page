@@ -8,8 +8,9 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { useReader } from "@/components/ReaderProvider";
 import { bookTitle } from "@/lib/books";
 import { ApiError } from "@/lib/client";
-import { messageFor, strings } from "@/lib/strings";
+import { messageFor } from "@/lib/strings";
 import type { Bookmark, DocumentSummary } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 interface BookmarkGroup {
   document: DocumentSummary;
@@ -25,6 +26,7 @@ interface BookmarkGroup {
  * reader's book title.
  */
 export function Bookmarks() {
+  const strings = useStrings();
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
   const [groups, setGroups] = useState<BookmarkGroup[]>([]);
@@ -57,7 +59,8 @@ export function Bookmarks() {
       );
       setGroups(loaded.filter((group) => group.bookmarks.length > 0));
     } catch (cause) {
-      const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.errorServer;
+      const message =
+        cause instanceof ApiError ? messageFor(cause.kind, strings) : strings.errorServer;
       setError(message);
       alert(message);
     } finally {
@@ -79,7 +82,8 @@ export function Bookmarks() {
         if (!cancelled) setGroups(loaded.filter((group) => group.bookmarks.length > 0));
       } catch (cause) {
         if (cancelled) return;
-        const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.errorServer;
+        const message =
+          cause instanceof ApiError ? messageFor(cause.kind, strings) : strings.errorServer;
         setError(message);
         alert(message);
       } finally {
@@ -114,7 +118,8 @@ export function Bookmarks() {
         focusAfter.current = `book-${documentId}`;
         say(strings.bookmarkRemoved);
       } catch (cause) {
-        const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.errorServer;
+        const message =
+          cause instanceof ApiError ? messageFor(cause.kind, strings) : strings.errorServer;
         setError(message);
         alert(message);
       } finally {

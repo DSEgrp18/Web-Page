@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 
 import { ProsePageView } from "@/components/ProsePageView";
-import { terms } from "@/lib/content";
+import { contentFor } from "@/lib/content";
+import { stringsFor } from "@/lib/i18n";
+import { getLocale } from "@/lib/i18n.server";
 
-export const metadata: Metadata = { title: terms.title };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: contentFor(await getLocale()).terms.title };
+}
 
-export default function Page() {
-  return <ProsePageView page={terms} />;
+export default async function Page() {
+  const locale = await getLocale();
+  return <ProsePageView page={contentFor(locale).terms} strings={stringsFor(locale)} />;
 }
