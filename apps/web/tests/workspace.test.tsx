@@ -102,6 +102,33 @@ describe("the two panels", () => {
     await user.click(screen.getByRole("button", { name: strings.restoreSplit }));
     expect(divider()).toBeTruthy();
   });
+
+  it("leaves a bar where a collapsed panel was, which brings it back", async () => {
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    await user.click(screen.getByRole("button", { name: strings.expandReading }));
+    // Named for the panel it restores, not "both panels" a second time.
+    const bar = screen.getByRole("button", { name: strings.restorePanel(strings.originalPanel) });
+    await user.click(bar);
+
+    expect(divider()).toBeTruthy();
+    // The bar is gone with the press; focus is on what replaced it.
+    expect(document.activeElement).toBe(divider());
+  });
+
+  it("returns to an even split on a double-click", async () => {
+    const user = userEvent.setup();
+    open(new FakeServer({ books: [book()] }));
+    await screen.findByRole("button", { name: FIRST });
+
+    divider().focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    await waitFor(() => expect(divider().getAttribute("aria-valuenow")).toBe("60"));
+    await user.dblClick(divider());
+    await waitFor(() => expect(divider().getAttribute("aria-valuenow")).toBe("50"));
+  });
 });
 
 describe("the phone tabs", () => {

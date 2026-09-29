@@ -687,6 +687,7 @@ export const strings = {
   expandOriginal: "මුල් පිටුව විශාල කරන්න",
   expandReading: "කියවීම විශාල කරන්න",
   restoreSplit: "පැනල දෙකම පෙන්වන්න",
+  restorePanel: (panel: string) => `${panel} නැවත පෙන්වන්න`,
   syncPages: "පිටු එකට ගමන් කරයි",
   syncPagesOff: "පිටු වෙන් වෙන්ව ගමන් කරයි",
   zoomIn: "පිටුව විශාල කරන්න",

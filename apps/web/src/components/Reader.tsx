@@ -87,6 +87,9 @@ export function Reader({
 
   const [collapsed, setCollapsed] = useState<"start" | "end" | null>(null);
   const [tab, setTab] = useState<Side>("reading");
+  // Too narrow for two panels at their minimum width — the Ask panel beside
+  // them, a narrow window, or large text — so they become tabs.
+  const [narrow, setNarrow] = useState(false);
   const [selection, setSelection] = useState("");
   const [contentsOpen, setContentsOpen] = useState(false);
 
@@ -504,7 +507,12 @@ export function Reader({
 
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- mouseup/keyup here only *observe* a selection the reader made with the platform's own text selection. There is no interaction to trigger and nothing to give keyboard access to; the handlers read window.getSelection() and nothing else.
-    <div className="workspace" onMouseUp={captureSelection} onKeyUp={captureSelection}>
+    <div
+      className="workspace"
+      data-layout={narrow ? "tabs" : "split"}
+      onMouseUp={captureSelection}
+      onKeyUp={captureSelection}
+    >
       <header className="workspace-bar">
         <Link className="btn btn-quiet btn-sm" href="/library">
           <span aria-hidden="true">‹ </span>
@@ -621,6 +629,8 @@ export function Reader({
             percent={preferences.splitPercent}
             onPercent={(next) => set("splitPercent", next)}
             collapsed={collapsed}
+            onRestore={() => setCollapsed(null)}
+            onNarrow={setNarrow}
             startLabel={strings.originalPanel}
             endLabel={strings.readingPanel}
             start={
