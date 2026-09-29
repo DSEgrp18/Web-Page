@@ -718,6 +718,8 @@ export const strings = {
   // -- assistant ---------------------------------------------------------
   assistantToggle: "පොත ගැන අසන්න",
   assistantHeading: "පොත ගැන අසන්න",
+  assistantResize: "ප්‍රශ්න පැනලයේ පළල",
+  assistantWidthValue: (percent: number) => `තිරයෙන් ${percent}%`,
   assistantFor: (book: string) => `${book} ගැන පමණි`,
   assistantIntro: "ප්‍රශ්නයක් අසන්න. පිළිතුර මෙම පොතේම ඇති කොටසකින් පෙන්වයි.",
   /** Said when the answerer returns the book's own sentences. */

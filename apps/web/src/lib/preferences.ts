@@ -31,7 +31,14 @@ export interface Preferences {
   pageTurnSound: boolean;
   /** How much width the original-PDF panel gets, 20-80. */
   splitPercent: number;
+  /** How wide the Ask panel is beside the book, in rem, on a wide screen. */
+  assistantWidth: number;
 }
+
+/** The Ask panel's narrowest and widest, in rem. The widest is also held back
+ * by the window, so the book beside it keeps room (see AssistantDrawer). */
+export const ASSISTANT_MIN_REM = 20;
+export const ASSISTANT_MAX_REM = 48;
 
 export const TEXT_SCALES = [0.9, 1, 1.15, 1.3, 1.5] as const;
 
@@ -42,6 +49,7 @@ export const DEFAULTS: Preferences = {
   syncPages: true,
   pageTurnSound: false,
   splitPercent: 50,
+  assistantWidth: 26,
 };
 
 const KEY = "swara.preferences";
@@ -88,6 +96,10 @@ function sanitise(value: Partial<Preferences>): Preferences {
       typeof value.splitPercent === "number" && Number.isFinite(value.splitPercent)
         ? Math.max(20, Math.min(80, Math.round(value.splitPercent)))
         : DEFAULTS.splitPercent,
+    assistantWidth:
+      typeof value.assistantWidth === "number" && Number.isFinite(value.assistantWidth)
+        ? Math.max(ASSISTANT_MIN_REM, Math.min(ASSISTANT_MAX_REM, Math.round(value.assistantWidth)))
+        : DEFAULTS.assistantWidth,
   };
 }
 
