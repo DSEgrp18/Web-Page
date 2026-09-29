@@ -168,6 +168,14 @@ test.describe("on a phone", () => {
     expect(covered).toEqual([]);
   });
 
+  test("the ask button still has a name when only its icon shows", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    // Its label is hidden from sight at this width; hidden with display:none,
+    // it was hidden from screen readers too, and the button had no name.
+    await expect(page.getByRole("button", { name: "පොත ගැන අසන්න" })).toBeVisible();
+  });
+
   test("every library filter is on screen", async ({ page }) => {
     await oneBook(page);
     await page.goto("/library");
