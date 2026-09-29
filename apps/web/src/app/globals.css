@@ -3390,3 +3390,20 @@ h4 {
     min-inline-size: 0;
   }
 }
+
+/* On a phone the masthead's first row is the brand, settings, the account and
+   sign out; tightened so they share one row and the links take the second. */
+@media (max-width: 30em) {
+  .shell-header-inner {
+    gap: var(--s2);
+  }
+
+  .shell-actions {
+    gap: var(--s1);
+  }
+
+  .account-name {
+    max-inline-size: 5rem;
+    padding-inline: var(--s1);
+  }
+}
