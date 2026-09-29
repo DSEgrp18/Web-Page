@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { Reader } from "../src/components/Reader";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import { FakeServer, readablePage, type FakeBook } from "./fakeApi";
 import { noticeText, politeText, renderApp } from "./render";
 import { playCalls, playedElements, scrollIntoViewCalls, setCurrentTime } from "./setup";

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ApiError, AuthApi, ReaderApi, type FailureKind } from "../src/lib/client";
 import { passThrough } from "../src/lib/passThrough";
-import { messageFor, strings } from "../src/lib/strings";
+import { messageFor, si as strings } from "../src/lib/strings";
 import { FAKE_CSRF, FakeServer, OWNER, readablePage } from "./fakeApi";
 
 function serverWithBook() {
@@ -113,7 +113,7 @@ describe("failures", () => {
       .catch((cause) => cause);
 
     expect(error).toMatchObject({ kind: "unreachable" });
-    expect(messageFor(error.kind)).toBe(strings.errorUnreachable);
+    expect(messageFor(error.kind, strings)).toBe(strings.errorUnreachable);
     errors.mockRestore();
   });
 
@@ -139,7 +139,7 @@ describe("failures", () => {
   });
 
   it("has its own message for an unreachable reader, distinct from offline", () => {
-    expect(messageFor("unreachable")).toBe(strings.errorUnreachable);
+    expect(messageFor("unreachable", strings)).toBe(strings.errorUnreachable);
     expect(strings.errorUnreachable).not.toBe(strings.errorOffline);
     expect(strings.errorUnreachable).not.toBe(strings.errorServer);
   });

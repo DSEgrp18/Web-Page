@@ -2,8 +2,8 @@
 
 import { useEffect, useId, useRef } from "react";
 
-import { strings } from "@/lib/strings";
 import type { Chapter } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * The book's chapters, as a sheet: අන්තර්ගතය.
@@ -45,6 +45,7 @@ export function ContentsSheet({
   /** Escape, the close button, or a click on the backdrop. */
   onClose: () => void;
 }) {
+  const strings = useStrings();
   const dialog = useRef<HTMLDialogElement>(null);
   const list = useRef<HTMLOListElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);

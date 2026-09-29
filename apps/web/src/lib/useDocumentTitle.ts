@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * Name the browser tab after something only the browser knows, such as a book.
@@ -21,6 +20,7 @@ import { strings } from "@/lib/strings";
  * `null` leaves the title alone, for the moment before the name has arrived.
  */
 export function useDocumentTitle(title: string | null | undefined): void {
+  const strings = useStrings();
   useEffect(() => {
     if (title) {
       document.title = `${title} — ${strings.appName}`;

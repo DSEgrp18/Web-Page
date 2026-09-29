@@ -5,11 +5,12 @@ import { useEffect, useState } from "react";
 
 import { explain, useFailure } from "@/components/AccountForms";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { ReportView } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** The problems readers reported on the owner's book, newest first, unsigned. */
 export function BookReports({ documentId }: { documentId: string }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { setFailure, notice } = useFailure();
   const [title, setTitle] = useState("");
@@ -28,7 +29,7 @@ export function BookReports({ documentId }: { documentId: string }) {
         if (!cancelled) setReports(found);
       },
       (error) => {
-        if (!cancelled) setFailure(explain(error, {}));
+        if (!cancelled) setFailure(explain(error, {}, strings));
       },
     );
     return () => {

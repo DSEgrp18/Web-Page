@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { AccountSettings } from "../src/components/AccountSettings";
 import { AppFrame } from "../src/components/AppFrame";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import { FAKE_CSRF, FakeServer } from "./fakeApi";
 import { politeText, renderApp } from "./render";
 

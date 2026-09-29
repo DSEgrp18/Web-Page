@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 
 import { PasteText } from "@/components/PasteText";
-import { strings } from "@/lib/strings";
+import { getStrings } from "@/lib/i18n.server";
 
-export const metadata: Metadata = { title: strings.pasteHeading };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getStrings();
+  return { title: strings.pasteHeading };
+}
 
 export default function PastePage() {
   return <PasteText />;

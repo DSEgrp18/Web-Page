@@ -6,8 +6,8 @@ import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { JoinedClass, MyClasses, TaughtClass } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** How a standing looks: approved in green, waiting in amber. */
 const STANDING_PILL = { active: "pill pill-ok", pending: "pill pill-warn" } as const;
@@ -21,6 +21,7 @@ const STANDING_PILL = { active: "pill pill-ok", pending: "pill pill-warn" } as c
  * nobody shares by not noticing a box.
  */
 export function Classes({ joinCode }: { joinCode?: string } = {}) {
+  const strings = useStrings();
   const { api, account } = useReader();
   const [classes, setClasses] = useState<MyClasses | null>(null);
   const { setFailure, notice } = useFailure();
@@ -29,7 +30,7 @@ export function Classes({ joinCode }: { joinCode?: string } = {}) {
     try {
       setClasses(await api.myClasses());
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }, [api, setFailure]);
 
@@ -40,7 +41,7 @@ export function Classes({ joinCode }: { joinCode?: string } = {}) {
         const found = await api.myClasses();
         if (!cancelled) setClasses(found);
       } catch (error) {
-        if (!cancelled) setFailure(explain(error, {}));
+        if (!cancelled) setFailure(explain(error, {}, strings));
       }
     })();
     return () => {
@@ -84,6 +85,7 @@ function JoinForm({
   /** From a class link. Filled in, never sent: joining is still a press. */
   initialCode?: string;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -108,7 +110,7 @@ function JoinForm({
       say(strings.joinedWaiting(joined.name));
       await onJoined();
     } catch (error) {
-      setFailure(explain(error, { 404: strings.errorNoClassCode }));
+      setFailure(explain(error, { 404: strings.errorNoClassCode }, strings));
     } finally {
       setBusy(false);
     }
@@ -163,6 +165,7 @@ function Joined({
   classes: JoinedClass[];
   onChanged: () => Promise<void>;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -173,7 +176,7 @@ function Joined({
       say(said);
       await onChanged();
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 
@@ -226,6 +229,7 @@ function ShareToggle({
   room: JoinedClass;
   onToggle: (share: boolean) => void;
 }) {
+  const strings = useStrings();
   const id = useId();
   return (
     <div className="check-row">
@@ -250,6 +254,7 @@ function Teaching({
   classes: TaughtClass[];
   onCreated: () => Promise<void>;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -265,7 +270,7 @@ function Teaching({
       say(strings.classCreated);
       await onCreated();
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 

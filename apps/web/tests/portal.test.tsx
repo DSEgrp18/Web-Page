@@ -18,19 +18,22 @@ import { Library } from "../src/components/Library";
 import { ProcessingNow } from "../src/components/ProcessingNow";
 import { PublicFrame } from "../src/components/PublicFrame";
 import { accessibility, landing, privacy, REPORT_URL } from "../src/lib/content";
-import { strings } from "../src/lib/strings";
+import { LOCALE_COOKIE, stringsFor } from "../src/lib/i18n";
+import { si as strings } from "../src/lib/strings";
 import { proxy, SESSION_COOKIE } from "../src/proxy";
 import { FakeServer } from "./fakeApi";
 import { renderApp } from "./render";
+import { requestCookies } from "./setup";
 
-const PAGES: [string, () => ReactElement][] = [
-  ["the landing page", () => <LandingPage />],
-  ["how it works", () => <HowItWorksPage />],
-  ["for teachers", () => <ForTeachersPage />],
-  ["help", () => <HelpPage />],
-  ["the accessibility statement", () => <AccessibilityPage />],
-  ["the privacy notice", () => <PrivacyPage />],
-  ["the terms", () => <TermsPage />],
+// Server components, async: each reads the reader's language from the cookie.
+const PAGES: [string, () => Promise<ReactElement>][] = [
+  ["the landing page", () => LandingPage()],
+  ["how it works", () => HowItWorksPage()],
+  ["for teachers", () => ForTeachersPage()],
+  ["help", () => HelpPage()],
+  ["the accessibility statement", () => AccessibilityPage()],
+  ["the privacy notice", () => PrivacyPage()],
+  ["the terms", () => TermsPage()],
 ];
 
 function readinessFetch(answer: Record<string, string> | "fail") {
@@ -41,8 +44,8 @@ function readinessFetch(answer: Record<string, string> | "fail") {
 }
 
 describe("the front door", () => {
-  it("says what Swara is, and offers the way in", () => {
-    render(<LandingPage />);
+  it("says what Swara is, and offers the way in", async () => {
+    render(await LandingPage());
 
     expect(screen.getByRole("heading", { level: 1, name: landing.heading })).toBeTruthy();
     expect(screen.getByRole("link", { name: strings.registerHeading }).getAttribute("href")).toBe(
@@ -53,8 +56,8 @@ describe("the front door", () => {
     );
   });
 
-  it("says plainly which steps are not built yet", () => {
-    const { container } = render(<LandingPage />);
+  it("says plainly which steps are not built yet", async () => {
+    const { container } = render(await LandingPage());
     const steps = within(container.querySelector<HTMLElement>(".landing-steps")!);
 
     // `queryAll`: every step has shipped now, and none is marked.
@@ -62,8 +65,8 @@ describe("the front door", () => {
     expect(steps.queryAllByText(landing.notYet)).toHaveLength(notYet);
   });
 
-  it("has no audio or video to start by itself", () => {
-    const { container } = render(<LandingPage />);
+  it("has no audio or video to start by itself", async () => {
+    const { container } = render(await LandingPage());
     expect(container.querySelector("audio, video, iframe")).toBeNull();
   });
 });
@@ -105,16 +108,16 @@ describe("old addresses", () => {
 });
 
 describe("the public pages", () => {
-  it.each(PAGES)("give %s one h1 and a named section per heading", (_name, page) => {
-    render(page());
+  it.each(PAGES)("give %s one h1 and a named section per heading", async (_name, page) => {
+    render(await page());
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     for (const heading of screen.queryAllByRole("heading", { level: 2 })) {
       expect(heading.closest("section")?.getAttribute("aria-labelledby")).toBe(heading.id);
     }
   });
 
-  it("says how to report a barrier, and when the statement was last checked", () => {
-    render(<AccessibilityPage />);
+  it("says how to report a barrier, and when the statement was last checked", async () => {
+    render(await AccessibilityPage());
 
     expect(screen.getByRole("link", { name: strings.reportBarrier }).getAttribute("href")).toBe(
       REPORT_URL,
@@ -122,8 +125,8 @@ describe("the public pages", () => {
     expect(screen.getByText(strings.lastReviewed(accessibility.reviewed!))).toBeTruthy();
   });
 
-  it("states partial conformance, not full", () => {
-    render(<AccessibilityPage />);
+  it("states partial conformance, not full", async () => {
+    render(await AccessibilityPage());
     expect(screen.getByText(accessibility.lead)).toBeTruthy();
     expect(accessibility.lead).toContain("අර්ධ වශයෙන්");
   });
@@ -162,8 +165,8 @@ describe("what this server sends out", () => {
     expect(await screen.findByText(strings.processingNowUnknown)).toBeTruthy();
   });
 
-  it("is part of the privacy notice", () => {
-    render(<PrivacyPage />);
+  it("is part of the privacy notice", async () => {
+    render(await PrivacyPage());
     expect(screen.getByRole("heading", { name: strings.processingNowHeading })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: privacy.title })).toBeTruthy();
   });
@@ -217,7 +220,7 @@ describe("the frames", () => {
 describe("an address with nothing at it", () => {
   it("says so in Sinhala, in the site's frame, with a way back", async () => {
     document.documentElement.lang = "si";
-    renderApp(<NotFound />, new FakeServer(), "");
+    renderApp(await NotFound(), new FakeServer(), "");
 
     expect(screen.getByRole("heading", { level: 1, name: strings.errorNotFound })).toBeTruthy();
     expect(screen.getByRole("link", { name: strings.libraryHeading }).getAttribute("href")).toBe(
@@ -233,11 +236,13 @@ describe("an address with nothing at it", () => {
   });
 });
 
-describe("no automatically detectable violations", () => {
+describe.each(["si", "en"] as const)("no automatically detectable violations, in %s", (locale) => {
   it.each(PAGES)("on %s", async (_name, page) => {
-    document.documentElement.lang = "si";
-    renderApp(<PublicFrame>{page()}</PublicFrame>, new FakeServer(), "");
-    await screen.findAllByRole("link", { name: strings.registerHeading });
+    // The page reads the language from the cookie; the frame from the layout.
+    requestCookies.set(LOCALE_COOKIE, locale);
+    document.documentElement.lang = locale;
+    renderApp(<PublicFrame>{await page()}</PublicFrame>, new FakeServer(), "", locale);
+    await screen.findAllByRole("link", { name: stringsFor(locale).registerHeading });
 
     const results = await axe.run(document.body, {
       runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },

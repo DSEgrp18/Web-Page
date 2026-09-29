@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 import { BookCover } from "@/components/BookCover";
 import { useReader } from "@/components/ReaderProvider";
 import { bookTitle } from "@/lib/books";
-import { strings } from "@/lib/strings";
 import type { ClassBook } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * "From your classes": the books a reader's teachers have shared with them.
@@ -23,6 +23,7 @@ import type { ClassBook } from "@/lib/types";
  * one way to open a book on this page, not two.
  */
 export function ClassBooks() {
+  const strings = useStrings();
   const { api } = useReader();
   const [books, setBooks] = useState<ClassBook[]>([]);
 

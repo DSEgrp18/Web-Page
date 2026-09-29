@@ -6,8 +6,8 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { AnswerResult, QuizDetail, QuizSummary } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** What stands for the missing word in a question, as the API writes it. */
 const BLANK = "_____";
@@ -36,6 +36,7 @@ export function Practice({
   /** Back from the reader: this quiz, from this question (0-based). */
   resume?: { quiz: string; question: number };
 }) {
+  const strings = useStrings();
   const { api, account } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -65,7 +66,7 @@ export function Practice({
         if (!cancelled) setQuizzes(found);
       },
       (error) => {
-        if (!cancelled) setFailure(explain(error, {}));
+        if (!cancelled) setFailure(explain(error, {}, strings));
       },
     );
     return () => {
@@ -85,7 +86,7 @@ export function Practice({
         setOpen(questions.length ? { ...quiz, questions } : quiz);
       },
       (error) => {
-        if (!cancelled) setFailure(explain(error, {}));
+        if (!cancelled) setFailure(explain(error, {}, strings));
       },
     );
     return () => {
@@ -106,7 +107,7 @@ export function Practice({
         setOpen(quiz);
       },
       (error) => {
-        if (!cancelled) setFailure(explain(error, {}));
+        if (!cancelled) setFailure(explain(error, {}, strings));
       },
     );
     return () => {
@@ -143,7 +144,7 @@ export function Practice({
       say(strings.quizMade);
       setOpen(made);
     } catch (error) {
-      setFailure(explain(error, { 422: strings.errorNoQuestions }));
+      setFailure(explain(error, { 422: strings.errorNoQuestions }, strings));
     } finally {
       setBusy(false);
     }
@@ -154,7 +155,7 @@ export function Practice({
       setStartAt(0);
       setOpen(await api.getQuiz(quizId));
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 
@@ -164,7 +165,7 @@ export function Practice({
       say(strings.quizDeleted);
       await refresh();
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 
@@ -294,6 +295,7 @@ export function Practice({
 
 /** The question, with its blank spoken as a word rather than as underscores. */
 function Question({ text }: { text: string }) {
+  const strings = useStrings();
   const [before, ...rest] = text.split(BLANK);
   return (
     <>
@@ -321,6 +323,7 @@ function TakeQuiz({
   startAt: number;
   onBack: () => void;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -363,7 +366,7 @@ function TakeQuiz({
       const answer = question.options[checked.answer] ?? "";
       say(checked.correct ? strings.rightAnswer : strings.wrongAnswer(answer));
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 
@@ -468,6 +471,7 @@ function Review({
   onChange: (quiz: QuizDetail) => void;
   onBack: () => void;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -477,7 +481,7 @@ function Review({
       onChange(await work());
       say(said);
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import type { ProsePage } from "@/lib/content";
 import { REPORT_URL } from "@/lib/content";
-import { strings } from "@/lib/strings";
+import type { Strings } from "@/lib/strings";
 
 /**
  * A public page of prose: one h1, a lead, and a section per h2.
@@ -14,10 +14,13 @@ import { strings } from "@/lib/strings";
  */
 export function ProsePageView({
   page,
+  strings,
   report = false,
   children,
 }: {
   page: ProsePage;
+  /** The reader's words, from the server (`getStrings()`). */
+  strings: Strings;
   /** Offer the way to report a barrier at the end. */
   report?: boolean;
   /** Anything the page adds after its sections. */
@@ -26,6 +29,11 @@ export function ProsePageView({
   return (
     <article className="prose-page">
       <h1>{page.title}</h1>
+      {page.draft ? (
+        <p className="notice notice-warn" role="note">
+          {strings.draftTranslation}
+        </p>
+      ) : null}
       <p className="prose-lead">{page.lead}</p>
 
       {page.sections.map((section, index) => {

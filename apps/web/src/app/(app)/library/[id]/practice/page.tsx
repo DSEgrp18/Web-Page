@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 
 import { Practice } from "@/components/Practice";
-import { strings } from "@/lib/strings";
+import { getStrings } from "@/lib/i18n.server";
 
-export const metadata: Metadata = { title: strings.quizzesHeading };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getStrings();
+  return { title: strings.quizzesHeading };
+}
 
 export default async function PracticePage({
   params,

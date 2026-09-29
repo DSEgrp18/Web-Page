@@ -7,7 +7,6 @@ import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { PrerenderSection } from "@/components/PrerenderSection";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type {
   DocumentDetail,
   PublicationDetail,
@@ -15,6 +14,7 @@ import type {
   RightsBasis,
   TaughtClass,
 } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 const BASES: RightsBasis[] = [
   "government_textbook",
@@ -34,6 +34,7 @@ const BASES: RightsBasis[] = [
  * shared until the last button is pressed.
  */
 export function ShareBook({ documentId }: { documentId: string }) {
+  const strings = useStrings();
   const { api, account } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -64,7 +65,7 @@ export function ShareBook({ documentId }: { documentId: string }) {
         setPublication(shared);
         setClasses(mine.teaching);
       } catch (error) {
-        if (!cancelled) setFailure(explain(error, {}));
+        if (!cancelled) setFailure(explain(error, {}, strings));
       }
     })();
     return () => {
@@ -99,7 +100,7 @@ export function ShareBook({ documentId }: { documentId: string }) {
     try {
       setReview(await api.decidePage(documentId, pageIndex, decision));
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 
@@ -119,7 +120,7 @@ export function ShareBook({ documentId }: { documentId: string }) {
       setChosen(new Set());
       say(strings.published);
     } catch (error) {
-      setFailure(explain(error, { 409: strings.errorUnreviewed }));
+      setFailure(explain(error, { 409: strings.errorUnreviewed }, strings));
     } finally {
       setBusy(false);
     }
@@ -133,7 +134,7 @@ export function ShareBook({ documentId }: { documentId: string }) {
       document.getElementById("shared-with")?.focus();
       say(strings.stoppedSharing);
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 

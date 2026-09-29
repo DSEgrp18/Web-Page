@@ -19,9 +19,12 @@
  */
 
 import type { Segment } from "./types";
-import { strings } from "./strings";
+import type { Strings } from "./strings";
 
-export function roleLabel(segment: Pick<Segment, "role" | "level">): string | null {
+export function roleLabel(
+  segment: Pick<Segment, "role" | "level">,
+  strings: Strings,
+): string | null {
   switch (segment.role) {
     case "heading":
       // The depth is part of it. "Heading" alone flattens a contents tree into

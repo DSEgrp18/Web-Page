@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { Bookmarks } from "../src/components/Bookmarks";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import type { Bookmark } from "../src/lib/types";
 import { FakeServer, readablePage } from "./fakeApi";
 import { politeText, renderApp } from "./render";

@@ -7,7 +7,7 @@ import { AppFrame } from "../src/components/AppFrame";
 import { OfflineLibrary } from "../src/components/OfflineLibrary";
 import { SaveOffline } from "../src/components/SaveOffline";
 import { DOWNLOADS, audioUrl, listSaved, removeSaved, saveChapter } from "../src/lib/offline";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import type { OfflineManifest } from "../src/lib/types";
 import { FakeCacheStorage } from "./fakeCaches";
 import { FakeServer, readablePage } from "./fakeApi";

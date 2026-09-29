@@ -6,8 +6,8 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { SearchHit, SearchResults } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * Search inside one book. Two lists, never merged: the book's own sentences
@@ -16,6 +16,7 @@ import type { SearchHit, SearchResults } from "@/lib/types";
  * reading position is untouched until the reader plays and pauses.
  */
 export function BookSearch({ documentId }: { documentId: string }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -53,7 +54,7 @@ export function BookSearch({ documentId }: { documentId: string }) {
           : strings.searchNothing,
       );
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     } finally {
       setBusy(false);
     }
@@ -122,6 +123,7 @@ function Hits({
   hits: SearchHit[];
   documentId: string;
 }) {
+  const strings = useStrings();
   if (hits.length === 0) return null;
   return (
     <section className="account-section card" aria-labelledby={id}>

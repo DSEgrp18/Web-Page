@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import { strings } from "@/lib/strings";
-
 /**
  * The Swara mark: the open book, and ස්වර beside it.
  *
@@ -15,6 +13,10 @@ import { strings } from "@/lib/strings";
  * The image is decorative: the wordmark beside it already says "ස්වර", and a
  * screen reader announcing the book twice is noise. So `alt=""`, and the link's
  * accessible name comes from the text.
+ *
+ * The wordmark is the same in every interface language — it is the name, not a
+ * word to translate — and it is Sinhala, so it says so for a screen reader
+ * speaking English around it.
  */
 export function BrandMark({ href = "/" }: { href?: string }) {
   return (
@@ -31,8 +33,12 @@ export function BrandMark({ href = "/" }: { href?: string }) {
         decoding="async"
       />
       <span>
-        <span className="brand-word">{strings.appName}</span>
-        <span className="brand-latin">{strings.appNameLatin}</span>
+        <span className="brand-word" lang="si">
+          ස්වර
+        </span>
+        <span className="brand-latin" lang="en">
+          Swara
+        </span>
       </span>
     </Link>
   );

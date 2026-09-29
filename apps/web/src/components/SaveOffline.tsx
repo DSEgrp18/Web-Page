@@ -7,7 +7,7 @@ import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
 import { offlineSupported, saveChapter } from "@/lib/offline";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * Save the chapter around this page for listening without a network. Only
@@ -15,6 +15,7 @@ import { strings } from "@/lib/strings";
  * did not, so a gap offline is never a surprise.
  */
 export function SaveOffline({ documentId, page }: { documentId: string; page: number }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
@@ -41,7 +42,7 @@ export function SaveOffline({ documentId, page }: { documentId: string; page: nu
       setProgress(said);
       say(said);
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     } finally {
       setBusy(false);
     }

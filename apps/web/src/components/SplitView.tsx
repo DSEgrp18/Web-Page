@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
-
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 const MIN = 20;
 const MAX = 80;
@@ -74,6 +73,7 @@ export function SplitView({
   startLabel: string;
   endLabel: string;
 }) {
+  const strings = useStrings();
   const frame = useRef<HTMLDivElement>(null);
   const divider = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);

@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PublicFrame } from "@/components/PublicFrame";
-import { strings } from "@/lib/strings";
+import { getStrings } from "@/lib/i18n.server";
 
 // Spelled out: like the landing page, this shares the root layout's segment,
 // where the `%s — ස්වර` template does not apply.
-export const metadata: Metadata = {
-  title: { absolute: `${strings.errorNotFound} — ${strings.appName}` },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getStrings();
+  return { title: { absolute: `${strings.errorNotFound} — ${strings.appName}` } };
+}
 
 /**
  * Any address with nothing at it.
@@ -17,7 +18,8 @@ export const metadata: Metadata = {
  * Next's default: an unbranded English "404" with no way back is a dead end,
  * and a screen reader announces it with the wrong voice.
  */
-export default function NotFound() {
+export default async function NotFound() {
+  const strings = await getStrings();
   return (
     <PublicFrame>
       <div className="prose-page">

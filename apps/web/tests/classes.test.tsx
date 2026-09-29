@@ -8,7 +8,7 @@ import { Classes } from "../src/components/Classes";
 import JoinPage from "../src/app/(public)/join/[code]/page";
 import { Library } from "../src/components/Library";
 import { ShareBook } from "../src/components/ShareBook";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import type { FlaggedPage } from "../src/lib/types";
 import { FakeServer, readablePage, type FakeClass } from "./fakeApi";
 import { noticeText, opensBook, politeText, renderApp } from "./render";

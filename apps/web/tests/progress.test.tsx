@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ClassProgressSection } from "../src/components/ClassProgressSection";
 import { Practice } from "../src/components/Practice";
 import { Progress } from "../src/components/Progress";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import type { BookProgress } from "../src/lib/types";
 import { FakeServer, readablePage } from "./fakeApi";
 import { renderApp } from "./render";

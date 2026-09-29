@@ -25,20 +25,21 @@ import {
   type Shelf,
 } from "@/lib/books";
 import { ApiError } from "@/lib/client";
-import { jobFailureMessage, jobProgressMessage, messageFor, strings } from "@/lib/strings";
+import { jobFailureMessage, jobProgressMessage, messageFor, type Strings } from "@/lib/strings";
 import type { DocumentSummary } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** How often to ask whether a book has finished preparing. */
 const POLL_MS = 1500;
 
-const SHELVES: { id: Shelf; label: string }[] = [
+const shelves = (strings: Strings): { id: Shelf; label: string }[] => [
   { id: "all", label: strings.filterAll },
   { id: "reading", label: strings.filterReading },
   { id: "finished", label: strings.filterFinished },
   { id: "processing", label: strings.filterProcessing },
 ];
 
-const ORDERS: { id: Order; label: string }[] = [
+const orders = (strings: Strings): { id: Order; label: string }[] => [
   { id: "recent", label: strings.sortRecent },
   { id: "added", label: strings.sortAdded },
   { id: "title", label: strings.sortTitle },
@@ -58,6 +59,7 @@ const ORDERS: { id: Order; label: string }[] = [
  * first when there is something to continue.
  */
 export function Library() {
+  const strings = useStrings();
   const { api, account } = useReader();
   const { say, alert } = useAnnouncer();
 
@@ -103,7 +105,8 @@ export function Library() {
 
   const fail = useCallback(
     (cause: unknown) => {
-      const message = cause instanceof ApiError ? messageFor(cause.kind) : strings.errorServer;
+      const message =
+        cause instanceof ApiError ? messageFor(cause.kind, strings) : strings.errorServer;
       setError(message);
       alert(message);
     },
@@ -295,7 +298,7 @@ export function Library() {
               <fieldset className="shelf-filters">
                 <legend className="visually-hidden">{strings.filterHeading}</legend>
                 <div className="segmented">
-                  {SHELVES.map((option) => (
+                  {shelves(strings).map((option) => (
                     <label key={option.id} className="segment">
                       <input
                         type="radio"
@@ -317,7 +320,7 @@ export function Library() {
                   value={order}
                   onChange={(event) => setOrder(event.target.value as Order)}
                 >
-                  {ORDERS.map((option) => (
+                  {orders(strings).map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.label}
                     </option>
@@ -423,6 +426,7 @@ function Welcome({
   onAdd: () => void;
   addRef: React.RefObject<HTMLButtonElement | null>;
 }) {
+  const strings = useStrings();
   return (
     <section className="welcome" aria-labelledby="welcome-heading">
       <div className="welcome-copy">
@@ -455,6 +459,7 @@ function Welcome({
 }
 
 function ContinueCard({ book }: { book: DocumentSummary }) {
+  const strings = useStrings();
   const percent = percentRead(book);
   const title = bookTitle(book);
   return (
@@ -492,6 +497,7 @@ function BookCard({
   onRename: (trigger: HTMLElement) => void;
   onDelete: (trigger: HTMLElement) => void;
 }) {
+  const strings = useStrings();
   const preparation = preparationOf(book);
   const ready = preparation === "ready";
   const percent = percentRead(book);
@@ -530,11 +536,13 @@ function BookCard({
                percentage across stages that run at different speeds would be
                a guess that moves at a believable pace. Not a live region: the
                book becoming ready or failing is announced, not every page. */
-            <span className="pill pill-warn">{jobProgressMessage(book.job)}</span>
+            <span className="pill pill-warn">{jobProgressMessage(book.job, strings)}</span>
           )}
         </p>
 
-        {preparation === "failed" ? <p className="hint">{jobFailureMessage(book.job)}</p> : null}
+        {preparation === "failed" ? (
+          <p className="hint">{jobFailureMessage(book.job, strings)}</p>
+        ) : null}
 
         {ready && percent !== null && !finished ? (
           <ProgressBar percent={percent} label={title} />
@@ -603,6 +611,7 @@ function BookCard({
  * the card's text already, so this one is labelled and not duplicated aloud.
  */
 function ProgressBar({ percent, label }: { percent: number; label: string }) {
+  const strings = useStrings();
   return (
     <div
       className="progress"

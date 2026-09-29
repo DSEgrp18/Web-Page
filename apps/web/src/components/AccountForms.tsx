@@ -15,8 +15,9 @@ import {
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
-import { messageFor, strings } from "@/lib/strings";
+import { messageFor, type Strings } from "@/lib/strings";
 import type { SignedIn } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * Signing in, making an account, and getting back into one.
@@ -52,11 +53,15 @@ export function useFailure() {
 }
 
 /** What to say for a failed account request, given what each route refuses with. */
-export function explain(error: unknown, when: Partial<Record<number, string>>): string {
+export function explain(
+  error: unknown,
+  when: Partial<Record<number, string>>,
+  strings: Strings,
+): string {
   if (error instanceof ApiError) {
     const specific = when[error.status];
     if (specific) return specific;
-    return messageFor(error.kind);
+    return messageFor(error.kind, strings);
   }
   return strings.errorServer;
 }
@@ -100,6 +105,7 @@ export function PasswordField({
   /** Distinct names when one page has several password fields. */
   name?: string;
 }) {
+  const strings = useStrings();
   const [shown, setShown] = useState(false);
   const toggleId = useId();
   return (
@@ -150,6 +156,7 @@ export function nextPath(search: string): string {
 }
 
 export function SignInForm() {
+  const strings = useStrings();
   const { signIn } = useReader();
   const { say } = useAnnouncer();
   const router = useRouter();
@@ -167,7 +174,7 @@ export function SignInForm() {
       say(strings.signedIn);
       router.replace(nextPath(window.location.search));
     } catch (error) {
-      setFailure(explain(error, { 401: strings.errorSignIn }));
+      setFailure(explain(error, { 401: strings.errorSignIn }, strings));
       setBusy(false);
     }
   }
@@ -207,6 +214,7 @@ export function SignInForm() {
 }
 
 export function RegisterForm() {
+  const strings = useStrings();
   const { register } = useReader();
   const { setFailure, notice } = useFailure();
   const [name, setName] = useState("");
@@ -223,10 +231,14 @@ export function RegisterForm() {
       setMade(await register(email, password, name));
     } catch (error) {
       setFailure(
-        explain(error, {
-          409: strings.errorEmailTaken,
-          422: strings.errorWeakPassword(MIN_PASSWORD_LENGTH),
-        }),
+        explain(
+          error,
+          {
+            409: strings.errorEmailTaken,
+            422: strings.errorWeakPassword(MIN_PASSWORD_LENGTH),
+          },
+          strings,
+        ),
       );
       setBusy(false);
     }
@@ -278,6 +290,7 @@ export function RegisterForm() {
 }
 
 export function RecoverForm() {
+  const strings = useStrings();
   const { recover } = useReader();
   const { setFailure, notice } = useFailure();
   const [email, setEmail] = useState("");
@@ -294,10 +307,14 @@ export function RecoverForm() {
       setRecovered(await recover(email, code, password));
     } catch (error) {
       setFailure(
-        explain(error, {
-          401: strings.errorRecover,
-          422: strings.errorWeakPassword(MIN_PASSWORD_LENGTH),
-        }),
+        explain(
+          error,
+          {
+            401: strings.errorRecover,
+            422: strings.errorWeakPassword(MIN_PASSWORD_LENGTH),
+          },
+          strings,
+        ),
       );
       setBusy(false);
     }
@@ -360,7 +377,7 @@ export function RecoveryCode({
   email,
   code,
   onDone,
-  doneLabel = strings.continueToLibrary,
+  doneLabel,
 }: {
   email: string;
   code: string;
@@ -368,6 +385,7 @@ export function RecoveryCode({
   onDone?: () => void;
   doneLabel?: string;
 }) {
+  const strings = useStrings();
   const { say } = useAnnouncer();
   const router = useRouter();
   const [saved, setSaved] = useState(false);
@@ -431,7 +449,7 @@ export function RecoveryCode({
           disabled={!saved}
           onClick={() => (onDone ? onDone() : router.replace("/library"))}
         >
-          {doneLabel}
+          {doneLabel ?? strings.continueToLibrary}
         </button>
       </section>
     </div>

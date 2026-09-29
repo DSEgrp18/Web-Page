@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { explain, useFailure } from "@/components/AccountForms";
 import { BookTable } from "@/components/Progress";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
 import type { ClassProgress } from "@/lib/types";
+import { useStrings } from "@/components/LocaleProvider";
 
 /**
  * The teacher's view of a class's progress: only students who chose to share,
@@ -15,6 +15,7 @@ import type { ClassProgress } from "@/lib/types";
  * by ear.
  */
 export function ClassProgressSection({ classId }: { classId: string }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { setFailure, notice } = useFailure();
   const [report, setReport] = useState<ClassProgress | null>(null);
@@ -26,7 +27,7 @@ export function ClassProgressSection({ classId }: { classId: string }) {
         if (!cancelled) setReport(found);
       },
       (error) => {
-        if (!cancelled) setFailure(explain(error, {}));
+        if (!cancelled) setFailure(explain(error, {}, strings));
       },
     );
     return () => {
@@ -44,7 +45,7 @@ export function ClassProgressSection({ classId }: { classId: string }) {
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 

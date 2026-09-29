@@ -6,13 +6,14 @@ import { useId, useState, type FormEvent } from "react";
 import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/components/LocaleProvider";
 
 /** The API's limit, checked here too so a reader hears it before sending. */
 const MAX_CHARACTERS = 200_000;
 
 /** Paste text to be read aloud, in sections rather than pages. */
 export function PasteText() {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const router = useRouter();
@@ -35,7 +36,7 @@ export function PasteText() {
       say(strings.pasteStarted);
       router.push(`/library/${encodeURIComponent(made.document_id)}`);
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
       setBusy(false);
     }
   }

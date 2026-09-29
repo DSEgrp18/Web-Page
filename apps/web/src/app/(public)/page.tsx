@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { landing } from "@/lib/content";
-import { strings } from "@/lib/strings";
+import { contentFor } from "@/lib/content";
+import { stringsFor } from "@/lib/i18n";
+import { getLocale, getStrings } from "@/lib/i18n.server";
 
 /**
  * The front door, for someone who has not signed in.
@@ -15,11 +16,15 @@ import { strings } from "@/lib/strings";
  * The title is spelled out with `absolute` because this page shares the root
  * layout's segment, where the `%s — ස්වර` template does not apply.
  */
-export const metadata: Metadata = {
-  title: { absolute: `${strings.homeTitle} — ${strings.appName}` },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getStrings();
+  return { title: { absolute: `${strings.homeTitle} — ${strings.appName}` } };
+}
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const locale = await getLocale();
+  const strings = stringsFor(locale);
+  const { landing } = contentFor(locale);
   return (
     <article className="landing">
       <header className="landing-hero">

@@ -10,9 +10,9 @@ import { ClassProgressSection } from "@/components/ClassProgressSection";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
-import { strings } from "@/lib/strings";
 import type { IssuedReset, JoinedClass, MemberDetail, TaughtClass } from "@/lib/types";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import { useStrings } from "@/components/LocaleProvider";
 
 function isTaught(room: TaughtClass | JoinedClass): room is TaughtClass {
   return "join_code" in room;
@@ -27,6 +27,7 @@ function isTaught(room: TaughtClass | JoinedClass): room is TaughtClass {
  * row and hear each student's name before the buttons that act on them.
  */
 export function ClassDetail({ classId }: { classId: string }) {
+  const strings = useStrings();
   const { api } = useReader();
   const { say } = useAnnouncer();
   const router = useRouter();
@@ -51,7 +52,7 @@ export function ClassDetail({ classId }: { classId: string }) {
       } catch (error) {
         if (cancelled) return;
         if (error instanceof ApiError && error.kind === "not_found") setMissing(true);
-        else setFailure(explain(error, {}));
+        else setFailure(explain(error, {}, strings));
       }
     })();
     return () => {
@@ -65,7 +66,7 @@ export function ClassDetail({ classId }: { classId: string }) {
       if (next) setRoom(next);
       say(said);
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 
@@ -74,7 +75,7 @@ export function ClassDetail({ classId }: { classId: string }) {
       setIssued(await api.issueReset(classId, member.user_id));
       say(strings.resetIssued(member.display_name));
     } catch (error) {
-      setFailure(explain(error, {}));
+      setFailure(explain(error, {}, strings));
     }
   }
 
@@ -207,6 +208,7 @@ export function ClassDetail({ classId }: { classId: string }) {
  * screen reader starts there. It stays until the teacher says they are done.
  */
 function IssuedCode({ issued, onDone }: { issued: IssuedReset; onDone: () => void }) {
+  const strings = useStrings();
   const heading = useRef<HTMLHeadingElement>(null);
   const id = useId();
 
@@ -241,6 +243,7 @@ function Members({
   act: (work: () => Promise<TaughtClass | void>, said: string) => Promise<void>;
   onReset: (member: MemberDetail, button: HTMLButtonElement) => void;
 }) {
+  const strings = useStrings();
   const { api } = useReader();
   const shown = room.members.filter((m) => m.state !== "removed");
   return (
@@ -321,6 +324,7 @@ function Members({
 }
 
 function RenameClass({ room, onRename }: { room: TaughtClass; onRename: (name: string) => void }) {
+  const strings = useStrings();
   const [name, setName] = useState(room.name);
   const id = useId();
   return (

@@ -12,7 +12,7 @@ import {
 } from "../src/components/AccountForms";
 import { AppFrame } from "../src/components/AppFrame";
 import { Library } from "../src/components/Library";
-import { strings } from "../src/lib/strings";
+import { si as strings } from "../src/lib/strings";
 import { FAKE_CSRF, FakeServer } from "./fakeApi";
 import { assertiveText, politeText, renderApp } from "./render";
 import { navigations } from "./setup";
