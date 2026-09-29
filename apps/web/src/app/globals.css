@@ -2647,13 +2647,13 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
 
   /* Every choice on screen at once, two by two: scrolled sideways inside
      its pill, the last filter was off the edge where nobody could see it. */
-  .segmented {
+  .shelf-filters .segmented {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     border-radius: var(--r-lg);
   }
 
-  .segment {
+  .shelf-filters .segment {
     white-space: normal;
   }
 
@@ -3015,7 +3015,12 @@ h4 {
 }
 
 /* The filters take the width their words need, on one line each; the
-   search field takes the rest. */
+   search field takes the rest. Only here: the settings panel's segments must
+   wrap inside its fixed width. */
+.shelf-filters .segment {
+  white-space: nowrap;
+}
+
 .shelf-controls {
   display: grid;
   grid-template-columns: minmax(14rem, 1fr) auto auto;
@@ -3046,7 +3051,6 @@ h4 {
 .segment {
   min-height: var(--tap);
   padding-inline: 0.85rem;
-  white-space: nowrap;
   font-weight: 600;
   color: var(--ink-muted);
 }
