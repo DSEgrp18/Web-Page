@@ -1965,8 +1965,11 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
   block-size: 100%;
 }
 
+/* Drawn 12 px wide so it takes little of the page; hit 48 px wide, by an
+   invisible band either side, so a finger or a shaky hand can take it. */
 .split-divider {
-  inline-size: 10px;
+  position: relative;
+  inline-size: 12px;
   cursor: col-resize;
   background: var(--paper);
   border-inline: 1px solid var(--hair);
@@ -1975,16 +1978,57 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
   touch-action: none;
 }
 
+.split-divider::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline: calc((12px - var(--tap)) / 2);
+  z-index: 2;
+}
+
 .split-divider:hover,
 .split-divider:focus-visible {
   background: var(--green-wash);
 }
 
+/* The grip: a pill with a 3:1 edge colour, so the divider reads as a thing
+   that moves and not as a hairline between two panels. */
 .split-grip {
-  inline-size: 3px;
-  block-size: 2.5rem;
+  inline-size: 6px;
+  block-size: 3rem;
   border-radius: var(--r-pill);
   background: var(--edge);
+}
+
+.split-divider:hover .split-grip,
+.split-divider:focus-visible .split-grip {
+  background: var(--green);
+}
+
+/* Where a collapsed panel was: a thin bar, labelled, that brings it back.
+   The label runs down the bar; its name is the same words. */
+.split-restore {
+  display: grid;
+  place-items: center;
+  inline-size: var(--tap);
+  padding: var(--s3) 0;
+  border: 0;
+  border-inline: 1px solid var(--hair);
+  background: var(--panel-sunken);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.split-restore:hover {
+  background: var(--green-wash);
+}
+
+.split-restore-label {
+  writing-mode: vertical-rl;
+  line-height: var(--leading-tight);
 }
 
 /* -- panels --------------------------------------------------------------- */
@@ -2546,12 +2590,19 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
     grid-template-columns: 1fr !important;
   }
 
-  .split-divider {
+  .split-divider,
+  .split-restore {
     display: none;
   }
 
-  .workspace-body[data-tab="reading"] .split-panel:first-child,
-  .workspace-body[data-tab="original"] .split-panel:last-child {
+  /* The tab decides which panel shows, whatever "expand" left collapsed:
+     with a panel collapsed, choosing its tab showed an empty screen. */
+  .workspace-body .split-panel[data-hidden="true"] {
+    display: flex;
+  }
+
+  .workspace-body[data-tab="reading"] .split-panel:first-of-type,
+  .workspace-body[data-tab="original"] .split-panel:last-of-type {
     display: none;
   }
 
@@ -3410,4 +3461,43 @@ h4 {
     max-inline-size: 5rem;
     padding-inline: var(--s1);
   }
+}
+
+/*
+ * Too narrow for two panels, at any window width.
+ *
+ * Each panel needs 18rem (SplitView's PANEL_MIN_REM); with the Ask panel open
+ * beside them, or text zoomed, a wide window can still leave less than that.
+ * The reader measures it and says `data-layout="tabs"`, and the panels become
+ * the phone's tabs.
+ */
+.workspace[data-layout="tabs"] .workspace-tabs {
+  display: flex;
+}
+
+/* The two panels stop being a split and become one visible tab. Both stay
+   mounted: unmounting would restart the PDF render and the audio with it. */
+.workspace[data-layout="tabs"] .split {
+  grid-template-columns: 1fr !important;
+}
+
+.workspace[data-layout="tabs"] .split-divider,
+.workspace[data-layout="tabs"] .split-restore {
+  display: none;
+}
+
+/* The tab decides which panel shows, whatever "expand" left collapsed:
+   with a panel collapsed, choosing its tab showed an empty screen. */
+.workspace[data-layout="tabs"] .workspace-body .split-panel[data-hidden="true"] {
+  display: flex;
+}
+
+.workspace[data-layout="tabs"] .workspace-body[data-tab="reading"] .split-panel:first-of-type,
+.workspace[data-layout="tabs"] .workspace-body[data-tab="original"] .split-panel:last-of-type {
+  display: none;
+}
+
+.workspace[data-layout="tabs"] .workspace-body .split-panel {
+  grid-column: 1;
+  grid-row: 1;
 }
