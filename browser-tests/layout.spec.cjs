@@ -188,3 +188,97 @@ test.describe("on a phone", () => {
     }
   });
 });
+
+test.describe("the split and the Ask panel, on a wide screen", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  const FIRST = "සිංහල පොත කියවන්න.";
+
+  test("the Ask panel sits beside the book, not over it", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    await expect(page.getByRole("button", { name: FIRST })).toBeVisible();
+    await page.getByRole("button", { name: "පොත ගැන අසන්න" }).click();
+    const drawer = page.getByRole("complementary", { name: "පොත ගැන අසන්න" });
+    await expect(drawer).toBeVisible();
+
+    const aside = await drawer.boundingBox();
+    const body = await page.locator(".workspace-body").boundingBox();
+    // The book's area ends where the panel begins; nothing of it is under it.
+    expect(body.x + body.width).toBeLessThanOrEqual(aside.x + 1);
+    const hit = await page.getByRole("button", { name: FIRST }).evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return element.contains(document.elementFromPoint(box.right - 4, box.top + box.height / 2));
+    });
+    expect(hit).toBe(true);
+  });
+
+  test("its width moves with the keyboard, pushes the book, and is kept", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    await expect(page.getByRole("button", { name: FIRST })).toBeVisible();
+    await page.getByRole("button", { name: "පොත ගැන අසන්න" }).click();
+    const drawer = page.getByRole("complementary", { name: "පොත ගැන අසන්න" });
+    const before = (await drawer.boundingBox()).width;
+
+    await page.getByRole("separator", { name: "ප්‍රශ්න පැනලයේ පළල" }).focus();
+    await page.keyboard.press("PageUp");
+    await expect.poll(async () => (await drawer.boundingBox()).width).toBeGreaterThan(before + 90);
+
+    await page.reload();
+    await expect(page.getByRole("button", { name: FIRST })).toBeVisible();
+    await page.getByRole("button", { name: "පොත ගැන අසන්න" }).click();
+    expect((await drawer.boundingBox()).width).toBeGreaterThan(before + 90);
+  });
+
+  test("when two panels no longer fit beside it, they become tabs", async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    await expect(page.getByRole("button", { name: FIRST })).toBeVisible();
+    await expect(page.getByRole("tablist")).toBeHidden();
+
+    await page.getByRole("button", { name: "පොත ගැන අසන්න" }).click();
+    await expect(page.getByRole("tablist")).toBeVisible();
+    await expect(page.getByRole("button", { name: FIRST })).toBeVisible();
+  });
+
+  test("the divider is easy to take: 48 px to hit, and a drag near the middle lands on it", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    await expect(page.getByRole("button", { name: FIRST })).toBeVisible();
+    const divider = page.getByRole("separator", { name: "පැනල දෙකේ පළල" });
+    const box = await divider.boundingBox();
+    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    // Twenty pixels either side of a 12 px bar still takes it.
+    for (const dx of [-20, 20]) {
+      const taken = await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.closest(".split-divider") !== null,
+        { x: middle.x + dx, y: middle.y },
+      );
+      expect(taken, `${dx} px`).toBe(true);
+    }
+
+    const split = await page.locator(".split").boundingBox();
+    await page.mouse.move(middle.x, middle.y);
+    await page.mouse.down();
+    await page.mouse.move(split.x + split.width * 0.7, middle.y, { steps: 4 });
+    await expect(divider).toHaveAttribute("aria-valuenow", "70");
+    await page.mouse.move(split.x + split.width * 0.52, middle.y, { steps: 4 });
+    await page.mouse.up();
+    await expect(divider).toHaveAttribute("aria-valuenow", "50");
+  });
+
+  test("a collapsed panel leaves a bar that brings it back", async ({ page }) => {
+    await oneBook(page);
+    await page.goto("/library/doc-1");
+    await expect(page.getByRole("button", { name: FIRST })).toBeVisible();
+    await page.getByRole("button", { name: "කියවීම විශාල කරන්න" }).click();
+    const bar = page.getByRole("button", { name: "මුල් පිටුව නැවත පෙන්වන්න" });
+    await expect(bar).toBeVisible();
+    expect((await bar.boundingBox()).width).toBeGreaterThanOrEqual(48);
+    await bar.click();
+    await expect(page.getByRole("separator", { name: "පැනල දෙකේ පළල" })).toBeFocused();
+  });
+});

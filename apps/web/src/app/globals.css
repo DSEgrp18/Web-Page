@@ -2448,6 +2448,62 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
   box-shadow: var(--shadow-3);
 }
 
+/* The Ask panel's resizable edge: drawn as the book divider's grip, hit
+   48 px wide across the panel's border. Only where the panel sits beside the
+   book; the phone's sheet is not resized. */
+.assistant-edge {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  /*
+   * Beside the book, not over it. A fixed drawer covered the right-hand side
+   * of the reading panel — its text, its page controls — for as long as it
+   * was open. As a column of the workspace it takes its width from the book,
+   * which then shows two panels, or tabs when there is not room for two
+   * (see `data-layout`).
+   */
+  .workspace {
+    grid-template-areas:
+      "bar bar assistant"
+      "notice notice assistant"
+      "tabs tabs assistant"
+      "body body assistant"
+      "player ask assistant";
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .workspace > .assistant {
+    grid-area: assistant;
+    position: relative;
+    inset: auto;
+    inline-size: var(--assistant-width, 26rem);
+    /* The book keeps room for one panel, whatever width was saved on a
+       wider screen. */
+    max-inline-size: calc(100vw - 20rem);
+    min-block-size: 0;
+    z-index: auto;
+    box-shadow: none;
+  }
+
+  .assistant-edge {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: calc(var(--tap) / -2);
+    inline-size: var(--tap);
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .assistant-edge:hover .split-grip,
+  .assistant-edge:focus-visible .split-grip {
+    background: var(--green);
+  }
+}
+
 .assistant-head {
   display: flex;
   align-items: flex-start;

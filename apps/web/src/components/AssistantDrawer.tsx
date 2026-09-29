@@ -3,13 +3,127 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
+import { usePreferences } from "@/components/PreferencesProvider";
 import { useReader } from "@/components/ReaderProvider";
+import { PANEL_MIN_REM } from "@/components/SplitView";
 import { ApiError } from "@/lib/client";
+import { ASSISTANT_MAX_REM, ASSISTANT_MIN_REM, DEFAULTS } from "@/lib/preferences";
 import { messageFor, strings } from "@/lib/strings";
 import type { Exchange, StudyAnswer } from "@/lib/types";
 
 /** How many earlier exchanges a question carries. The API accepts at most 6. */
 const HISTORY_LIMIT = 4;
+
+/** Arrow keys move the Ask panel's edge this many rem; Page Up/Down, more. */
+const WIDTH_STEP = 2;
+const WIDTH_BIG_STEP = 6;
+
+function rootPx(): number {
+  return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+}
+
+/**
+ * The widest the Ask panel may be in this window: the book beside it keeps
+ * room for one panel at its minimum, and a little for the divider.
+ */
+function widestRem(): number {
+  const windowRem = Math.floor(window.innerWidth / rootPx());
+  return Math.max(ASSISTANT_MIN_REM, Math.min(ASSISTANT_MAX_REM, windowRem - PANEL_MIN_REM - 2));
+}
+
+/**
+ * The Ask panel's edge, on a wide screen: a window splitter like the book's
+ * own divider. The panel sits beside the book, not over it, so moving this
+ * edge moves the book's right-hand edge with it. The width is kept in the
+ * reader's preferences and said as a share of the screen.
+ *
+ * Left widens the panel (the edge moves left), Right narrows it; Page Up and
+ * Page Down do the same in bigger steps; Home is the narrowest, End the
+ * widest, Enter the usual width.
+ */
+function AssistantEdge({ panel }: { panel: React.RefObject<HTMLElement | null> }) {
+  const { preferences, set } = usePreferences();
+  const width = preferences.assistantWidth;
+  const dragging = useRef(false);
+
+  const setWidth = useCallback(
+    (rem: number) =>
+      set("assistantWidth", Math.max(ASSISTANT_MIN_REM, Math.min(widestRem(), Math.round(rem)))),
+    [set],
+  );
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const moves: Record<string, number> = {
+      ArrowLeft: WIDTH_STEP,
+      ArrowRight: -WIDTH_STEP,
+      PageUp: WIDTH_BIG_STEP,
+      PageDown: -WIDTH_BIG_STEP,
+    };
+    if (event.key in moves) {
+      event.preventDefault();
+      setWidth(width + moves[event.key]!);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setWidth(ASSISTANT_MIN_REM);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setWidth(widestRem());
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      setWidth(DEFAULTS.assistantWidth);
+    }
+  };
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      if (!dragging.current) return;
+      const right = panel.current?.getBoundingClientRect().right;
+      if (right === undefined) return;
+      setWidth((right - event.clientX) / rootPx());
+    };
+    const stop = () => {
+      dragging.current = false;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+  }, [panel, setWidth]);
+
+  const percent =
+    typeof window === "undefined"
+      ? null
+      : Math.round(((width * rootPx()) / Math.max(1, window.innerWidth)) * 100);
+
+  return (
+    // A focusable window splitter; see SplitView for why the interaction
+    // rule is disabled here.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <div
+      className="assistant-edge"
+      role="separator"
+      tabIndex={0}
+      aria-orientation="vertical"
+      aria-label={strings.assistantResize}
+      aria-valuenow={width}
+      aria-valuemin={ASSISTANT_MIN_REM}
+      aria-valuemax={ASSISTANT_MAX_REM}
+      aria-valuetext={percent === null ? undefined : strings.assistantWidthValue(percent)}
+      onKeyDown={onKeyDown}
+      onPointerDown={(event) => {
+        dragging.current = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onDoubleClick={() => setWidth(DEFAULTS.assistantWidth)}
+    >
+      <span className="split-grip" aria-hidden="true" />
+    </div>
+  );
+}
 
 /** One exchange. Kept in memory only: a question is about a book, not a record. */
 interface Turn {
@@ -78,6 +192,8 @@ export function AssistantDrawer({
 }) {
   const { api } = useReader();
   const { say, alert } = useAnnouncer();
+  const { preferences } = usePreferences();
+  const panel = useRef<HTMLElement>(null);
 
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
@@ -221,12 +337,15 @@ export function AssistantDrawer({
       </button>
 
       <aside
+        ref={panel}
         id={drawerId}
         className="assistant"
         data-open={open}
         hidden={!open}
         aria-label={strings.assistantHeading}
+        style={{ "--assistant-width": `${preferences.assistantWidth}rem` } as React.CSSProperties}
       >
+        <AssistantEdge panel={panel} />
         <header className="assistant-head">
           <div>
             <h2>{strings.assistantHeading}</h2>

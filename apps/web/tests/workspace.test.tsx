@@ -203,6 +203,40 @@ describe("keeping the panels in step", () => {
 });
 
 describe("the assistant", () => {
+  it("has an edge that sets its width from the keyboard, said and remembered", async () => {
+    const user = userEvent.setup();
+    const server = new FakeServer({ books: [book()] });
+    const first = open(server);
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+
+    const edge = () => screen.getByRole("separator", { name: strings.assistantResize });
+    expect(edge().getAttribute("aria-valuenow")).toBe("26");
+    // Said as a share of the screen, not left for the eye to judge.
+    expect(edge().getAttribute("aria-valuetext")).toMatch(/%/);
+
+    edge().focus();
+    // The edge is on the panel's left: moving it left widens the panel.
+    await user.keyboard("{ArrowLeft}");
+    await waitFor(() => expect(edge().getAttribute("aria-valuenow")).toBe("28"));
+    await user.keyboard("{PageDown}");
+    await waitFor(() => expect(edge().getAttribute("aria-valuenow")).toBe("22"));
+    await user.keyboard("{Home}");
+    await waitFor(() => expect(edge().getAttribute("aria-valuenow")).toBe("20"));
+    await user.keyboard("{PageUp}");
+    await waitFor(() => expect(edge().getAttribute("aria-valuenow")).toBe("26"));
+    await user.keyboard("{End}");
+    const widest = Number(edge().getAttribute("aria-valuenow"));
+    expect(widest).toBeGreaterThan(26);
+    expect(widest).toBeLessThanOrEqual(48);
+
+    first.unmount();
+    open(server);
+    await screen.findByRole("button", { name: FIRST });
+    await user.click(screen.getByRole("button", { name: new RegExp(strings.assistantToggle) }));
+    expect(edge().getAttribute("aria-valuenow")).toBe(String(widest));
+  });
+
   it("stays shut until it is asked for, and says which book it answers about", async () => {
     const user = userEvent.setup();
     open(new FakeServer({ books: [book()] }));
