@@ -36,7 +36,8 @@ vi.mock("next/navigation", () => ({
     push: (href: string) => navigations.push(href),
     replace: (href: string) => navigations.push(href),
     back: () => navigations.push("back"),
-    refresh: () => {},
+    // Re-rendering the page on the server, as a change of language does.
+    refresh: () => navigations.push("refresh"),
     prefetch: () => Promise.resolve(),
   }),
   // As Next's does, it ends the render: nothing after it runs.

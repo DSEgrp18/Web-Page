@@ -1,11 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { usePreferences } from "@/components/PreferencesProvider";
 import { themeName } from "@/lib/strings";
 import { TEXT_SCALES, type Theme } from "@/lib/preferences";
-import { useStrings } from "@/components/LocaleProvider";
+import { saveLocale, useLocale, useStrings } from "@/components/LocaleProvider";
+import { LOCALES, type Locale } from "@/lib/i18n";
 
 /**
  * Reading settings, in the masthead, on every screen.
@@ -14,7 +16,7 @@ import { useStrings } from "@/components/LocaleProvider";
  * changing the text size wants to watch the text change behind the panel, not
  * be locked out of it until they dismiss something.
  *
- * Three groups, each a real fieldset with a real legend, because that is what
+ * Four groups, each a real fieldset with a real legend, because that is what
  * makes a screen reader say "theme, radio button, 1 of 3" instead of reading
  * three unrelated buttons. Radios for the things that are one-of-many, switches
  * for the things that are on or off.
@@ -25,6 +27,8 @@ import { useStrings } from "@/components/LocaleProvider";
  */
 export function Settings() {
   const strings = useStrings();
+  const locale = useLocale();
+  const router = useRouter();
   const { preferences, set } = usePreferences();
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -35,6 +39,14 @@ export function Settings() {
     setOpen(false);
     toggleRef.current?.focus();
   }, []);
+
+  // The language is a cookie the server reads, so every page renders in it
+  // from the first byte. Refreshing re-renders this page on the server in the
+  // new language; the reader stays where they are, panel and all.
+  const chooseLocale = (next: Locale) => {
+    saveLocale(next);
+    router.refresh();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +90,27 @@ export function Settings() {
         role="group"
         aria-label={strings.settingsHeading}
       >
+        <fieldset className="settings-group">
+          <legend>{strings.settingsLanguage}</legend>
+          <div className="segmented">
+            {LOCALES.map(({ id, name }) => (
+              <label key={id} className="segment">
+                <input
+                  type="radio"
+                  name="swara-lang"
+                  value={id}
+                  checked={locale === id}
+                  onChange={() => chooseLocale(id)}
+                />
+                {/* Each language's name in itself, so a reader finds their
+                    own whichever interface is showing. */}
+                <span lang={id}>{name}</span>
+              </label>
+            ))}
+          </div>
+          <p className="hint">{strings.settingsLanguageHelp}</p>
+        </fieldset>
+
         <fieldset className="settings-group">
           <legend>{strings.settingsTheme}</legend>
           <div className="segmented">
