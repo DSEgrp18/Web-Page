@@ -3,6 +3,7 @@ import { Abhaya_Libre, Noto_Sans_Sinhala, Roboto } from "next/font/google";
 
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { getLocale, getStrings } from "@/lib/i18n.server";
+import { ICONS } from "@/lib/icons";
 import { getTheme } from "@/lib/theme.server";
 
 import "./globals.css";
@@ -47,14 +48,6 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: ICONS,
   };
 }
-
-const ICONS: Metadata["icons"] = {
-  icon: [
-    { url: "/brand/icon.png", sizes: "64x64", type: "image/png" },
-    { url: "/brand/swara-icon.webp", sizes: "512x512", type: "image/webp" },
-  ],
-  apple: "/brand/swara-icon.webp",
-};
 
 export const viewport: Viewport = {
   width: "device-width",
