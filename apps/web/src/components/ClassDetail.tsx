@@ -58,7 +58,7 @@ export function ClassDetail({ classId }: { classId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [api, classId, setFailure]);
+  }, [api, classId, setFailure, strings]);
 
   async function act(work: () => Promise<TaughtClass | void>, said: string) {
     try {

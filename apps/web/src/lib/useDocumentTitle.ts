@@ -25,5 +25,5 @@ export function useDocumentTitle(title: string | null | undefined): void {
     if (title) {
       document.title = `${title} — ${strings.appName}`;
     }
-  }, [title]);
+  }, [strings.appName, title]);
 }

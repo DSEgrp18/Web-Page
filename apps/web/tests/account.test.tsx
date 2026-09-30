@@ -245,7 +245,10 @@ describe("when the reader cannot be reached", () => {
     expect(await screen.findByRole("heading", { name: strings.errorHeading })).toBeTruthy();
     expect(screen.getByText(strings.errorUnreachable)).toBeTruthy();
     expect(screen.queryByRole("heading", { name: strings.signedOutHeading })).toBeNull();
-    expect(document.title).toBe(`${strings.errorHeading} — ${strings.appName}`);
+    // Set by an effect, which can run a moment after the heading paints.
+    await waitFor(() =>
+      expect(document.title).toBe(`${strings.errorHeading} — ${strings.appName}`),
+    );
     // Nothing announced on arrival: the page says it, and the title does.
     expect(assertiveText()).toBe("");
   });
