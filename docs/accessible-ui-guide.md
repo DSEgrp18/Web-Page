@@ -184,13 +184,27 @@ Never move focus on a timer, on a poll completing, or on first load.
 
 ## 6. Sinhala, specifically
 
-**`lang="si"` on `<html>`** is what makes NVDA and TalkBack use a Sinhala voice.
-Without it the interface is read by an English synthesiser and is unintelligible
-even when the words are right. It is set in `layout.tsx`; a test asserts it.
+**`<html lang>`** is what makes NVDA and TalkBack choose a voice. Without the
+right value, the interface is read by the wrong synthesiser and is unintelligible
+even when the words are right. Sinhala is the default. English is an optional
+interface language the reader picks in the settings. `layout.tsx` sets `lang`
+from the `swara-lang` cookie on the server, so the first byte is right and
+nothing flashes. A test asserts it for every cookie value.
 
-**Every user-facing string lives in `src/lib/strings.ts`.** One file, so a native
-speaker can review the whole interface in a single read. Never inline a Sinhala
-string in a component, and never inline an English one either.
+**Every user-facing string lives in `src/lib/strings.ts`, with its English in
+`strings.en.ts`.** Two files, so a native speaker can review each interface in
+a single read. Components get the reader's dictionary from `useStrings()`, and
+server pages from `getStrings()`. Never import `si` or `en` directly (a test
+checks). Never inline a string in a component, in either language. A new key
+goes in both files, or the build fails.
+
+**The book is never translated, and its words are always `lang="si"`.**
+Sentences, bookmarks, answers, quotes, quiz questions and options, and chapter
+names are all book text. Wrap it in `<span lang="si">`. For an interface
+sentence with the book's words inside it, use `<Quoted format={strings.x}
+text={...} />` from `BookText.tsx`, which marks only the book's words. For
+things a person typed, such as a title or a question, use `<Typed text={...} />`,
+which marks the text by its script.
 
 **Sinhala needs vertical room.** Vowel signs stack above and below the base
 letter, so a Latin-default `line-height: 1.4` clips them into each other.
@@ -275,7 +289,10 @@ does not mean it works.
 
 | Path | What it is |
 | --- | --- |
-| `apps/web/src/lib/strings.ts` | Every word the interface says. Sinhala only. |
+| `apps/web/src/lib/strings.ts` | Every word the interface says, in Sinhala: the default and the text of record. |
+| `apps/web/src/lib/strings.en.ts` | The same keys in English, the optional interface language. |
+| `apps/web/src/lib/i18n.ts` | Which language, from the `swara-lang` cookie; `useStrings()` and `getStrings()` read it. |
+| `apps/web/src/components/BookText.tsx` | Marking the book's words `lang="si"` inside the interface's. |
 | `apps/web/src/lib/client.ts` | Every request to the API. Turns HTTP status into named failure kinds. |
 | `apps/web/src/lib/types.ts` | The API contract. Hand-written; `npm run verify:contract` checks it. |
 | `apps/web/src/lib/usePlayer.ts` | Playback: one audio element, a queue of sentences, instant pause. |
