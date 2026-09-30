@@ -20,6 +20,7 @@ import hashlib
 import random
 import re
 import unicodedata
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -30,7 +31,9 @@ from .retrieval import LexicalIndex, tokenize
 VERIFIER_VERSION = "1"
 
 #: Bump when the cloze generator's choices change.
-CLOZE_VERSION = "1"
+#: 2: the blank is a term the book returns to, distractors are words the book
+#: uses more than once, and sentences that lean on "this" or "it" are skipped.
+CLOZE_VERSION = "2"
 
 #: What stands in for the missing term.
 BLANK = "_____"
@@ -142,9 +145,41 @@ class Sentence:
 #: mostly particles and case endings, which test grammar, not the book.
 MIN_TERM = 4
 
+#: A word must occur at least this often in the book to be blanked or offered
+#: as a distractor. A word the book uses once is as likely to be an extraction
+#: fault as a term (a stray "විට්න්" among real options gives the answer away),
+#: and a term the lesson is about comes back.
+MIN_OCCURRENCES = 2
+
+#: Words that point back to an earlier sentence. A sentence that opens with one
+#: ("මේ ගැන", "එය") cannot be understood alone, so it makes a question the
+#: student cannot answer from what they are shown.
+_POINTS_BACK = frozenset(
+    {
+        "මේ", "මෙම", "මෙය", "මේවා", "මෙහි", "මෙසේ",
+        "ඒ", "එම", "එය", "ඒවා", "එහි", "එසේ", "එබැවින්", "එනිසා", "එහෙයින්",
+        "ඔහු", "ඇය", "ඔවුහු", "ඔවුන්", "ඔවුන්ගේ", "ඔහුගේ", "ඇයගේ",
+    }
+)  # fmt: skip
+
+#: How far into a sentence a pointing-back word makes it depend on another.
+_LEADING_TOKENS = 4
+
+#: Sentences outside these bounds make poor questions: too short to carry a
+#: fact, or too long to hold in mind while listening to the options.
+MIN_SENTENCE = 40
+MAX_SENTENCE = 260
+
 
 def _is_term(token: str) -> bool:
-    return len(token) >= MIN_TERM and not token.isdigit()
+    return len(token) >= MIN_TERM and not any(character.isdigit() for character in token)
+
+
+def _stands_alone(text: str) -> bool:
+    """Whether a sentence can be understood without the one before it."""
+    if not MIN_SENTENCE <= len(text) <= MAX_SENTENCE:
+        return False
+    return not any(token in _POINTS_BACK for token in tokenize(text)[:_LEADING_TOKENS])
 
 
 def _seeded(seed: str) -> random.Random:
@@ -157,37 +192,54 @@ def cloze_questions(
     *,
     seed: str,
     limit: int = 10,
+    first: Sequence[int] = (),
+    occurrences: Counter[str] | None = None,
 ) -> list[Candidate]:
     """Fill-in-the-blank candidates from the book's own sentences.
 
-    The blank is the sentence's rarest term, by the same measure retrieval
-    uses. Distractors are other rare terms from the same book of similar
-    length, preferring the same ending, so the options read alike and the
-    answer cannot be guessed from its grammar. Deterministic for a given seed:
-    the same book makes the same quiz.
+    The blank is the sentence's **key term**: a word that recurs in the book
+    but not everywhere, weighted by how often it comes back and how rare it is
+    across passages (the measure retrieval ranks by). The rarest word alone
+    picked adverbs and extraction faults. Distractors are other recurring terms
+    of similar length, preferring the same ending, so the options read alike
+    and the answer cannot be guessed from its grammar. Sentences that lean on
+    an earlier one are skipped.
+
+    ``occurrences`` counts words across the whole book, when ``sentences`` is
+    only the part a student chose: whether a word recurs is a fact about the
+    book, not about the part. Without it, the sentences given are counted.
+
+    ``first`` lists sentences to use before the rest, in that order — those
+    matching the topic a student asked about. Otherwise the order is shuffled.
+    Deterministic for a given seed: the same book makes the same quiz.
 
     These are candidates. The caller still runs :func:`verify` on each.
     """
-    vocabulary = sorted(
-        {
-            token
-            for sentence in sentences
-            for token in tokenize(sentence.text)
-            if _is_term(token) and index.is_informative(token)
-        }
-    )
+    counts = Counter(token for sentence in sentences for token in tokenize(sentence.text))
+    if occurrences is not None:
+        counts = occurrences
+
+    def is_key(token: str) -> bool:
+        return _is_term(token) and index.is_informative(token) and counts[token] >= MIN_OCCURRENCES
+
+    vocabulary = sorted({token for s in sentences for token in tokenize(s.text) if is_key(token)})
     picked: list[Candidate] = []
     rng = _seeded(seed)
     order = list(range(len(sentences)))
     rng.shuffle(order)
+    if first:
+        preferred = [position for position in first if 0 <= position < len(sentences)]
+        order = preferred + [position for position in order if position not in set(preferred)]
     for position in order:
         if len(picked) >= limit:
             break
         sentence = sentences[position]
-        tokens = [t for t in tokenize(sentence.text) if _is_term(t) and index.is_informative(t)]
+        if not _stands_alone(sentence.text):
+            continue
+        tokens = [t for t in tokenize(sentence.text) if is_key(t)]
         if not tokens:
             continue
-        term = max(tokens, key=lambda t: (index.idf(t), t))
+        term = max(tokens, key=lambda t: (counts[t] * index.idf(t), t))
         blanked, count = re.subn(re.escape(term), BLANK, sentence.text, count=1, flags=re.I)
         if count != 1:
             continue
