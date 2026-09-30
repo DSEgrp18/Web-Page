@@ -340,3 +340,63 @@ test("the contrast check fails on text a reader could not see", async ({ page })
   const contrast = violations.find((v) => v.rule === "color-contrast");
   expect(contrast?.nodes.join(" ")).toContain("#faint");
 });
+
+// The optional English interface: the same checks, with the language cookie a
+// reader who chose English carries. The book's own words stay Sinhala, so the
+// book's locators do not change; the controls' names do.
+const ENGLISH = [
+  { name: "the library", ...LIBRARY },
+  {
+    name: "settings",
+    ...LIBRARY,
+    open: async (page) => {
+      await page.getByRole("button", { name: "Reading settings" }).click();
+      await expect(page.getByRole("radio", { name: "English" })).toBeChecked();
+    },
+    overlay: ".settings-panel",
+  },
+  { name: "the reader", ...READER },
+  {
+    name: "the assistant",
+    ...READER,
+    open: async (page) => {
+      await page.getByRole("button", { name: "Ask about the book" }).click();
+      await expect(page.getByRole("complementary", { name: "Ask about the book" })).toBeVisible();
+    },
+    overlay: ".assistant",
+  },
+  { name: "the front door", path: "/", ready: (page) => page.getByRole("heading", { level: 1 }) },
+  {
+    name: "the privacy notice, a draft translation",
+    path: "/privacy",
+    ready: (page) => page.getByRole("note"),
+  },
+  { name: "signing in", path: "/sign-in", ready: (page) => page.getByRole("heading", { name: "Sign in" }) },
+  {
+    name: "practice",
+    path: "/library/doc-1/practice",
+    ready: (page) => page.getByRole("button", { name: "Make practice questions" }),
+  },
+];
+
+for (const scheme of ["light", "dark"]) {
+  for (const screen of ENGLISH) {
+    test(`in English, ${screen.name} has no detectable violations in the ${scheme} theme`, async ({
+      page,
+      baseURL,
+    }) => {
+      await page.context().addCookies([{ name: "swara-lang", value: "en", url: baseURL }]);
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+      await withOneBook(page, screen.account, screen.routes);
+      await page.goto(screen.path);
+      await expect(page.locator("html")).toHaveAttribute("lang", "en");
+      await expect(screen.ready(page)).toBeVisible();
+      if (screen.open) await screen.open(page);
+
+      const { violations, undecided, measured } = await contrastAudit(page, screen.overlay);
+      expect(violations).toEqual([]);
+      expect(undecided).toEqual([]);
+      expect(measured).toBeGreaterThan(0);
+    });
+  }
+}
