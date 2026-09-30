@@ -893,7 +893,7 @@ pull request that updates this section.
 | Decision | Rejected alternative | Why |
 | --- | --- | --- |
 | The portal lives inside the same app | A separate marketing site | One deploy, one design system, one accessibility suite |
-| Public pages in Sinhala only | Sinhala and English | Less to write and review; the product is Sinhala-first |
+| Sinhala by default, with English as an optional interface language (changed from "public pages in Sinhala only") | Sinhala only | Teachers, parents, and reviewers who do not read Sinhala could not use or check the product. Sinhala stays the default and the text of record, and the book is never translated. The English privacy notice, terms, and accessibility statement say they are drafts awaiting review. A test keeps the two dictionaries' keys equal, so the cost is one more file to review, not a second product |
 | An httpOnly cookie through a same-origin route handler | A bearer token in localStorage | pdf.js renders untrusted PDFs in our page; a cookie cannot be stolen by script; CORS disappears |
 | A route handler for the pass-through | Next `rewrites()` | Rewrites are fixed at build time, time out at 30 s, and sit behind a 10 MB body buffer |
 | Teachers created by an admin or an invitation | Choosing a role at registration | Anyone could claim to be a teacher |

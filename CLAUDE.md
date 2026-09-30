@@ -312,7 +312,7 @@ Target WCAG 2.2 AA and validate with people who use assistive technology.
 - Readable Sinhala typography, adequate contrast, and touch-friendly controls.
 - Test core tasks with NVDA and Android TalkBack.
 - Treat inability to upload, play, pause, navigate, or resume with assistive technology as a release blocker.
-- Make Sinhala the primary UI language and have controls, errors, and status messages reviewed by a native speaker. Set appropriate language metadata and test how target assistive technologies announce the interface; Sinhala audio content alone does not make navigation accessible.
+- Make Sinhala the primary UI language and the default, and have controls, errors, and status messages reviewed by a native speaker. English is an optional second interface language that a reader chooses in the settings. It is stored in a cookie the server reads, so `<html lang>` is right from the first byte. It never translates the book: the book's text stays marked `lang="si"` in either interface. The Sinhala is the text of record; English versions of the privacy notice, terms, and accessibility statement are drafts marked for review. Both dictionaries must keep the same keys, and a test enforces it. Set appropriate language metadata and test how target assistive technologies announce the interface; Sinhala audio content alone does not make navigation accessible.
 - Use polite live regions for routine progress and reserve assertive alerts for urgent errors. Avoid announcing every prefetch or intermediate update.
 
 ## Accounts, roles, and authorization
