@@ -8,6 +8,7 @@ import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
 import type { AnswerResult, QuizDetail, QuizSummary } from "@/lib/types";
 import { useStrings } from "@/components/LocaleProvider";
+import { Quoted } from "@/components/BookText";
 
 /** What stands for the missing word in a question, as the API writes it. */
 const BLANK = "_____";
@@ -72,7 +73,7 @@ export function Practice({
     return () => {
       cancelled = true;
     };
-  }, [api, documentId, setFailure]);
+  }, [api, documentId, setFailure, strings]);
 
   // Arriving from "revise next": open that quiz with only its due questions.
   useEffect(() => {
@@ -92,7 +93,7 @@ export function Practice({
     return () => {
       cancelled = true;
     };
-  }, [api, review, setFailure]);
+  }, [api, review, setFailure, strings]);
 
   // Back from "hear the source": the same quiz, carrying on where it was.
   const resumeQuiz = resume?.quiz;
@@ -113,7 +114,7 @@ export function Practice({
     return () => {
       cancelled = true;
     };
-  }, [api, resumeQuiz, resumeAt, setFailure]);
+  }, [api, resumeQuiz, resumeAt, setFailure, strings]);
 
   async function refresh() {
     setQuizzes(await api.listQuizzes(documentId));
@@ -299,12 +300,12 @@ function Question({ text }: { text: string }) {
   const [before, ...rest] = text.split(BLANK);
   return (
     <>
-      {before}
+      <span lang="si">{before}</span>
       {rest.length > 0 ? (
         <>
           <span aria-hidden="true">{BLANK}</span>
           <span className="visually-hidden">{strings.blankWord}</span>
-          {rest.join(BLANK)}
+          <span lang="si">{rest.join(BLANK)}</span>
         </>
       ) : null}
     </>
@@ -419,16 +420,18 @@ function TakeQuiz({
                 disabled={result !== null}
                 onChange={() => setChoice(position)}
               />
-              {option}
+              <span lang="si">{option}</span>
             </label>
           ))}
         </fieldset>
         {result ? (
           <>
             <p className={result.correct ? RESULT.right : RESULT.wrong}>
-              {result.correct
-                ? strings.rightAnswer
-                : strings.wrongAnswer(question.options[result.answer] ?? "")}
+              {result.correct ? (
+                strings.rightAnswer
+              ) : (
+                <Quoted format={strings.wrongAnswer} text={question.options[result.answer] ?? ""} />
+              )}
             </p>
             <div className="notice-actions">
               {result.segment_id ? (
@@ -502,7 +505,10 @@ function Review({
               <Question text={question.question} />
             </p>
             <p className="hint">
-              {strings.correctIs(question.options[question.answer ?? 0] ?? "")}
+              <Quoted
+                format={strings.correctIs}
+                text={question.options[question.answer ?? 0] ?? ""}
+              />
             </p>
             <button
               className="btn btn-quiet btn-sm"

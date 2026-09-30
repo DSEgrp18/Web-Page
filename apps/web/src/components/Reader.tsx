@@ -20,6 +20,7 @@ import type { Bookmark, Chapter, DocumentDetail, Page, Progress } from "@/lib/ty
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { usePlayer } from "@/lib/usePlayer";
 import { useStrings } from "@/components/LocaleProvider";
+import { Typed } from "@/components/BookText";
 
 /** Heard sentences are sent once this many have built up, or on a pause. */
 const HEARD_BATCH = 10;
@@ -112,7 +113,7 @@ export function Reader({
       setError(message);
       alert(message);
     },
-    [alert],
+    [alert, strings],
   );
 
   // -- the book, and where the reader left off ---------------------------
@@ -196,7 +197,7 @@ export function Reader({
     // is already reading. Moving it after "next page" is what tells the reader
     // the page actually changed.
     if (navigated.current) headingRef.current?.focus();
-  }, [page, say, sections]);
+  }, [page, say, sections, strings]);
 
   // -- playback ----------------------------------------------------------
 
@@ -274,7 +275,7 @@ export function Reader({
     // Said once, out loud, the first time a tone plays. A listener cannot tell
     // a placeholder from speech they were not expecting.
     say(strings.placeholderAudio);
-  }, [player.realModel, say]);
+  }, [player.realModel, say, strings.placeholderAudio]);
 
   // -- navigation --------------------------------------------------------
 
@@ -377,7 +378,16 @@ export function Reader({
     } finally {
       setBookmarkSaving(false);
     }
-  }, [api, documentId, fail, player.currentId, say]);
+  }, [
+    api,
+    documentId,
+    fail,
+    player.currentId,
+    say,
+    strings.bookmarkSaved,
+    strings.bookmarkUpdated,
+    strings.undo,
+  ]);
 
   const undoSavedBookmark = useCallback(async () => {
     if (!undoBookmark) return;
@@ -391,7 +401,7 @@ export function Reader({
     } catch (cause) {
       fail(cause);
     }
-  }, [api, documentId, fail, say, undoBookmark]);
+  }, [api, documentId, fail, say, strings.bookmarkRemoved, undoBookmark]);
 
   // -- selection, for asking about a passage ------------------------------
 
@@ -530,7 +540,7 @@ export function Reader({
 
         <div className="workspace-heading">
           <h1 ref={headingRef} tabIndex={-1} className="workspace-title">
-            {title}
+            <Typed text={title} />
           </h1>
           {chapter ? (
             <p className="workspace-chapter">

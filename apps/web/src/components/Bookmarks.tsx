@@ -66,7 +66,7 @@ export function Bookmarks() {
     } finally {
       setLoading(false);
     }
-  }, [alert, api]);
+  }, [alert, api, strings]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +93,7 @@ export function Bookmarks() {
     return () => {
       cancelled = true;
     };
-  }, [alert, api]);
+  }, [alert, api, strings]);
 
   const remove = useCallback(
     async (documentId: string, bookmark: Bookmark) => {
@@ -126,7 +126,7 @@ export function Bookmarks() {
         setRemoving(null);
       }
     },
-    [alert, api, removing, say],
+    [alert, api, removing, say, strings],
   );
 
   const count = groups.reduce((total, group) => total + group.bookmarks.length, 0);
@@ -181,7 +181,9 @@ export function Bookmarks() {
                       <div>
                         <p className="bookmark-page">{pageName}</p>
                         {bookmark.display_text ? (
-                          <p className="bookmark-text">{bookmark.display_text}</p>
+                          <p className="bookmark-text" lang="si">
+                            {bookmark.display_text}
+                          </p>
                         ) : null}
                         {bookmark.note ? <p className="bookmark-note">{bookmark.note}</p> : null}
                         {bookmark.stale ? (

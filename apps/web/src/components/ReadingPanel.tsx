@@ -129,8 +129,10 @@ export function ReadingPanel({
             <h3>{strings.sentenceWords}</h3>
             <span className="hint">{strings.wordCount(words.length)}</span>
           </div>
-          <p className="sentence-words-source">{wordSegment.display_text}</p>
-          <ol className="sentence-words-list">
+          <p className="sentence-words-source" lang="si">
+            {wordSegment.display_text}
+          </p>
+          <ol className="sentence-words-list" lang="si">
             {words.map((word, index) => (
               <li key={`${index}-${word}`}>{word}</li>
             ))}
@@ -194,7 +196,7 @@ export function ReadingPanel({
                      * paragraph beside it is the defect this exists to fix.
                      */}
                     {label ? <span className="sentence-role">{label}</span> : null}
-                    {segment.display_text}
+                    <span lang="si">{segment.display_text}</span>
                   </button>
                 </li>
               );
@@ -232,7 +234,8 @@ function splitWords(text: string): string[] {
  */
 function PageNotes({ page, documentNotes }: { page: Page; documentNotes: string[] }) {
   const strings = useStrings();
-  // Ours are Sinhala; the pipeline's are English, and are marked so.
+  // Ours are in the interface's language; the pipeline's are English, and
+  // are marked so.
   const messages: { text: string; lang?: "en" }[] = [];
   if (page.quality === "undecodable") messages.push({ text: strings.qualityUndecodable });
   else if (page.quality === "needs_review") messages.push({ text: strings.qualityNeedsReview });

@@ -117,7 +117,7 @@ export function ContentsSheet({
                     {chapter.number ? (
                       <span className="contents-number latin">{chapter.number}</span>
                     ) : null}
-                    <span className="contents-title">
+                    <span className="contents-title" lang={chapter.title ? "si" : undefined}>
                       {chapter.title || `${strings.chapterWord} ${chapter.number ?? index + 1}`}
                     </span>
                     <span className="contents-page hint">

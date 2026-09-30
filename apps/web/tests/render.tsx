@@ -67,3 +67,14 @@ export function opensBook(title: string): RegExp {
   const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^(${verbs.join("|")}).*${escaped}`);
 }
+
+/**
+ * A matcher for an element whose whole text is `text`, even when part of it is
+ * a nested span — as the book's words are, marked `lang="si"` inside an
+ * interface sentence. `getByText` alone only sees an element's own text.
+ */
+export function wholeText(text: string) {
+  return (_content: string, element: Element | null) =>
+    element?.textContent === text &&
+    [...element.children].every((child) => child.textContent !== text);
+}

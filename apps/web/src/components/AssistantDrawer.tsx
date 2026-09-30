@@ -11,6 +11,7 @@ import { ASSISTANT_MAX_REM, ASSISTANT_MIN_REM, DEFAULTS } from "@/lib/preference
 import { messageFor } from "@/lib/strings";
 import type { Exchange, StudyAnswer } from "@/lib/types";
 import { useStrings } from "@/components/LocaleProvider";
+import { Quoted, Typed } from "@/components/BookText";
 
 /** How many earlier exchanges a question carries. The API accepts at most 6. */
 const HISTORY_LIMIT = 4;
@@ -305,7 +306,7 @@ export function AssistantDrawer({
         onClearSelection();
       }
     },
-    [alert, api, documentId, onClearSelection, say, selection, turns],
+    [alert, api, documentId, onClearSelection, say, selection, strings, turns],
   );
 
   const openCitation = useCallback(
@@ -323,7 +324,14 @@ export function AssistantDrawer({
         say(strings.citationUnavailable);
       }
     },
-    [onGoToPage, onOpenCitation, pageIndex, say],
+    [
+      onGoToPage,
+      onOpenCitation,
+      pageIndex,
+      say,
+      strings.citationOpened,
+      strings.citationUnavailable,
+    ],
   );
 
   return (
@@ -399,7 +407,7 @@ export function AssistantDrawer({
             <article key={turn.id} className="turn">
               <p className="turn-question">
                 <span className="turn-who">{strings.assistantYou}</span>
-                {turn.question}
+                <Typed text={turn.question} />
               </p>
 
               {turn.error ? (
@@ -418,7 +426,7 @@ export function AssistantDrawer({
                   <span className="turn-who">
                     {turn.answer.generated ? strings.answerFromAi : strings.answerFromBook}
                   </span>
-                  <blockquote>{turn.answer.answer}</blockquote>
+                  <blockquote lang="si">{turn.answer.answer}</blockquote>
 
                   {turn.answer.citations.length > 0 ? (
                     <ol className="citations">
@@ -437,10 +445,15 @@ export function AssistantDrawer({
                               </span>
                               {citation.section ? (
                                 <span className="citation-section">
-                                  {strings.citationSection(citation.section)}
+                                  <Quoted
+                                    format={strings.citationSection}
+                                    text={citation.section}
+                                  />
                                 </span>
                               ) : null}
-                              <span className="citation-quote">{citation.quote}</span>
+                              <span className="citation-quote" lang="si">
+                                {citation.quote}
+                              </span>
                             </button>
                           </li>
                         );
