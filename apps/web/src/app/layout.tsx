@@ -3,6 +3,7 @@ import { Abhaya_Libre, Noto_Sans_Sinhala, Roboto } from "next/font/google";
 
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { getLocale, getStrings } from "@/lib/i18n.server";
+import { getTheme } from "@/lib/theme.server";
 
 import "./globals.css";
 import { Providers } from "./providers";
@@ -67,9 +68,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // unintelligible even when the words are right. It follows the reader's
   // language cookie, read here on the server, so the first byte is right.
   const locale = await getLocale();
+  // The theme cookie, likewise, so a reader who chose dark gets dark from the
+  // first paint. `system` leaves it to `prefers-color-scheme`.
+  const theme = await getTheme();
   return (
     <html
       lang={locale}
+      data-theme={theme === "system" ? undefined : theme}
       className={`${abhayaLibre.variable} ${notoSansSinhala.variable} ${roboto.variable}`}
     >
       <body>

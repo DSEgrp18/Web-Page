@@ -34,12 +34,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   );
 
   /*
-   * The server renders with no `data-theme`, so a reader who chose dark gets
-   * one paint of light before this runs. The alternative is a blocking inline
-   * script in `<head>`, which is the usual fix and which this deliberately does
-   * not do: it costs a render-blocking script on every page load to save one
-   * frame, and `color-scheme` already keeps the browser's own chrome from
-   * flashing white.
+   * The server already rendered `data-theme` from the theme cookie, so this
+   * normally changes nothing. It matters when the two disagree — a theme saved
+   * before the cookie existed, or cookies cleared — and it rewrites the
+   * cookie, so the next page load is right from its first byte. No blocking
+   * inline script in `<head>`: the cookie does that job without one.
    */
   useEffect(() => {
     applyTheme(preferences.theme);
