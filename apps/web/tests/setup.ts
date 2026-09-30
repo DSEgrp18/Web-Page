@@ -64,7 +64,7 @@ vi.mock("next/font/google", () => {
   return {
     Abhaya_Libre: face("--font-display"),
     Noto_Sans_Sinhala: face("--font-ui"),
-    Roboto: face("--font-latin"),
+    Roboto: face("--font-latin-face"),
   };
 });
 

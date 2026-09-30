@@ -27,7 +27,9 @@ const roboto = Roboto({
   // Roboto ships 100/300/400/500/700/900; 600 is not one of them and
   // next/font fails the build rather than rounding to the nearest.
   weight: ["400", "500", "700"],
-  variable: "--font-latin",
+  // Not `--font-latin`: globals.css builds that stack from this, and a
+  // property defined in terms of itself is invalid, so the face went unused.
+  variable: "--font-latin-face",
   display: "swap",
 });
 
