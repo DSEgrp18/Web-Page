@@ -28,6 +28,7 @@ import { ApiError } from "@/lib/client";
 import { jobFailureMessage, jobProgressMessage, messageFor, type Strings } from "@/lib/strings";
 import type { DocumentSummary } from "@/lib/types";
 import { useStrings } from "@/components/LocaleProvider";
+import { Typed } from "@/components/BookText";
 
 /** How often to ask whether a book has finished preparing. */
 const POLL_MS = 1500;
@@ -100,7 +101,7 @@ export function Library() {
       }
       pending.current = stillPending;
     },
-    [say],
+    [say, strings],
   );
 
   const fail = useCallback(
@@ -110,7 +111,7 @@ export function Library() {
       setError(message);
       alert(message);
     },
-    [alert],
+    [alert, strings],
   );
 
   const refresh = useCallback(async () => {
@@ -160,7 +161,7 @@ export function Library() {
     } catch (cause) {
       fail(cause);
     }
-  }, [api, deleting, refresh, say, fail]);
+  }, [deleting, api, say, strings.deleted, refresh, fail]);
 
   /**
    * Start a failed book again. The button that asked disappears as the book
@@ -178,7 +179,7 @@ export function Library() {
         fail(cause);
       }
     },
-    [api, refresh, say, fail],
+    [api, say, strings.retrying, refresh, fail],
   );
 
   const saveName = useCallback(
@@ -197,7 +198,7 @@ export function Library() {
         fail(cause);
       }
     },
-    [api, renaming, refresh, say, fail],
+    [renaming, api, say, strings.renamed, refresh, fail],
   );
 
   // Memoised because `documents ?? []` is a new array every render, which
@@ -224,7 +225,7 @@ export function Library() {
       700,
     );
     return () => window.clearTimeout(timer);
-  }, [matching, query, say]);
+  }, [matching, query, say, strings]);
 
   const openUpload = () => setUploading(true);
   const closeUpload = useCallback(() => {
@@ -467,7 +468,9 @@ function ContinueCard({ book }: { book: DocumentSummary }) {
       <BookCover documentId={book.document_id} ready={isReady(book)} />
       <div className="continue-copy">
         <p className="eyebrow">{strings.continueHeading}</p>
-        <h2 id="continue-heading">{title}</h2>
+        <h2 id="continue-heading">
+          <Typed text={title} />
+        </h2>
         <p className="hint">
           {book.page_count > 0 ? strings.pageCount(book.page_count) : null}
           {percent !== null ? ` · ${strings.progressPercent(percent)}` : null}
@@ -476,7 +479,10 @@ function ContinueCard({ book }: { book: DocumentSummary }) {
         {book.reading?.stale ? <p className="hint">{strings.resumeStale}</p> : null}
         <Link className="btn btn-primary continue-action" href={`/library/${book.document_id}`}>
           {strings.continueResume}
-          <span className="visually-hidden"> — {title}</span>
+          <span className="visually-hidden">
+            {" — "}
+            <Typed text={title} />
+          </span>
         </Link>
       </div>
     </section>
@@ -512,7 +518,7 @@ function BookCard({
         {/* Focusable from script only: where focus lands after "try again",
             whose button is gone once the book is being prepared. */}
         <h2 className="book-card-title" id={`book-${book.document_id}`} tabIndex={-1}>
-          {title}
+          <Typed text={title} />
         </h2>
 
         <p className="book-card-meta">
@@ -552,7 +558,10 @@ function BookCard({
           {preparation === "failed" && book.job?.can_retry ? (
             <button className="btn btn-primary btn-sm" type="button" onClick={onRetry}>
               {strings.retry}
-              <span className="visually-hidden"> — {title}</span>
+              <span className="visually-hidden">
+                {" — "}
+                <Typed text={title} />
+              </span>
             </button>
           ) : null}
           {ready ? (
@@ -560,7 +569,10 @@ function BookCard({
               {strings.continueOrOpen(book.reading !== null)}
               {/* The name is inside the link so a screen reader listing links
                   hears which book each one opens, not five identical ones. */}
-              <span className="visually-hidden"> — {title}</span>
+              <span className="visually-hidden">
+                {" — "}
+                <Typed text={title} />
+              </span>
             </Link>
           ) : null}
           {ready ? (
@@ -569,7 +581,10 @@ function BookCard({
               href={`/library/${encodeURIComponent(book.document_id)}/practice`}
             >
               {strings.practiceLink}
-              <span className="visually-hidden"> — {title}</span>
+              <span className="visually-hidden">
+                {" — "}
+                <Typed text={title} />
+              </span>
             </Link>
           ) : null}
           {ready && canShare ? (
@@ -578,7 +593,10 @@ function BookCard({
               href={`/library/${encodeURIComponent(book.document_id)}/share`}
             >
               {strings.shareBook}
-              <span className="visually-hidden"> — {title}</span>
+              <span className="visually-hidden">
+                {" — "}
+                <Typed text={title} />
+              </span>
             </Link>
           ) : null}
           <button
@@ -587,7 +605,10 @@ function BookCard({
             onClick={(event) => onRename(event.currentTarget)}
           >
             {strings.renameBook}
-            <span className="visually-hidden"> — {title}</span>
+            <span className="visually-hidden">
+              {" — "}
+              <Typed text={title} />
+            </span>
           </button>
           <button
             className="btn btn-quiet btn-sm btn-danger"
@@ -595,7 +616,10 @@ function BookCard({
             onClick={(event) => onDelete(event.currentTarget)}
           >
             {strings.deleteBook}
-            <span className="visually-hidden"> — {title}</span>
+            <span className="visually-hidden">
+              {" — "}
+              <Typed text={title} />
+            </span>
           </button>
         </div>
       </div>

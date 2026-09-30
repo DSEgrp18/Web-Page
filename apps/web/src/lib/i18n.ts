@@ -33,6 +33,17 @@ export function parseLocale(value: string | null | undefined): Locale {
   return value === "en" ? "en" : DEFAULT_LOCALE;
 }
 
+/**
+ * The language of text a person typed, from its script: Sinhala if it has any
+ * Sinhala letters, English if it has Latin ones, and otherwise (digits alone)
+ * whatever surrounds it.
+ */
+export function scriptLang(text: string): Locale | undefined {
+  if (/[඀-෿]/.test(text)) return "si";
+  if (/[A-Za-z]/.test(text)) return "en";
+  return undefined;
+}
+
 export function stringsFor(locale: Locale): Strings {
   return locale === "en" ? en : si;
 }

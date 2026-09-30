@@ -35,7 +35,7 @@ export function Progress() {
     return () => {
       cancelled = true;
     };
-  }, [api, setFailure]);
+  }, [api, setFailure, strings]);
 
   return (
     <div className="account-page">
@@ -115,7 +115,9 @@ export function BookTable({ book }: { book: BookProgress }) {
         <tbody>
           {book.chapters.map((chapter) => (
             <tr key={`${chapter.first_page}-${chapter.title ?? ""}`}>
-              <th scope="row">{chapterName(chapter, only, strings)}</th>
+              <th scope="row" lang={chapter.title ? "si" : undefined}>
+                {chapterName(chapter, only, strings)}
+              </th>
               <td>{strings.progressHeardCell(chapter.heard, chapter.sentences)}</td>
               <td>{strings.progressAnsweredCell(chapter.correct, chapter.answered)}</td>
               <td>{chapter.due}</td>

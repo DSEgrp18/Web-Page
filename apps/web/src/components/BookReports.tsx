@@ -7,6 +7,7 @@ import { explain, useFailure } from "@/components/AccountForms";
 import { useReader } from "@/components/ReaderProvider";
 import type { ReportView } from "@/lib/types";
 import { useStrings } from "@/components/LocaleProvider";
+import { Quoted, Typed } from "@/components/BookText";
 
 /** The problems readers reported on the owner's book, newest first, unsigned. */
 export function BookReports({ documentId }: { documentId: string }) {
@@ -35,7 +36,7 @@ export function BookReports({ documentId }: { documentId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [api, documentId, setFailure]);
+  }, [api, documentId, setFailure, strings]);
 
   return (
     <div className="account-page">
@@ -51,9 +52,15 @@ export function BookReports({ documentId }: { documentId: string }) {
           {reports.map((report) => (
             <li key={report.report_id} className="class-item">
               <h2>{strings.reportKinds[report.kind] ?? report.kind}</h2>
-              {report.sentence ? <p lang="si">{strings.reportsSentence(report.sentence)}</p> : null}
+              {report.sentence ? (
+                <p>
+                  <Quoted format={strings.reportsSentence} text={report.sentence} />
+                </p>
+              ) : null}
               {report.question_id ? <p className="hint">{strings.reportsQuestion}</p> : null}
-              <p lang="si">{report.message}</p>
+              <p>
+                <Typed text={report.message} />
+              </p>
               {report.segment_id && report.sentence ? (
                 <Link
                   href={`/library/${encodeURIComponent(documentId)}?segment=${encodeURIComponent(report.segment_id)}`}

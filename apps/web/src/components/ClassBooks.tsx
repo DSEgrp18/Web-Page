@@ -8,6 +8,7 @@ import { useReader } from "@/components/ReaderProvider";
 import { bookTitle } from "@/lib/books";
 import type { ClassBook } from "@/lib/types";
 import { useStrings } from "@/components/LocaleProvider";
+import { Typed } from "@/components/BookText";
 
 /**
  * "From your classes": the books a reader's teachers have shared with them.
@@ -55,16 +56,24 @@ export function ClassBooks() {
             <li key={`${class_id}:${book.document_id}`} className="book-card card">
               <BookCover documentId={book.document_id} ready />
               <div className="book-card-body">
-                <h3 className="book-card-title">{title}</h3>
+                <h3 className="book-card-title">
+                  <Typed text={title} />
+                </h3>
                 <p className="hint">{strings.classBookFrom(class_name)}</p>
                 <div className="book-card-actions">
                   <Link className="btn btn-primary btn-sm" href={`/library/${id}`}>
                     {strings.continueOrOpen(book.reading !== null)}
-                    <span className="visually-hidden"> — {title}</span>
+                    <span className="visually-hidden">
+                      {" — "}
+                      <Typed text={title} />
+                    </span>
                   </Link>
                   <Link className="btn btn-quiet btn-sm" href={`/library/${id}/practice`}>
                     {strings.practiceLink}
-                    <span className="visually-hidden"> — {title}</span>
+                    <span className="visually-hidden">
+                      {" — "}
+                      <Typed text={title} />
+                    </span>
                   </Link>
                 </div>
               </div>

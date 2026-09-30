@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { Practice } from "../src/components/Practice";
 import { si as strings } from "../src/lib/strings";
 import { FakeServer, readablePage } from "./fakeApi";
-import { noticeText, politeText, renderApp } from "./render";
+import { noticeText, politeText, renderApp, wholeText } from "./render";
 
 const TEACHER = "usr-teacher";
 
@@ -123,7 +123,7 @@ describe("practising on a book", () => {
     await user.click(screen.getByRole("button", { name: strings.checkAnswer }));
 
     expect(
-      await screen.findByText(strings.wrongAnswer("කෝට්ටේ"), { selector: "p.notice" }),
+      await screen.findByText(wholeText(strings.wrongAnswer("කෝට්ටේ")), { selector: "p.notice" }),
     ).toBeTruthy();
   });
 
@@ -175,7 +175,7 @@ describe("a teacher's class quiz", () => {
 
     await user.click(await screen.findByRole("button", { name: strings.makeClassQuiz }));
     await screen.findByRole("heading", { name: strings.reviewQuiz });
-    expect(screen.getByText(strings.correctIs("කෝට්ටේ"))).toBeTruthy();
+    expect(screen.getByText(wholeText(strings.correctIs("කෝට්ටේ")))).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: strings.removeQuestion(2) }));
     await waitFor(() => expect(server.quizzes[0]!.questions).toHaveLength(1));
