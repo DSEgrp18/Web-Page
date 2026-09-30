@@ -643,7 +643,10 @@ describe("signed out", () => {
     );
 
     await screen.findByRole("heading", { name: strings.signedOutHeading });
-    expect(document.title).toBe(`${strings.signInHeading} — ${strings.appName}`);
+    // Set by an effect, which can run a moment after the heading paints.
+    await waitFor(() =>
+      expect(document.title).toBe(`${strings.signInHeading} — ${strings.appName}`),
+    );
     expect(document.getElementById("main")?.getAttribute("tabindex")).toBe("-1");
   });
 
