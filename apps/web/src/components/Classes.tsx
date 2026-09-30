@@ -32,7 +32,7 @@ export function Classes({ joinCode }: { joinCode?: string } = {}) {
     } catch (error) {
       setFailure(explain(error, {}, strings));
     }
-  }, [api, setFailure]);
+  }, [api, setFailure, strings]);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +47,7 @@ export function Classes({ joinCode }: { joinCode?: string } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [api, setFailure]);
+  }, [api, setFailure, strings]);
 
   const teaching =
     classes && account?.role === "teacher" ? (

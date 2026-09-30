@@ -33,7 +33,7 @@ export function ClassProgressSection({ classId }: { classId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [api, classId, setFailure]);
+  }, [api, classId, setFailure, strings]);
 
   async function download() {
     try {

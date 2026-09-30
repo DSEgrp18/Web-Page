@@ -71,7 +71,7 @@ export function ShareBook({ documentId }: { documentId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [api, documentId, setFailure]);
+  }, [api, documentId, setFailure, strings]);
 
   if (account && account.role !== "teacher") {
     return (

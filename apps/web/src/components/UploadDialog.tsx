@@ -104,7 +104,7 @@ export function UploadDialog({
           : strings.uploadSelectedCount(selected.length),
       );
     },
-    [alert, say],
+    [alert, say, strings],
   );
 
   const onDrop = useCallback(
@@ -156,7 +156,7 @@ export function UploadDialog({
       alert(message);
       setBusy(false);
     }
-  }, [alert, api, files, onClose, onUploaded, say, title]);
+  }, [alert, api, files, onClose, onUploaded, say, strings, title]);
 
   return (
     /* The backdrop click below is a pointer affordance on an element that is

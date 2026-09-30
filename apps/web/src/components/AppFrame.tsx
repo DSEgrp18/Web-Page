@@ -191,7 +191,7 @@ function Unavailable({ kind }: { kind: UnavailableKind }) {
     return () => {
       document.title = before;
     };
-  }, []);
+  }, [strings.appName, strings.errorHeading]);
 
   async function tryAgain() {
     // Not `disabled`: a disabled button under the reader's focus drops it.
@@ -246,7 +246,7 @@ function SignedOut({ pathname }: { pathname: string }) {
     return () => {
       document.title = before;
     };
-  }, []);
+  }, [strings.appName, strings.signInHeading]);
 
   // The query goes too: a class link's code must survive signing in. This
   // panel only renders in the browser, once the session check has answered.

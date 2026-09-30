@@ -56,7 +56,7 @@ export function PrerenderSection({ documentId }: { documentId: string }) {
       );
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [api, documentId, working, say]);
+  }, [api, documentId, working, say, strings.prerenderDone]);
 
   async function start() {
     try {
