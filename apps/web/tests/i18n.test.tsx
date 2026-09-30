@@ -48,6 +48,13 @@ describe("the two dictionaries", () => {
     }
   });
 
+  it("count in English as English does", () => {
+    expect(en.pageCount(1)).toBe("1 page");
+    expect(en.pageCount(2)).toBe("2 pages");
+    expect(en.sentenceCount(1)).toBe("1 sentence");
+    expect(en.offlineMissing(1)).toBe("1 sentence has no audio.");
+  });
+
   it("leave nothing empty", () => {
     for (const [key, value] of Object.entries(en)) {
       if (typeof value === "string") expect(value.trim(), key).not.toBe("");
