@@ -23,7 +23,15 @@ _WORKER_TESTS = Path(__file__).resolve().parents[2] / "worker" / "tests"
 if str(_WORKER_TESTS) not in sys.path:
     sys.path.insert(0, str(_WORKER_TESTS))
 
-from pdf_fixtures import Page, Text, build_pdf, legacy_page, sinhala_page  # noqa: E402
+from pdf_fixtures import (  # noqa: E402
+    Page,
+    Text,
+    build_pdf,
+    later_lesson_page,
+    legacy_page,
+    lesson_page,
+    sinhala_page,
+)
 
 from sinhala_reader import Deps, create_app  # noqa: E402
 from sinhala_reader.security import AUTH_MODE_ENV, DEVELOPMENT_MODE, SECRET_ENV  # noqa: E402
@@ -109,5 +117,7 @@ __all__ = [
     "build_pdf",
     "legacy_page",
     "sinhala_page",
+    "lesson_page",
+    "later_lesson_page",
     "upload",
 ]

@@ -266,6 +266,49 @@ def sinhala_page(*, images: int = 0) -> Page:
     )
 
 
+#: A page of a history lesson, as a textbook writes one: sentences long
+#: enough to ask about, and terms that come back. Practice questions need both.
+LESSON_LINES = (
+    "අනුරාධපුර රාජධානිය සමයේ වාරිමාර්ග පද්ධතිය විශාල ලෙස දියුණු විය.",
+    "පොළොන්නරුව රාජධානිය සමයේ පරාක්‍රමබාහු රජු විශාල වැව් ඉදි කළේය.",
+    "වාරිමාර්ග පද්ධතිය නිසා කෘෂිකර්මය රට පුරා ව්‍යාප්ත විය.",
+    "කෘෂිකර්මය දියුණු වීමත් සමඟ ගම්මාන ද විශාල ලෙස ව්‍යාප්ත විය.",
+    "වෙළඳාම නිසා මහාතිත්ථ වරාය විදේශීය නැව්වලින් පිරී පැවතිණි.",
+    "විදේශීය වෙළඳාම පොළොන්නරුව රාජධානිය කාලයේ ද අඛණ්ඩව පැවතිණි.",
+    "අනුරාධපුර නගරය බෞද්ධ සංස්කෘතියේ කේන්ද්‍රස්ථානය ලෙස සැලකේ.",
+    "පරාක්‍රමබාහු රජු පොළොන්නරුව නගරය අලංකාර ගොඩනැගිලිවලින් සැරසීය.",
+    "බෞද්ධ සංස්කෘතියේ බලපෑම ගම්මාන ජීවිතයේ සෑම අංශයකටම දැනුණි.",
+    "මහාතිත්ථ වරාය හරහා පැමිණි විදේශීය වෙළඳුන් මුතු මිලදී ගත්හ.",
+)
+
+
+#: The next lesson: another period, with its own recurring terms, so a book of
+#: two pages has words that tell its pages apart.
+LATER_LESSON_LINES = (
+    "පෘතුගීසීන් කොළඹ බලකොටුව ඉදි කර මුහුදුබඩ ප්‍රදේශ පාලනය කළහ.",
+    "ලන්දේසීන් පෘතුගීසීන් පරාජය කර මුහුදුබඩ ප්‍රදේශ අත්පත් කර ගත්හ.",
+    "ලන්දේසීන් කුරුඳු වෙළඳාම තම ඒකාධිකාරය යටතට පත් කර ගත්හ.",
+    "කුරුඳු වෙළඳාම නිසා ලන්දේසි සමාගම විශාල ලාභ ලැබීය.",
+    "බ්‍රිතාන්‍යයන් ලන්දේසීන්ගෙන් මුහුදුබඩ ප්‍රදේශ අල්ලා ගත්හ.",
+    "බ්‍රිතාන්‍යයන් උඩරට රාජධානිය ද අල්ලා ගෙන මුළු රටම පාලනය කළහ.",
+    "කොළඹ බලකොටුව පසු කාලයේ වෙළඳ මධ්‍යස්ථානයක් බවට පත් විය.",
+    "උඩරට රාජධානිය අවසන් වූයේ බ්‍රිතාන්‍යයන් සමඟ ගිවිසුමකිනි.",
+)
+
+
+def lesson_page(lines: tuple[str, ...] = LESSON_LINES) -> Page:
+    return Page(
+        blocks=tuple(
+            Text(line, font="NotoSerifSinhala", y=740 - index * 22)
+            for index, line in enumerate(lines)
+        )
+    )
+
+
+def later_lesson_page() -> Page:
+    return lesson_page(LATER_LESSON_LINES)
+
+
 def legacy_page(font: str = "ABCDEF+FMAbhaya") -> Page:
     return Page(blocks=(Text(LEGACY_LINE, font=font, y=700),))
 

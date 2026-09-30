@@ -7,7 +7,7 @@ import json
 from dataclasses import replace
 
 import pytest
-from conftest import legacy_page, sinhala_page
+from conftest import later_lesson_page, legacy_page, lesson_page
 from test_publishing import School, cheap_hashing, sessions_auth  # noqa: F401
 
 
@@ -22,7 +22,7 @@ def make(school: School, doc: str, who, **body):
 
 class TestAPersonalQuiz:
     def test_is_made_from_the_books_own_sentences(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
 
         made = make(school, doc, school.teacher)
 
@@ -36,7 +36,7 @@ class TestAPersonalQuiz:
         assert provenance["verifier_version"] and provenance["generator"] == "cloze"
 
     def test_an_answer_is_checked_and_points_at_the_source(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         quiz = make(school, doc, school.teacher).json()
         question = quiz["questions"][0]
         right = question["answer"]
@@ -55,7 +55,7 @@ class TestAPersonalQuiz:
         ]
 
     def test_is_nobody_elses(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
         quiz = make(school, doc, school.teacher).json()
 
@@ -67,7 +67,7 @@ class TestAPersonalQuiz:
         assert listed == []
 
     def test_a_class_member_can_make_their_own(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
 
         made = make(school, doc, school.student)
@@ -76,11 +76,11 @@ class TestAPersonalQuiz:
         assert made.json()["questions"][0]["answer"] is not None  # theirs, so theirs to see
 
     def test_a_stranger_cannot_make_one(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         assert make(school, doc, school.student).status_code == 404
 
     def test_goes_stale_when_the_book_changes(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         quiz = make(school, doc, school.teacher).json()
         document = school.store.get_document(doc, school.teacher_id)
         assert document is not None
@@ -92,7 +92,7 @@ class TestAPersonalQuiz:
 
 class TestAClassQuiz:
     def test_reaches_the_class_only_once_the_teacher_publishes_it(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
         quiz = make(school, doc, school.teacher, for_class=True).json()
         url = f"/quizzes/{quiz['quiz_id']}"
@@ -109,7 +109,7 @@ class TestAClassQuiz:
         assert "quiz_published" in kinds
 
     def test_the_teacher_removes_questions_in_review(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         quiz = make(school, doc, school.teacher, for_class=True).json()
         first = quiz["questions"][0]["question_id"]
 
@@ -120,7 +120,7 @@ class TestAClassQuiz:
         assert first not in [q["question_id"] for q in left["questions"]]
 
     def test_only_the_books_teacher_makes_one(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
 
         refused = make(school, doc, school.student, for_class=True)
@@ -128,7 +128,7 @@ class TestAClassQuiz:
         assert refused.status_code == 403
 
     def test_a_removed_student_loses_it(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
         quiz = make(school, doc, school.teacher, for_class=True).json()
         school.client.post(f"/quizzes/{quiz['quiz_id']}/publish", headers=school.teacher)
@@ -145,7 +145,7 @@ class TestAClassQuiz:
 class TestWhatGroundsAQuestion:
     def test_never_a_page_that_needs_review(self, school: School) -> None:
         # The first page reads cleanly; the second only through OCR, undecided.
-        doc = school.upload([sinhala_page(), legacy_page("DL-Manel")])
+        doc = school.upload([lesson_page(), legacy_page("DL-Manel")])
         flagged = school.client.get(f"/documents/{doc}/review", headers=school.teacher).json()
         assert [p["page_index"] for p in flagged["pages"]] == [1]
 
@@ -156,7 +156,7 @@ class TestWhatGroundsAQuestion:
         assert {q["page_index"] for q in json.loads(stored.questions)} == {0}
 
     def test_the_model_generator_is_refused_where_it_is_off(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
 
         refused = make(school, doc, school.teacher, generator="graph")
 
@@ -183,7 +183,7 @@ class TestDisclosure:
 
 class TestDeletion:
     def test_deleting_the_book_takes_its_quizzes(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         quiz = make(school, doc, school.teacher).json()
 
         school.client.delete(f"/documents/{doc}", headers=school.teacher)
@@ -191,7 +191,7 @@ class TestDeletion:
         assert school.store.quiz_for(quiz["quiz_id"], school.teacher_id) is None
 
     def test_the_maker_deletes_their_quiz(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         quiz = make(school, doc, school.teacher).json()
 
         gone = school.client.delete(f"/quizzes/{quiz['quiz_id']}", headers=school.teacher)
@@ -226,7 +226,7 @@ class TestModelDraftedQuestions:
 
         monkeypatch.setattr(quiz_graph, "gemini_transport", lambda: _fake_model)
         school = School()
-        doc = school.upload([sinhala_page(), sinhala_page()])
+        doc = school.upload([lesson_page(), lesson_page()])
 
         made = make(school, doc, school.teacher, generator="graph")
 
@@ -252,7 +252,7 @@ class TestModelDraftedQuestions:
 
         monkeypatch.setattr(quiz_graph, "gemini_transport", down)
         school = School()
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
 
         made = make(school, doc, school.teacher, generator="graph").json()
         again = school.client.get(f"/quizzes/{made['quiz_id']}", headers=school.teacher).json()
@@ -300,3 +300,110 @@ def test_the_api_process_never_loads_langgraph() -> None:
         [sys.executable, "-c", script], env=env, capture_output=True, text=True, timeout=120
     )
     assert done.returncode == 0, done.stdout + done.stderr
+
+
+class TestWhatTheReaderAskedFor:
+    def test_questions_come_only_from_the_pages_chosen(self, school: School) -> None:
+        doc = school.upload([lesson_page(), later_lesson_page()])
+
+        made = make(school, doc, school.teacher, first_page=1, last_page=1)
+
+        assert made.status_code == 201, made.text
+        stored = school.store.quiz_for(made.json()["quiz_id"], school.teacher_id)
+        assert stored is not None
+        assert {q["page_index"] for q in json.loads(stored.questions)} == {1}
+
+    def test_the_request_is_kept_and_shown_with_the_quiz(self, school: School) -> None:
+        doc = school.upload([lesson_page()])
+
+        made = make(school, doc, school.teacher, topic="  මහාතිත්ථ <වරාය>  ", count=5)
+
+        asked = made.json()["asked"]
+        # One line of plain text: brackets could close the model's fence.
+        assert asked["topic"] == "මහාතිත්ථ වරාය"
+        assert asked["count"] == 5 and asked["kind"] == "mixed"
+        assert len(made.json()["questions"]) <= 5
+        listed = school.client.get(f"/documents/{doc}/quizzes", headers=school.teacher).json()
+        assert listed[0]["asked"]["topic"] == "මහාතිත්ථ වරාය"
+
+    def test_a_page_range_that_runs_backwards_is_refused(self, school: School) -> None:
+        doc = school.upload([lesson_page(), lesson_page()])
+
+        refused = make(school, doc, school.teacher, first_page=1, last_page=0)
+
+        assert refused.status_code == 422
+        assert refused.json()["detail"]["code"] == "bad_pages"
+
+    def test_nothing_on_the_chosen_pages_is_said_not_papered_over(self, school: School) -> None:
+        doc = school.upload([lesson_page()])
+
+        empty = make(school, doc, school.teacher, first_page=5, last_page=9)
+
+        assert empty.status_code == 422
+        assert empty.json()["detail"]["code"] == "no_questions"
+
+
+class TestDrafting:
+    """The worker's half, with a fake model: no network."""
+
+    def _quiz(self, school: School, doc: str, **asked) -> str:
+        from sinhala_reader.practice import QuizRequest, provenance
+        from sinhala_reader.storage import Quiz, QuizStatus, new_id
+
+        reading = school.store.readable_document(doc, school.teacher_id)
+        assert reading is not None and reading.document.version
+        quiz_id = new_id("quiz")
+        school.store.put_quiz(
+            Quiz(
+                quiz_id=quiz_id,
+                document_id=doc,
+                creator=school.teacher_id,
+                version=reading.document.version,
+                for_class=False,
+                status=QuizStatus.GENERATING,
+                provenance=provenance("graph", request=QuizRequest(**asked).as_dict()),
+                questions="[]",
+            )
+        )
+        return quiz_id
+
+    def test_the_model_is_asked_about_the_chosen_pages_and_topic(self, school: School) -> None:
+        pytest.importorskip("langgraph")
+        from sinhala_reader.practice import draft_quiz
+
+        doc = school.upload([lesson_page(), later_lesson_page()])
+        quiz_id = self._quiz(school, doc, first_page=1, last_page=1, topic="වරාය", kind="causes")
+        prompts: list[str] = []
+
+        def fake(system: str, user: str) -> dict:
+            prompts.append(user)
+            return {"nonsense": True}
+
+        draft_quiz(school.store, quiz_id, transport=fake)
+
+        assert prompts
+        assert all("<topic>\nවරාය\n</topic>" in p for p in prompts)
+        stored = school.store.quiz_for(quiz_id, school.teacher_id)
+        assert stored is not None
+        assert json.loads(stored.provenance)["request"]["first_page"] == 1
+
+    def test_a_missing_drafter_fails_the_quiz_and_says_so(
+        self, school: School, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sinhala_documents import quiz_graph
+
+        from sinhala_reader.practice import draft_quiz
+        from sinhala_reader.storage import QuizStatus
+
+        def missing(*_args, **_kwargs):
+            raise ModuleNotFoundError("No module named 'langgraph'")
+
+        monkeypatch.setattr(quiz_graph, "draft_questions", missing)
+        doc = school.upload([lesson_page()])
+        quiz_id = self._quiz(school, doc)
+
+        draft_quiz(school.store, quiz_id, transport=lambda system, user: {})
+
+        stored = school.store.quiz_for(quiz_id, school.teacher_id)
+        assert stored is not None and stored.status == QuizStatus.FAILED
+        assert "not installed" in json.loads(stored.provenance)["failure"]

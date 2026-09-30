@@ -21,7 +21,7 @@ import os
 from dataclasses import dataclass
 
 import pytest
-from conftest import build_pdf, sinhala_page
+from conftest import build_pdf, lesson_page
 from fastapi.testclient import TestClient
 from test_accounts import register
 
@@ -163,7 +163,7 @@ def _build(kind: str) -> World:
         headers=headers["teacher"],
     )
 
-    pdf = build_pdf([sinhala_page()])
+    pdf = build_pdf([lesson_page()])
     books: dict[str, dict[str, str]] = {}
     for book in BOOKS:
         owner = headers[OWNER_OF[book]]

@@ -26,7 +26,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from .. import track
-from ..practice import cloze_quiz, offered_generators, provenance
+from ..practice import MAX_TOPIC, QuizRequest, cloze_quiz, offered_generators, provenance
 from ..ratelimit import enforce
 from ..security import require_owner
 from ..storage import AuditEvent, Quiz, QuizAnswer, QuizStatus, Role, new_id
@@ -45,6 +45,33 @@ class QuizGenerators(BaseModel):
 class NewQuiz(BaseModel):
     generator: str = Field(default="cloze", pattern="^(cloze|graph)$")
     for_class: bool = False
+    first_page: int | None = Field(
+        default=None, ge=0, description="Zero-based first page to ask about; the start if absent."
+    )
+    last_page: int | None = Field(
+        default=None, ge=0, description="Zero-based last page to ask about; the end if absent."
+    )
+    topic: str = Field(
+        default="",
+        max_length=MAX_TOPIC,
+        description="What to ask about, in the reader's words. Sent to the model when drafting.",
+    )
+    kind: str = Field(
+        default="mixed",
+        pattern="^(mixed|facts|causes|terms)$",
+        description="For drafted questions: facts, causes and results, key terms, or a mix.",
+    )
+    count: int = Field(default=10, ge=3, le=15, description="How many questions to aim for.")
+
+
+class QuizAsked(BaseModel):
+    """What a quiz was made from, as its maker asked."""
+
+    first_page: int | None = None
+    last_page: int | None = None
+    topic: str = ""
+    kind: str = "mixed"
+    count: int = 10
 
 
 class QuestionView(BaseModel):
@@ -74,6 +101,9 @@ class QuizSummary(BaseModel):
     stale: bool
     mine: bool
     created_at: str
+    asked: QuizAsked = Field(
+        default_factory=QuizAsked, description="The part of the book, topic and kind asked for."
+    )
 
 
 class QuizDetail(QuizSummary):
@@ -115,6 +145,7 @@ def register(app: FastAPI, deps: Deps) -> None:
             stale=current_version(quiz, reader) != quiz.version,
             mine=quiz.creator == reader,
             created_at=quiz.created_at,
+            asked=QuizAsked(**QuizRequest.from_provenance(quiz.provenance).as_dict()),
         )
 
     def detail(quiz: Quiz, reader: str) -> QuizDetail:
@@ -174,6 +205,22 @@ def register(app: FastAPI, deps: Deps) -> None:
         quietly replaced by fill-in-the-blank.
         """
         reading = readable_in(deps, document_id, reader)
+        if (
+            body.first_page is not None
+            and body.last_page is not None
+            and body.last_page < body.first_page
+        ):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                {"code": "bad_pages", "message": "The last page comes before the first."},
+            )
+        asked = QuizRequest(
+            first_page=body.first_page,
+            last_page=body.last_page,
+            topic=body.topic,
+            kind=body.kind,
+            count=body.count,
+        )
         if body.generator not in offered_generators():
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -198,7 +245,7 @@ def register(app: FastAPI, deps: Deps) -> None:
                     version=version,
                     for_class=body.for_class,
                     status=QuizStatus.GENERATING,
-                    provenance=provenance("graph"),
+                    provenance=provenance("graph", request=asked.as_dict()),
                     questions="[]",
                 )
             )
@@ -206,7 +253,9 @@ def register(app: FastAPI, deps: Deps) -> None:
             deps.draft_quiz(quiz_id)
             response.status_code = status.HTTP_202_ACCEPTED
             return detail(store.quiz_for(quiz_id, reader) or quiz, reader)
-        kept, made_by = cloze_quiz(store, reading, seed=f"{version}|{reader}|{quiz_id}")
+        kept, made_by = cloze_quiz(
+            store, reading, seed=f"{version}|{reader}|{quiz_id}", request=asked
+        )
         if not kept:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,

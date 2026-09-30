@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
-from conftest import sinhala_page
+from conftest import lesson_page
 from test_publishing import School, cheap_hashing, sessions_auth  # noqa: F401
 
 from sinhala_reader import track
@@ -71,7 +71,7 @@ def segments_of(school: School, doc: str, who) -> list[str]:
 
 class TestWhatAReaderHasHeard:
     def test_counts_toward_their_progress(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         ids = segments_of(school, doc, school.teacher)
 
         sent = school.client.post(
@@ -85,7 +85,7 @@ class TestWhatAReaderHasHeard:
         assert report["chapters_complete"] == report["chapter_count"] >= 1
 
     def test_is_theirs_alone(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
         ids = segments_of(school, doc, school.teacher)
         school.client.post(
@@ -98,7 +98,7 @@ class TestWhatAReaderHasHeard:
         assert sum(c["heard"] for c in book["chapters"]) == 0
 
     def test_cannot_be_reported_for_a_book_they_cannot_read(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
 
         refused = school.client.post(
             f"/documents/{doc}/heard", json={"segment_ids": ["x"]}, headers=school.student
@@ -123,7 +123,7 @@ class TestRevision:
     def test_a_wrong_answer_is_due_tomorrow_and_then_listed(
         self, school: School, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         quiz_id = answer_wrong(school, doc, school.teacher)
 
         assert school.client.get("/progress", headers=school.teacher).json()["due"] == 0
@@ -144,7 +144,7 @@ class TestTheTeachersView:
         return school.client.get(f"/classes/{school.class_id}/progress", headers=school.teacher)
 
     def test_shows_nobody_who_has_not_chosen_to_share(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
 
         view = self.class_view(school).json()
@@ -152,10 +152,10 @@ class TestTheTeachersView:
         assert view["students"] == [] and view["not_sharing"] == 1
 
     def test_shows_a_student_who_shares_on_class_books_only(self, school: School) -> None:
-        shared = school.upload([sinhala_page()])
+        shared = school.upload([lesson_page()])
         school.publish(shared)
-        school.upload([sinhala_page()])  # the teacher's own, not published
-        own = school.upload([sinhala_page()], who=school.student)
+        school.upload([lesson_page()])  # the teacher's own, not published
+        own = school.upload([lesson_page()], who=school.student)
         answer_wrong(school, shared, school.student)  # a personal quiz: private
         for doc in (shared, own):
             ids = segments_of(school, doc, school.student)
@@ -178,7 +178,7 @@ class TestTheTeachersView:
         assert sum(c["answered"] for c in chapters) == 0
 
     def test_stops_the_moment_sharing_is_withdrawn(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
         url = f"/classes/{school.class_id}/share-progress"
         school.client.put(url, json={"share": True}, headers=school.student)
@@ -192,7 +192,7 @@ class TestTheTeachersView:
         assert refused.status_code == 404
 
     def test_downloads_as_a_spreadsheet(self, school: School) -> None:
-        doc = school.upload([sinhala_page()])
+        doc = school.upload([lesson_page()])
         school.publish(doc)
         school.client.put(
             f"/classes/{school.class_id}/share-progress",
@@ -210,7 +210,7 @@ class TestTheTeachersView:
 
 
 def test_deleting_the_book_deletes_what_was_heard(school: School) -> None:
-    doc = school.upload([sinhala_page()])
+    doc = school.upload([lesson_page()])
     ids = segments_of(school, doc, school.teacher)
     school.client.post(f"/documents/{doc}/heard", json={"segment_ids": ids}, headers=school.teacher)
 
