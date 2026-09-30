@@ -294,3 +294,24 @@ test.describe("the split and the Ask panel, on a wide screen", () => {
     await expect(page.getByRole("separator", { name: "පැනල දෙකේ පළල" })).toBeFocused();
   });
 });
+
+test("the settings panel stays on the screen, and reaches its last control, on a phone", async ({ page }) => {
+  // It hung from the gear's end, and on a phone the gear is near the start of
+  // the header: the language and theme choices began off the screen.
+  await oneBook(page);
+  for (const width of [320, 360, 414]) {
+    await page.setViewportSize({ width, height: 640 });
+    await page.goto("/library");
+    await expect(page.getByRole("heading", { name: "පොත.pdf" })).toBeVisible();
+    await page.getByRole("button", { name: "කියවීමේ සැකසුම්" }).click();
+    const panel = page.locator(".settings-panel");
+    const box = await panel.boundingBox();
+    expect(box.x, `${width} px`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${width} px`).toBeLessThanOrEqual(width);
+    expect(box.y + box.height, `${width} px`).toBeLessThanOrEqual(640);
+    // The header does not scroll away, so the panel scrolls inside itself.
+    const close = panel.getByRole("button", { name: "වසන්න" });
+    await close.scrollIntoViewIfNeeded();
+    await expect(close).toBeInViewport();
+  }
+});

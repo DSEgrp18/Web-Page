@@ -62,7 +62,7 @@
   /* -- type ------------------------------------------------------------- */
   --font-sinhala: var(--font-ui), "Noto Sans Sinhala", "Iskoola Pota", sans-serif;
   --font-display: var(--font-display), "Abhaya Libre", var(--font-ui), serif;
-  --font-latin: var(--font-latin), ui-sans-serif, system-ui, sans-serif;
+  --font-latin: var(--font-latin-face), ui-sans-serif, system-ui, sans-serif;
 
   --text-xs: 0.8125rem;
   --text-sm: 0.9375rem;
@@ -232,6 +232,15 @@ body {
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/*
+ * The English interface: its letters from the Latin face, whose spacing is
+ * made for them. The book's words are still Sinhala, and fall through, glyph
+ * by glyph, to the Sinhala face after it.
+ */
+html[lang="en"] body {
+  font-family: var(--font-latin-face), var(--font-sinhala);
 }
 
 /* Latin runs inside Sinhala prose — filenames, page numbers, "PDF". */
@@ -839,6 +848,26 @@ summary {
   display: grid;
   gap: var(--s5);
   box-shadow: var(--shadow-3);
+}
+
+/*
+ * On a phone the gear sits near the start of the header, so a panel hung from
+ * its end ran off the screen. There it hangs from the sticky header instead,
+ * the width of the screen less a gutter, and scrolls inside itself: the header
+ * does not scroll away, so neither would the panel's lower half.
+ */
+@media (max-width: 40em) {
+  .settings {
+    position: static;
+  }
+
+  .settings-panel {
+    inset-inline: var(--s4);
+    top: 100%;
+    width: auto;
+    max-height: calc(var(--settings-room, 60dvh) - var(--s4));
+    overflow-y: auto;
+  }
 }
 
 .settings-group {

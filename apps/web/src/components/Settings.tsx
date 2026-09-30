@@ -31,6 +31,9 @@ export function Settings() {
   const router = useRouter();
   const { preferences, set } = usePreferences();
   const [open, setOpen] = useState(false);
+  // The room below the header, measured: on a phone the header wraps, so no
+  // fixed figure is right, and the panel scrolls inside this.
+  const [room, setRoom] = useState<number | null>(null);
   const panelId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -47,6 +50,17 @@ export function Settings() {
     saveLocale(next);
     router.refresh();
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const header = toggleRef.current?.closest("header");
+      if (header) setRoom(window.innerHeight - header.getBoundingClientRect().bottom);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -89,6 +103,9 @@ export function Settings() {
         hidden={!open}
         role="group"
         aria-label={strings.settingsHeading}
+        style={
+          room === null ? undefined : ({ "--settings-room": `${room}px` } as React.CSSProperties)
+        }
       >
         <fieldset className="settings-group">
           <legend>{strings.settingsLanguage}</legend>
