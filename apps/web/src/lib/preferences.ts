@@ -19,6 +19,17 @@
 
 export type Theme = "system" | "light" | "dark";
 
+/**
+ * The theme, again, where the server can read it. `localStorage` stays the
+ * record; this copy exists so the root layout can put `data-theme` on the
+ * first byte and a reader who chose dark never sees a paint of light.
+ */
+export const THEME_COOKIE = "swara-theme";
+
+export function parseTheme(value: string | null | undefined): Theme {
+  return value === "light" || value === "dark" ? value : "system";
+}
+
 export interface Preferences {
   theme: Theme;
   /** Multiplier on reading text only. The interface stays put. */
@@ -156,4 +167,7 @@ export function applyTheme(theme: Theme): void {
   if (typeof document === "undefined") return;
   if (theme === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", theme);
+  // Also on the first client render, so a theme saved before this cookie
+  // existed flashes once and then never again.
+  document.cookie = `${THEME_COOKIE}=${theme}; path=/; max-age=31536000; samesite=lax`;
 }

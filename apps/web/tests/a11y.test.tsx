@@ -17,6 +17,7 @@ import { FakeServer, readablePage } from "./fakeApi";
 import { noticeText, opensBook, renderApp } from "./render";
 import { requestCookies } from "./setup";
 import { LOCALE_COOKIE } from "../src/lib/i18n";
+import { setPreference, THEME_COOKIE } from "../src/lib/preferences";
 
 /**
  * The accessibility smoke test CLAUDE.md's CI section asks for.
@@ -117,6 +118,31 @@ describe("the document language", () => {
     if (cookie) requestCookies.set(LOCALE_COOKIE, cookie);
     const markup = renderToStaticMarkup(await RootLayout({ children: <p>අන්තර්ගතය</p> }));
     expect(markup).toContain(`<html lang="${lang}"`);
+  });
+});
+
+describe("the theme on the first byte", () => {
+  // A reader who chose dark, often because light is painful, used to get one
+  // paint of light on every page load before the saved choice arrived.
+  it.each([
+    ["dark when dark was chosen", "dark", ' data-theme="dark"'],
+    ["light when light was chosen", "light", ' data-theme="light"'],
+    ["left to the system with no cookie", undefined, null],
+    ["left to the system when chosen", "system", null],
+    ["left to the system for a value it does not know", "sepia", null],
+  ])("is %s", async (_name, cookie, attribute) => {
+    if (cookie) requestCookies.set(THEME_COOKIE, cookie);
+    const markup = renderToStaticMarkup(await RootLayout({ children: <p>අන්තර්ගතය</p> }));
+    const html = markup.slice(0, markup.indexOf(">"));
+    if (attribute) expect(html).toContain(attribute);
+    else expect(html).not.toContain("data-theme");
+  });
+
+  it("is remembered where the server reads it", () => {
+    setPreference("theme", "dark");
+    expect(document.cookie).toContain(`${THEME_COOKIE}=dark`);
+    setPreference("theme", "system");
+    expect(document.cookie).toContain(`${THEME_COOKIE}=system`);
   });
 });
 
