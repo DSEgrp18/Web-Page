@@ -13,6 +13,11 @@
 
 import type { Strings } from "./strings";
 
+/** "1 page", "2 pages": English counts, where Sinhala needs no plural. */
+function n(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 export const en: Strings = {
   appName: "Swara",
   appNameLatin: "Swara",
@@ -30,7 +35,7 @@ export const en: Strings = {
   emailLabel: "Email address",
   passwordLabel: "Password",
   newPasswordLabel: "New password",
-  passwordHint: (min: number) => `At least ${min} characters.`,
+  passwordHint: (min: number) => `At least ${n(min, "character")}.`,
   showPassword: "Show password",
   displayNameLabel: "Your name",
   displayNameHint: "The name Swara calls you by.",
@@ -86,8 +91,10 @@ export const en: Strings = {
   offlineNothing: "Nothing is saved yet. In a book, choose “Save this chapter”.",
   offlineSpace: (used: string, quota: string) =>
     `This site is using ${used} of ${quota} megabytes.`,
-  offlineSize: (sentences: number, size: string) => `${sentences} sentences, ${size} megabytes.`,
-  offlineMissing: (count: number) => `${count} sentences have no audio.`,
+  offlineSize: (sentences: number, size: string) =>
+    `${n(sentences, "sentence")}, ${size} megabytes.`,
+  offlineMissing: (count: number) =>
+    count === 1 ? "1 sentence has no audio." : `${n(count, "sentence")} have no audio.`,
   offlineListen: "Listen",
   offlineRemove: "Remove",
   offlineRemoved: (name: string) => `${name} removed.`,
@@ -95,11 +102,11 @@ export const en: Strings = {
   offlineNoAudio: "No audio",
   offlineSave: "Save this chapter",
   offlineSaving: "Saving the chapter.",
-  offlineProgress: (done: number, total: number) => `${done} of ${total} sentences saved.`,
+  offlineProgress: (done: number, total: number) => `${done} of ${n(total, "sentence")} saved.`,
   offlineSaved: (ready: number, total: number) =>
     ready === total
-      ? `Chapter saved: all ${total} sentences.`
-      : `Chapter saved: ${ready} of ${total} sentences. The rest have no audio yet.`,
+      ? `Chapter saved: all ${n(total, "sentence")}.`
+      : `Chapter saved: ${ready} of ${n(total, "sentence")}. The rest have no audio yet.`,
   offlineNoneVoiced:
     "No sentence in this chapter has audio yet. Listen to it once, or let your teacher prepare the audio, then try again.",
   pasteLink: "Paste text",
@@ -123,11 +130,11 @@ export const en: Strings = {
   searchAction: "Search",
   searchHow:
     "A result opens the book at that sentence. It does not start playing, and your place does not change.",
-  searchExactHeading: (count: number) => `${count} sentences with these words`,
+  searchExactHeading: (count: number) => `${n(count, "sentence")} with these words`,
   searchRelatedHeading: "Related passages",
   searchNothing: "Nothing was found.",
   searchFound: (exact: number, related: number) =>
-    `Found ${exact} sentences and ${related} related passages.`,
+    `Found ${n(exact, "sentence")} and ${related} related passages.`,
   searchResultPage: (label: string) => `Page ${label}`,
   reportLink: "Report a problem",
   reportSentenceLink: "Report a problem with this sentence",
@@ -155,7 +162,7 @@ export const en: Strings = {
   reportsQuestion: "About a question",
   progressHeading: "My progress",
   progressSummary: (complete: number, chapters: number, due: number) =>
-    `You have heard ${complete} of ${chapters} chapters in full; ${due} questions are due for revision today.`,
+    `You have heard ${complete} of ${n(chapters, "chapter")} in full; ${due === 1 ? "1 question is" : `${n(due, "question")} are`} due for revision today.`,
   progressNoBooks: "No books yet. Once you add a book, your progress shows here.",
   progressCaption: (title: string) => `${title} — by chapter`,
   progressChapter: "Chapter",
@@ -170,13 +177,16 @@ export const en: Strings = {
     answered === 0 ? "—" : `${correct} of ${answered}`,
   reviseHeading: "Revise next",
   reviseNothing: "No questions are due for revision today.",
-  reviseLink: (title: string, due: number) => `${title} — ${due} questions`,
-  reviewingDue: (count: number) => `${count} questions due for revision.`,
+  reviseLink: (title: string, due: number) => `${title} — ${n(due, "question")}`,
+  reviewingDue: (count: number) => `${n(count, "question")} due for revision.`,
   classProgressHeading: "Students' progress",
   classProgressHow:
     "Only students who chose to share their progress appear here, and only for books shared with this class.",
   classProgressNobody: "No student has shared their progress yet.",
-  classNotSharing: (count: number) => `${count} students do not share their progress.`,
+  classNotSharing: (count: number) =>
+    count === 1
+      ? "1 student does not share their progress."
+      : `${n(count, "student")} do not share their progress.`,
   classProgressDownload: "Download as a spreadsheet",
   classProgressNoBooks: "No books are shared with this class.",
   classesHeading: "My classes",
@@ -205,7 +215,7 @@ export const en: Strings = {
   classCreated: "Class created.",
   noTaught: "You have not created any classes yet.",
   memberCounts: (active: number, pending: number) =>
-    `${active} students, ${pending} waiting for approval`,
+    `${n(active, "student")}, ${pending} waiting for approval`,
   classCodeHeading: "Class code",
   classCodeHint:
     "Give this code to your students. They will not see the class's books until you approve them.",
@@ -259,7 +269,7 @@ export const en: Strings = {
   noReview: "No pages need checking.",
   pageAccept: "Accept",
   pageWithhold: "Withhold",
-  undecidedCount: (count: number) => `${count} pages not decided yet`,
+  undecidedCount: (count: number) => `${n(count, "page")} not decided yet`,
   basisHeading: "Your right to share",
   basisIntro:
     "Why do you have the right to share this book with your class? Your answer is recorded.",
@@ -305,7 +315,7 @@ export const en: Strings = {
   makeClassQuiz: "Make questions for the class",
   quizMade: "Questions made.",
   quizName: (count: number, forClass: boolean) =>
-    forClass ? `${count} questions for the class` : `${count} questions of mine`,
+    forClass ? `${n(count, "question")} for the class` : `${n(count, "question")} of mine`,
   quizDraft: "Draft: students cannot see it yet.",
   quizStale: "The book has changed since these questions were made.",
   startQuiz: "Start",
@@ -321,7 +331,7 @@ export const en: Strings = {
   hearSource: "Hear the source",
   nextQuestion: "Next question",
   finishQuiz: "Finish",
-  quizScore: (right: number, total: number) => `${right} of ${total} questions right.`,
+  quizScore: (right: number, total: number) => `${right} of ${n(total, "question")} right.`,
   backToQuizzes: "Back to question sets",
   backToQuiz: "Back to the questions",
   correctIs: (answer: string) => `The answer: ${answer}`,
@@ -335,7 +345,7 @@ export const en: Strings = {
   prerenderHeading: "Audio for the class",
   prerenderIntro:
     "Turn every sentence of the book into audio ahead of time, so students do not wait when they start listening. Withheld pages are not voiced. If you stop, starting again carries on where it left off.",
-  prerenderProgress: (ready: number, total: number) => `${ready} of ${total} sentences ready.`,
+  prerenderProgress: (ready: number, total: number) => `${ready} of ${n(total, "sentence")} ready.`,
   prerenderDone: "Every sentence is ready.",
   prerenderAction: "Prepare the audio now",
   prerenderStarted: "Preparing the audio. This can take some time.",
@@ -344,7 +354,7 @@ export const en: Strings = {
   errorRecover: "The email address and recovery code do not match.",
   errorEmailTaken:
     "There is already an account for this email address. Sign in, or recover the account.",
-  errorWeakPassword: (min: number) => `The password must be at least ${min} characters.`,
+  errorWeakPassword: (min: number) => `The password must be at least ${n(min, "character")}.`,
   recoveryCodeHeading: "Your recovery code",
   recoveryCodeIntro:
     "This is how you get back into your account if you forget your password. It is not shown again. Copy it, or download it as a file, and keep it somewhere safe.",
@@ -483,7 +493,7 @@ export const en: Strings = {
   pageWord: "Page",
   printedPage: "Printed page",
   ofPages: (index: number, total: number) => `page ${index} of ${total}`,
-  pageCount: (count: number) => `${count} pages`,
+  pageCount: (count: number) => n(count, "page"),
   previousPage: "Previous page",
   nextPage: "Next page",
   goToPage: "Go to page",
@@ -500,11 +510,11 @@ export const en: Strings = {
   readingTitle: "Reading a book",
   pageLoading: "Getting the page…",
   sentencesHeading: "Sentences",
-  sentenceCount: (count: number) => `${count} sentences`,
+  sentenceCount: (count: number) => `${n(count, "sentence")}`,
   showWords: "Show words",
   hideWords: "Hide words",
   sentenceWords: "Words in the sentence",
-  wordCount: (count: number) => `${count} words`,
+  wordCount: (count: number) => `${n(count, "word")}`,
   noSentences: "This page has no sentences that can be read.",
 
   closePanel: "Close",
@@ -595,7 +605,7 @@ export const en: Strings = {
   // -- library -----------------------------------------------------------
   continueHeading: "Continue reading",
   continueResume: "Continue reading",
-  libraryCount: (count: number) => (count === 1 ? "1 book" : `${count} books`),
+  libraryCount: (count: number) => n(count, "book"),
   coverLoading: "Preparing the cover…",
   filterHeading: "Filter",
   filterAll: "All",
@@ -631,7 +641,7 @@ export const en: Strings = {
   uploadTooBig: "The file is too large.",
   uploadNotPdf: "This is not a PDF file.",
   uploadUnsupported: "Choose PDF, DOCX, PNG or JPEG files only.",
-  uploadSelectedCount: (count: number) => `${count} files chosen.`,
+  uploadSelectedCount: (count: number) => `${n(count, "file")} chosen.`,
   uploadSelectedFile: (filename: string) => `Chosen file: ${filename}.`,
   uploadTitleLabel: "Book name (optional)",
   uploadTitleHelp: "If left empty, the file's name is used.",
