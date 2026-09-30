@@ -46,6 +46,12 @@ def offered_generators() -> list[str]:
     return ["cloze", "graph"] if os.environ.get(QUIZ_ENV, "").strip() == "graph" else ["cloze"]
 
 
+def quiz_mode() -> str:
+    """Where practice questions can be drafted, for ``/readiness`` and the
+    privacy notice: ``gemini`` when a reader may send passages to Google."""
+    return "gemini" if "graph" in offered_generators() else "local"
+
+
 def question_sources(
     store: Store, reading: Reading
 ) -> tuple[list[SourcePassage], list[Sentence], LexicalIndex] | None:

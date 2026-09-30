@@ -432,6 +432,7 @@ export const si = {
   processingNowChecking: "සේවාදායකයේ සැකසුම් පරීක්ෂා කරමින්…",
   processingNowUnknown: "මෙම සේවාදායකයේ සැකසුම් දැන් පරීක්ෂා කළ නොහැක.",
   processingStructure: "පිටු ව්‍යුහය හඳුනා ගැනීම",
+  processingQuiz: "පුහුණු ප්‍රශ්න සකස් කිරීම",
   processingAnswers: "ප්‍රශ්නවලට පිළිතුරු",
   processingOcr: "ස්කෑන් කළ පිටු කියවීම",
   processingHere: "ස්වර සේවාදායකය තුළම; පිටතට නොයයි",

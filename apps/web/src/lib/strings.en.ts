@@ -424,6 +424,7 @@ export const en: Strings = {
   processingNowUnknown: "The server's settings cannot be checked right now.",
   processingStructure: "Finding page structure",
   processingAnswers: "Answers to questions",
+  processingQuiz: "Drafting practice questions",
   processingOcr: "Reading scanned pages",
   processingHere: "On the Swara server itself; nothing leaves it",
   processingGoogle: "Sent to Google Gemini",

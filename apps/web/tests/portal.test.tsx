@@ -140,23 +140,44 @@ describe("what this server sends out", () => {
           structure: "deterministic",
           answers: "extractive",
           ocr: "broken",
+          quiz: "local",
         })}
       />,
     );
 
-    await waitFor(() => expect(screen.getAllByText(strings.processingHere)).toHaveLength(3));
+    await waitFor(() => expect(screen.getAllByText(strings.processingHere)).toHaveLength(4));
     expect(screen.queryByText(strings.processingGoogle)).toBeNull();
   });
 
   it("says when Google receives page text or passages", async () => {
     render(
       <ProcessingNow
-        fetchImpl={readinessFetch({ structure: "gemini", answers: "gemini", ocr: "off" })}
+        fetchImpl={readinessFetch({
+          structure: "gemini",
+          answers: "gemini",
+          ocr: "off",
+          quiz: "gemini",
+        })}
       />,
     );
 
-    await waitFor(() => expect(screen.getAllByText(strings.processingGoogle)).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText(strings.processingGoogle)).toHaveLength(3));
     expect(screen.getByText(strings.processingOff)).toBeTruthy();
+  });
+
+  it("does not claim questions stay here when an older server does not say", async () => {
+    render(
+      <ProcessingNow
+        fetchImpl={readinessFetch({
+          structure: "deterministic",
+          answers: "extractive",
+          ocr: "off",
+        })}
+      />,
+    );
+
+    const row = (await screen.findByText(strings.processingQuiz)).nextElementSibling;
+    expect(row?.textContent).toBe(strings.processingNowUnknown);
   });
 
   it("does not guess when it cannot ask", async () => {

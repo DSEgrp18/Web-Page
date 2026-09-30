@@ -50,6 +50,14 @@ export function ProcessingNow({ fetchImpl }: { fetchImpl?: typeof fetch } = {}) 
           </dd>
           <dt>{strings.processingAnswers}</dt>
           <dd>{state.answers === "gemini" ? strings.processingGoogle : strings.processingHere}</dd>
+          <dt>{strings.processingQuiz}</dt>
+          <dd>
+            {state.quiz === undefined
+              ? strings.processingNowUnknown
+              : state.quiz === "gemini"
+                ? strings.processingGoogle
+                : strings.processingHere}
+          </dd>
           <dt>{strings.processingOcr}</dt>
           <dd>{state.ocr === "off" ? strings.processingOff : strings.processingHere}</dd>
         </dl>

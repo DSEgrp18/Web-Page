@@ -12,6 +12,7 @@ from .. import passwords
 from ..adapters import ADAPTER_ENV, adapter_mode, loaded_model_version
 from ..answers import answer_limitations, answers_mode
 from ..audio import AUDIO_FORMAT_ENV, audio_format
+from ..practice import quiz_mode
 from ..queue import QUEUE_ENV, REDIS_URL_ENV, queue_mode, uses_celery
 from ..recognition import ocr_limitations, ocr_mode
 from ..security import (
@@ -129,6 +130,7 @@ def register(app: FastAPI, deps: Deps) -> None:
             "structure": structure_mode(),
             "ocr": ocr_mode().value,
             "answers": answers_mode(),
+            "quiz": quiz_mode(),
             "real_model": deps.adapter.is_real_model,
             # Not `adapter.model_version`: that loads the bundle if it has not
             # been loaded, and a readiness probe that blocks for a minute and a

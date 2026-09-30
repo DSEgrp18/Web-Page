@@ -492,6 +492,11 @@ export interface Readiness {
   ocr: string;
   /** Who writes answers: "extractive" (the book's words), or "gemini" (Google). */
   answers: string;
+  /**
+   * Who may draft practice questions: "local" (the book's own sentences), or
+   * "gemini" (Google). Absent from servers older than the field.
+   */
+  quiz?: string;
   auth_mode: string;
   limitations: string[];
 }

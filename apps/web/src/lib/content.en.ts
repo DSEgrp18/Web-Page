@@ -170,7 +170,7 @@ const privacy: ProsePage = {
       heading: "What leaves the server",
       paragraphs: [
         "By default your book does not leave the server: getting the text, reading scanned pages and making the audio all happen on the Swara server itself.",
-        "The people who run the service can turn on Google's Gemini service for two tasks: finding a page's structure (headings, paragraphs), when the page's text is sent; and written answers, when your question and the passages found in the book are sent. What is turned on at this server now is shown at the end of this page.",
+        "The people who run the service can turn on Google's Gemini service for three tasks: finding a page's structure (headings, paragraphs), when the page's text is sent; written answers, when your question and the passages found in the book are sent; and drafting practice questions, when you choose it, when passages from the part of the book you chose, and any topic you typed, are sent. What is turned on at this server now is shown at the end of this page.",
       ],
     },
     {

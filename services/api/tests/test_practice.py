@@ -164,6 +164,23 @@ class TestWhatGroundsAQuestion:
         assert refused.json()["detail"]["code"] == "generator_unavailable"
 
 
+class TestDisclosure:
+    """The privacy notice reads ``/readiness`` to say whether practice
+    questions can leave the server; it must say so exactly when they can."""
+
+    def test_readiness_says_questions_stay_here_by_default(
+        self, school: School, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("SINHALA_READER_QUIZ", raising=False)
+        assert school.client.get("/readiness").json()["quiz"] == "local"
+
+    def test_readiness_says_questions_go_to_google_when_drafting_is_on(
+        self, school: School, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SINHALA_READER_QUIZ", "graph")
+        assert school.client.get("/readiness").json()["quiz"] == "gemini"
+
+
 class TestDeletion:
     def test_deleting_the_book_takes_its_quizzes(self, school: School) -> None:
         doc = school.upload([sinhala_page()])
