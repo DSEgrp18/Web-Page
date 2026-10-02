@@ -448,10 +448,12 @@ function Welcome({
       </div>
       <img
         className="welcome-art"
-        src="/brand/swara-book.webp"
+        src="/images/reading-desk-800.webp"
+        srcSet="/images/reading-desk-800.webp 800w, /images/reading-desk-1600.webp 1600w"
+        sizes="(max-width: 48em) 90vw, 40vw"
         alt=""
-        width={700}
-        height={450}
+        width={800}
+        height={533}
         loading="eager"
         decoding="async"
       />
@@ -465,7 +467,7 @@ function ContinueCard({ book }: { book: DocumentSummary }) {
   const title = bookTitle(book);
   return (
     <section className="continue card" aria-labelledby="continue-heading">
-      <BookCover documentId={book.document_id} ready={isReady(book)} />
+      <BookCover documentId={book.document_id} ready={isReady(book)} title={title} />
       <div className="continue-copy">
         <p className="eyebrow">{strings.continueHeading}</p>
         <h2 id="continue-heading">
@@ -512,7 +514,7 @@ function BookCard({
 
   return (
     <li className="book-card card">
-      <BookCover documentId={book.document_id} ready={ready} />
+      <BookCover documentId={book.document_id} ready={ready} title={title} />
 
       <div className="book-card-body">
         {/* Focusable from script only: where focus lands after "try again",

@@ -54,7 +54,7 @@ export function ClassBooks() {
           const id = encodeURIComponent(book.document_id);
           return (
             <li key={`${class_id}:${book.document_id}`} className="book-card card">
-              <BookCover documentId={book.document_id} ready />
+              <BookCover documentId={book.document_id} ready title={title} />
               <div className="book-card-body">
                 <h3 className="book-card-title">
                   <Typed text={title} />

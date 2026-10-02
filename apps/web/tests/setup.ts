@@ -63,9 +63,9 @@ vi.mock("next/headers", () => ({
 vi.mock("next/font/google", () => {
   const face = (variable: string) => () => ({ className: "", variable, style: {} });
   return {
-    Abhaya_Libre: face("--font-display-face"),
+    Yaldevi: face("--font-display-face"),
     Noto_Sans_Sinhala: face("--font-ui"),
-    Roboto: face("--font-latin-face"),
+    Plus_Jakarta_Sans: face("--font-latin-face"),
   };
 });
 

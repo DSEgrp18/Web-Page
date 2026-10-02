@@ -155,10 +155,47 @@ export function PasswordField({
   );
 }
 
+/**
+ * The picture beside every account form: a student at work, the mark, and
+ * what Swara is, in one line. Decorative and duplicated elsewhere, so hidden
+ * from assistive technology; on a narrow screen it is not drawn at all and the
+ * form comes first.
+ */
+export function AuthVisual() {
+  const strings = useStrings();
+  return (
+    <div className="auth-visual" aria-hidden="true">
+      <img
+        className="auth-visual-photo"
+        src="/images/student-tablet-1000.webp"
+        srcSet="/images/student-tablet-560.webp 560w, /images/student-tablet-1000.webp 1000w"
+        sizes="(max-width: 60em) 1px, 42vw"
+        alt=""
+        width={1000}
+        height={1408}
+        decoding="async"
+      />
+      <div className="auth-visual-copy">
+        <img
+          className="auth-visual-logo"
+          src="/brand/swara-lockup-dark.webp"
+          alt=""
+          width={528}
+          height={140}
+          decoding="async"
+        />
+        <p className="auth-visual-eyebrow">{strings.homeTitle}</p>
+        <p className="auth-visual-title">{strings.appTagline}</p>
+      </div>
+    </div>
+  );
+}
+
 function AccountScreen({ heading, children }: { heading: string; children: ReactNode }) {
   const headingId = useId();
   return (
     <div className="account-screen">
+      <AuthVisual />
       <section className="account-form card" aria-labelledby={headingId}>
         <h1 id={headingId}>{heading}</h1>
         {children}
@@ -438,6 +475,7 @@ export function RecoveryCode({
 
   return (
     <div className="account-screen">
+      <AuthVisual />
       <section className="account-form card" aria-labelledby={`${confirmId}-heading`}>
         <h1 id={`${confirmId}-heading`} ref={headingRef} tabIndex={-1}>
           {strings.recoveryCodeHeading}
