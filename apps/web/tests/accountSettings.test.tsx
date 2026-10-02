@@ -63,7 +63,7 @@ describe("changing the password", () => {
     const server = signedIn();
     const form = await section(strings.changePasswordHeading);
 
-    await user.type(form.getByLabelText(strings.currentPasswordLabel), PASSWORD);
+    await user.type(form.getByLabelText(strings.changePasswordCurrentLabel), PASSWORD);
     await user.type(form.getByLabelText(strings.newPasswordLabel), "a-brand-new-password");
     await user.click(form.getByRole("button", { name: strings.changePasswordAction }));
 
@@ -79,7 +79,7 @@ describe("changing the password", () => {
     const server = signedIn();
     const form = await section(strings.changePasswordHeading);
 
-    await user.type(form.getByLabelText(strings.currentPasswordLabel), "not-it-at-all");
+    await user.type(form.getByLabelText(strings.changePasswordCurrentLabel), "not-it-at-all");
     await user.type(form.getByLabelText(strings.newPasswordLabel), "a-brand-new-password");
     await user.click(form.getByRole("button", { name: strings.changePasswordAction }));
 
@@ -95,7 +95,7 @@ describe("a new recovery code", () => {
     signedIn();
     const form = await section(strings.recoveryHeading);
 
-    await user.type(form.getByLabelText(strings.currentPasswordLabel), PASSWORD);
+    await user.type(form.getByLabelText(strings.recoveryPasswordCurrentLabel), PASSWORD);
     await user.click(form.getByRole("button", { name: strings.newRecoveryAction }));
 
     expect(await screen.findByText("NEWC-ODE2-3456-789A")).toBeTruthy();
@@ -135,7 +135,7 @@ describe("deleting the account", () => {
     const server = signedIn();
     const form = await section(strings.deleteAccountHeading);
 
-    await user.type(form.getByLabelText(strings.currentPasswordLabel), PASSWORD);
+    await user.type(form.getByLabelText(strings.deletePasswordCurrentLabel), PASSWORD);
     await user.click(form.getByRole("button", { name: strings.deleteAccountAction }));
     const dialog = await screen.findByRole("dialog", { name: strings.deleteAccountConfirmTitle });
     await user.click(within(dialog).getByRole("button", { name: strings.deleteConfirmCancel }));
@@ -149,7 +149,7 @@ describe("deleting the account", () => {
     const server = signedIn();
     const form = await section(strings.deleteAccountHeading);
 
-    await user.type(form.getByLabelText(strings.currentPasswordLabel), PASSWORD);
+    await user.type(form.getByLabelText(strings.deletePasswordCurrentLabel), PASSWORD);
     await user.click(form.getByRole("button", { name: strings.deleteAccountAction }));
     const dialog = await screen.findByRole("dialog", { name: strings.deleteAccountConfirmTitle });
     await user.click(within(dialog).getByRole("button", { name: strings.deleteAccountAction }));
@@ -164,7 +164,7 @@ describe("deleting the account", () => {
     const server = signedIn();
     const form = await section(strings.deleteAccountHeading);
 
-    await user.type(form.getByLabelText(strings.currentPasswordLabel), "not-it-at-all");
+    await user.type(form.getByLabelText(strings.deletePasswordCurrentLabel), "not-it-at-all");
     await user.click(form.getByRole("button", { name: strings.deleteAccountAction }));
     const dialog = await screen.findByRole("dialog", { name: strings.deleteAccountConfirmTitle });
     await user.click(within(dialog).getByRole("button", { name: strings.deleteAccountAction }));
