@@ -328,7 +328,7 @@ def test_a_page_announces_what_could_not_be_read(client: TestClient) -> None:
     page = client.get(f"/documents/{document_id}/pages/0", headers=as_reader(client)).json()
     assert page["quality"] == "undecodable"
     assert page["segments"] == []
-    assert any("legacy" in note for note in page["notes"])
+    assert any(note.startswith("note:page_unreadable_lines") for note in page["notes"])
 
 
 def test_asking_for_a_page_before_preparation_finishes_says_so() -> None:
