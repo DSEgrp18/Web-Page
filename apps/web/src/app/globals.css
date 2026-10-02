@@ -707,7 +707,7 @@ summary {
 
 /* A measure short enough to read, at any text size. */
 .prose-page,
-.landing {
+.landing-body {
   inline-size: min(var(--measure), 100%);
   margin-inline: auto;
   display: grid;
@@ -716,7 +716,7 @@ summary {
 }
 
 .prose-page section,
-.landing > section {
+.landing-body > section {
   display: grid;
   gap: var(--s3);
 }
@@ -725,7 +725,7 @@ summary {
    lists that are controls, and a list of sentences without them reads as
    one paragraph broken oddly. */
 .prose-page ul,
-.landing ul {
+.landing-body ul:not(.landing-steps) {
   display: grid;
   gap: var(--s2);
   padding-inline-start: 1.5rem;
@@ -734,7 +734,7 @@ summary {
 }
 
 .prose-page li::marker,
-.landing li::marker {
+.landing-body li::marker {
   color: var(--green);
 }
 
@@ -749,15 +749,173 @@ summary {
   gap: var(--s3);
 }
 
-.landing-hero {
+/* The front door: one calm, printed-looking screen. A centred stack of words
+   sits above an engraved landscape that fills the rest of the first screen.
+   Taller than the screen when it must be (large text, zoom, a short phone),
+   never clipped: the page scrolls rather than hiding anything. */
+.landing {
   display: grid;
-  gap: var(--s4);
-  padding-block: var(--s5);
+  gap: var(--s7);
+}
+
+.landing-hero {
+  display: flex;
+  flex-direction: column;
+  /* The first screen, less the masthead and the main column's top padding
+     (the later `.shell-main` rule), so the book in the engraving sits on the
+     fold instead of just under it. */
+  min-block-size: calc(100svh - var(--header-h) - clamp(1.4rem, 3vw, 3.2rem));
+}
+
+.landing-hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-block-start: clamp(var(--s4), 3vw, var(--s6));
+  padding-inline: var(--s4);
+}
+
+.landing-mark {
+  inline-size: clamp(48px, 4.4vw, 60px);
+  block-size: auto;
+  color: var(--green-deep);
+}
+
+.landing-hero h1 {
+  margin-block-start: clamp(var(--s2), 1vw, var(--s3));
+  font-size: clamp(3rem, 2.2rem + 3.6vw, 5.25rem);
+  /* Sinhala's vowel signs stand above and below the line, so no tighter
+     than the house minimum, and no negative tracking (tests/typography). */
+  line-height: var(--leading-tight);
+  color: var(--green-deep);
+}
+
+/* Signed out: a sentence, not the name, so a heading size rather than the
+   wordmark's. */
+.signed-out h1 {
+  font-size: var(--text-display);
+  max-inline-size: 18em;
 }
 
 .landing-tagline {
+  margin-block-start: var(--s3);
   font-size: var(--text-xl);
+  color: var(--ink);
+  max-inline-size: 36em;
+}
+
+.landing-lead {
+  margin-block-start: var(--s3);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  max-inline-size: 40em;
+}
+
+.landing-hero-copy .notice-actions {
+  justify-content: center;
+  margin-block-start: var(--s5);
+}
+
+/* The four steps, dot-separated. Plain words until hovered or focused, when a
+   rule draws in beneath. Every one is a full-height target. */
+.landing-loop {
+  margin-block-start: var(--s5);
+}
+
+.landing-loop ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.landing-loop li {
+  display: flex;
+  align-items: center;
+}
+
+.landing-loop li + li::before {
+  content: "";
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: 50%;
+  background: var(--green-deep);
+  margin-inline: clamp(var(--s3), 1.6vw, var(--s5));
+  flex: none;
+}
+
+.landing-loop a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.landing-loop a::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 10px;
+  block-size: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s var(--ease);
+}
+
+.landing-loop a:hover::after,
+.landing-loop a:focus-visible::after {
+  transform: scaleX(1);
+}
+
+/* The engraving's edges fade into the paper, like a plate printed with a
+   margin, so it never meets the frame in a hard line. */
+.landing-scene {
+  display: block;
+  /* From zero, not `auto`: an SVG's automatic height is its own shape at
+     full width, which pushed the book below the fold on a laptop screen.
+     It takes the room the words leave, and no less than the minimum. */
+  flex: 1 1 0;
+  inline-size: 100%;
+  min-block-size: clamp(150px, 22svh, 380px);
+  margin-block-start: var(--s5);
   color: var(--green-deep);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+}
+
+.engraved-scene .scene-paper {
+  fill: var(--paper);
+}
+
+.engraved-scene .scene-ribbon {
+  stroke: var(--gold);
+}
+
+/* A phone: the steps become a tidy two-by-two grid, without orphaned dots. */
+@media (max-width: 36rem) {
+  .landing-loop ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--s4);
+  }
+
+  .landing-loop li {
+    justify-content: center;
+  }
+
+  .landing-loop li + li::before {
+    display: none;
+  }
 }
 
 .landing-steps {
@@ -770,6 +928,8 @@ summary {
 }
 
 .landing-steps li {
+  /* A step reached from the row above lands clear of the sticky header. */
+  scroll-margin-block-start: calc(var(--header-h) + var(--s4));
   padding: var(--s5);
   display: grid;
   gap: var(--s2);
@@ -1020,11 +1180,6 @@ summary {
   justify-items: center;
   text-align: center;
   padding-block: var(--s6);
-}
-
-.account-art {
-  width: min(22rem, 70vw);
-  height: auto;
 }
 
 .account-form {
@@ -3037,7 +3192,6 @@ h4 {
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .welcome-art,
-  :root:not([data-theme="light"]) .account-art,
   :root:not([data-theme="light"]) .book-cover-fallback {
     /* White fringe in the webp becomes the page colour; screen made it glow. */
     mix-blend-mode: multiply;
@@ -3047,7 +3201,6 @@ h4 {
 }
 
 :root[data-theme="dark"] .welcome-art,
-:root[data-theme="dark"] .account-art,
 :root[data-theme="dark"] .book-cover-fallback {
   mix-blend-mode: multiply;
   opacity: 1;

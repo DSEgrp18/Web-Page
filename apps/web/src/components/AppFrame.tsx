@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
 import { BrandMark } from "@/components/BrandMark";
+import { EngravedMark, EngravedScene } from "@/components/EngravedScene";
 import { ResetNoticeBanner } from "@/components/ResetNoticeBanner";
 import { RouteFocus } from "@/components/RouteFocus";
 import { SiteFooter } from "@/components/PublicFrame";
@@ -258,21 +259,15 @@ function SignedOut({ pathname }: { pathname: string }) {
       ? ""
       : `?next=${encodeURIComponent(pathname + search)}`;
   return (
-    <div className="account-screen">
-      <img
-        className="account-art"
-        src="/brand/swara-book.webp"
-        alt=""
-        width={700}
-        height={450}
-        loading="eager"
-        decoding="async"
-      />
-      <section className="account-form card" aria-labelledby="signed-out-heading">
+    // The front door's look, so signing out lands somewhere familiar: the
+    // same engraved mark and landscape, and the way back in at the centre.
+    <section className="landing-hero signed-out" aria-labelledby="signed-out-heading">
+      <div className="landing-hero-copy">
+        <EngravedMark className="landing-mark" />
         <h1 id="signed-out-heading" ref={heading} tabIndex={-1}>
           {strings.signedOutHeading}
         </h1>
-        <p>{strings.signedOutBody}</p>
+        <p className="landing-lead">{strings.signedOutBody}</p>
         <div className="notice-actions">
           <Link className="btn btn-primary" href={`/sign-in${next}`}>
             {strings.signInAction}
@@ -281,7 +276,8 @@ function SignedOut({ pathname }: { pathname: string }) {
             {strings.registerHeading}
           </Link>
         </div>
-      </section>
-    </div>
+      </div>
+      <EngravedScene className="landing-scene" />
+    </section>
   );
 }
