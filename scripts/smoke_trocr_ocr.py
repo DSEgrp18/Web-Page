@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Smoke-test TrOCR Sinhala OCR the way the reader runs it in Docker.
 
-Renders a short Sinhala line, recognises it with TrocrSinhalaOcr (Tesseract
-layout + TrOCR text), and fails unless the output is close to the intended
-phrase. Intended to run inside the api image built with WITH_TROCR=1, with the
-checkpoint mounted at SINHALA_READER_TROCR_MODEL_DIR.
+TrOCR checkpoints are line/crop models. This smoke renders a tight Sinhala line
+image (training-like), feeds it through TrocrSinhalaOcr with a deterministic
+layout box covering the crop, and fails unless the recognised text is close to
+the intended phrase. Intended to run inside the api image built with
+WITH_TROCR=1, with the checkpoint mounted at SINHALA_READER_TROCR_MODEL_DIR.
 """
 
 from __future__ import annotations
@@ -14,7 +15,6 @@ import os
 import sys
 import unicodedata
 from pathlib import Path
-
 
 EXPECTED = "ශ්‍රී ලංකා"
 
@@ -50,7 +50,6 @@ def _sinhala_font() -> str:
     for path in candidates:
         if path.is_file():
             return str(path)
-    # Last resort: any Noto Sinhala the package manager left behind.
     for root in (Path("/usr/share/fonts"), Path("/usr/local/share/fonts")):
         if not root.is_dir():
             continue
@@ -64,17 +63,23 @@ def _sinhala_font() -> str:
     )
 
 
-def _render_page(text: str) -> bytes:
+def _render_line(text: str) -> tuple[bytes, int, int]:
+    """A tight line crop, the shape TrOCR was trained on."""
     from PIL import Image, ImageDraw, ImageFont
 
-    font = ImageFont.truetype(_sinhala_font(), 64)
-    # Wide page so Tesseract's page segmentation has room to find one clean line.
-    image = Image.new("RGB", (900, 240), "white")
+    font = ImageFont.truetype(_sinhala_font(), 48)
+    # Measure text, then pad a little so marks above/below the line are kept.
+    probe = Image.new("RGB", (8, 8), "white")
+    draw = ImageDraw.Draw(probe)
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    width = max(32, right - left + 24)
+    height = max(32, bottom - top + 24)
+    image = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(image)
-    draw.text((40, 80), text, fill="black", font=font)
+    draw.text((12, 12 - top), text, fill="black", font=font)
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
-    return buffer.getvalue()
+    return buffer.getvalue(), width, height
 
 
 def main() -> int:
@@ -98,14 +103,26 @@ def main() -> int:
     )
     device = os.environ.get("SINHALA_READER_TROCR_DEVICE", "cpu").strip() or "cpu"
 
-    from sinhala_documents.ocr import lines_from_words
+    from sinhala_documents.ocr import OcrAdapter, OcrWord, lines_from_words
     from sinhala_documents.trocr_ocr import TrocrSinhalaOcr
 
-    png = _render_page(EXPECTED)
+    png, width, height = _render_line(EXPECTED)
+
+    class LineLayout(OcrAdapter):
+        """One box over the whole crop — TrOCR sees a line image, not a page."""
+
+        @property
+        def version(self) -> str:
+            return "smoke-line/1"
+
+        def recognise(self, image_png: bytes) -> tuple[OcrWord, ...]:
+            return (OcrWord("x", 0, 0, width, height, 1, 1, 1, 1.0),)
+
     adapter = TrocrSinhalaOcr(
         checkpoint=checkpoint,
         model_dir=model_dir,
         device=device,
+        layout=LineLayout(),
     )
     print(f"adapter={adapter.version}", flush=True)
     words = adapter.recognise(png)
@@ -119,13 +136,12 @@ def main() -> int:
     print(f"expected={reference!r}")
     print(f"got={hypothesis!r}")
     print(f"cer={cer:.3f}")
-    # Printed Sinhala from a clean synthetic line should be near-exact. Allow a
-    # little room for ZWJ / spacing variants without accepting gibberish.
-    if cer > 0.35:
-        print(f"CER {cer:.3f} is too high (limit 0.35).", file=sys.stderr)
-        return 1
     if not any("\u0d80" <= ch <= "\u0dff" for ch in hypothesis):
         print("Recognised text has no Sinhala codepoints.", file=sys.stderr)
+        return 1
+    # Clean synthetic line crops should be close. Allow some ZWJ / glyph variance.
+    if cer > 0.35:
+        print(f"CER {cer:.3f} is too high (limit 0.35).", file=sys.stderr)
         return 1
     print("trocr smoke ok")
     return 0
