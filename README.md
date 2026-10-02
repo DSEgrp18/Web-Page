@@ -12,6 +12,9 @@ hear answers that cite the pages they came from.
 
 **It runs locally, end to end, and the voice has never left this machine.**
 
+What remains before it can ship, with an owner column to claim work, is in
+[`docs/remaining-work.md`](docs/remaining-work.md).
+
 You can start the API and the reader, add a Sinhala PDF, open a page, and press
 play. By default what comes out is a placeholder tone, and every layer says so —
 in the audio response header, in the manifest, in `GET /readiness`, and out loud
