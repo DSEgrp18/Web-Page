@@ -48,9 +48,7 @@ def hit(retrieved_pages: list[int], gold: frozenset[int]) -> bool:
     return any(page in gold for page in retrieved_pages)
 
 
-def recall_at(
-    questions: list[Question], root: Path, *, k: int = 5, mode: str = "lexical"
-) -> dict:
+def recall_at(questions: list[Question], root: Path, *, k: int = 5, mode: str = "lexical") -> dict:
     if mode not in MODES:
         raise ValueError(f"mode must be one of {MODES}")
     indexes: dict[str, object] = {}
@@ -59,9 +57,7 @@ def recall_at(
         if not question.answerable:
             continue
         if question.book not in indexes:
-            indexes[question.book] = build_index(
-                passages(prepare(root / question.book)), mode
-            )
+            indexes[question.book] = build_index(passages(prepare(root / question.book)), mode)
         hits = indexes[question.book].search(question.question, limit=k)
         scores.append(1.0 if hit([h.passage.page_index for h in hits], question.pages) else 0.0)
     return {

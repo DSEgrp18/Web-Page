@@ -419,44 +419,50 @@ function TakeQuiz({
           {strings.quizScore(right, total)}
         </h1>
         <div className="table-scroll">
-        <table className="member-table">
-          <caption>{strings.quizResultsCaption}</caption>
-          <thead>
-            <tr>
-              <th scope="col" className="visually-hidden">
-                #
-              </th>
-              <th scope="col">{strings.quizResultsColQuestion}</th>
-              <th scope="col">{strings.quizResultsColOutcome}</th>
-              <th scope="col">{strings.hearQuestion}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quiz.questions.map((item, position) => {
-              const row = byId.get(item.question_id);
-              const segmentId = row?.segment_id ?? item.segment_id;
-              return (
-                <tr key={item.question_id}>
-                  <td className="latin">{position + 1}</td>
-                  <td lang="si">
-                    <Question text={item.question} />
-                  </td>
-                  <td>{row ? (row.correct ? strings.quizResultRight : strings.quizResultWrong) : "—"}</td>
-                  <td>
-                    {segmentId ? (
-                      <Link
-                        className="btn btn-quiet btn-sm"
-                        href={`/library/${encodeURIComponent(documentId)}?segment=${encodeURIComponent(segmentId)}`}
-                      >
-                        {strings.hearQuestion}
-                      </Link>
-                    ) : null}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          <table className="member-table">
+            <caption>{strings.quizResultsCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col" className="visually-hidden">
+                  #
+                </th>
+                <th scope="col">{strings.quizResultsColQuestion}</th>
+                <th scope="col">{strings.quizResultsColOutcome}</th>
+                <th scope="col">{strings.hearQuestion}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {quiz.questions.map((item, position) => {
+                const row = byId.get(item.question_id);
+                const segmentId = row?.segment_id ?? item.segment_id;
+                return (
+                  <tr key={item.question_id}>
+                    <td className="latin">{position + 1}</td>
+                    <td lang="si">
+                      <Question text={item.question} />
+                    </td>
+                    <td>
+                      {row
+                        ? row.correct
+                          ? strings.quizResultRight
+                          : strings.quizResultWrong
+                        : "—"}
+                    </td>
+                    <td>
+                      {segmentId ? (
+                        <Link
+                          className="btn btn-quiet btn-sm"
+                          href={`/library/${encodeURIComponent(documentId)}?segment=${encodeURIComponent(segmentId)}`}
+                        >
+                          {strings.hearQuestion}
+                        </Link>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
         <button className="btn btn-primary" type="button" onClick={onBack}>
           {strings.backToQuizzes}

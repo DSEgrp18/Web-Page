@@ -63,9 +63,7 @@ def _correct(result, acceptable: str | None) -> bool:
     return acceptable in result.answer
 
 
-def evaluate(
-    questions: list[AnswerQuestion], root: Path, *, mode: str = "lexical"
-) -> dict:
+def evaluate(questions: list[AnswerQuestion], root: Path, *, mode: str = "lexical") -> dict:
     if mode not in MODES:
         raise ValueError(f"mode must be one of {MODES}")
     prepared: dict[str, tuple] = {}
@@ -78,9 +76,7 @@ def evaluate(
         passage_list = prepared[question.book]
         result = answer_question(question.question, passage_list, mode=mode)
         if question.answerable:
-            citation_hits.append(
-                1.0 if _citation_supported(result, question.pages) else 0.0
-            )
+            citation_hits.append(1.0 if _citation_supported(result, question.pages) else 0.0)
             correct_hits.append(1.0 if _correct(result, question.acceptable) else 0.0)
         else:
             abstained_ok.append(1.0 if result.abstained else 0.0)
