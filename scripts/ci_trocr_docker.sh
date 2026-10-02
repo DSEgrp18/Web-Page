@@ -58,7 +58,7 @@ docker run --rm \
     rm -rf /var/lib/apt/lists/*
     # Drop privileges for the actual recognition: the image is meant to run as
     # reader; root was only needed to install the font for this smoke.
-    su -s /bin/bash reader -c 'python /app/scripts/smoke_trocr_ocr.py'
+    su -s /bin/bash reader -c "python /app/scripts/smoke_trocr_ocr.py"
   '
 
 echo "Trocr Docker smoke passed."
