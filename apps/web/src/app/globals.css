@@ -3418,15 +3418,37 @@ textarea:focus {
   color: var(--ink-muted);
 }
 
-/* Below a laptop's width the search takes its own row and the filters and
-   sort share the next, rather than push the page sideways. */
-@media (max-width: 1050px) {
+/* The toolbar wraps rather than squeezes. On a wide screen search, filters
+   and sort share one row; below a laptop's width the search takes its own
+   row and the filters and sort share the next only when both fit. Fixed
+   columns left the four filters 19 px too wide at 780 px on Linux, whose
+   Sinhala runs a little wider than Windows'. Phones (760 px and under) stack
+   everything; see section 17. */
+@media (min-width: 760.02px) {
   .shelf-controls {
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-wrap: wrap;
   }
 
   .search {
-    grid-column: 1 / -1;
+    flex: 1 1 16rem;
+  }
+
+  /* Each keeps the width its words need; whatever does not fit on the row
+     moves to the next one, so the toolbar can never push the page sideways. */
+  .shelf-filters,
+  .shelf-sort {
+    flex: 0 0 auto;
+  }
+}
+
+@media (min-width: 760.02px) and (max-width: 1050px) {
+  .search {
+    flex-basis: 100%;
+  }
+
+  .shelf-sort {
+    flex: 1 1 14rem;
   }
 }
 
