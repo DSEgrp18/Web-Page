@@ -105,7 +105,9 @@ class Deps:
         self.answerer = answerer or build_answerer()
         #: What runs when the configured answerer cannot. Always extractive:
         #: it needs no provider, so it cannot fail the same way.
-        self.fallback_answerer = ExtractiveAnswerer()
+        from .retrieval import retrieval_mode
+
+        self.fallback_answerer = ExtractiveAnswerer(mode=retrieval_mode())
         #: Load the checkpoint at start-up rather than in the first request.
         #: Tests turn it off to hold an adapter in a chosen state.
         self.warm_on_start = warm_on_start

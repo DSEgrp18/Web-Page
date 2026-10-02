@@ -52,6 +52,8 @@ class QuestionView(BaseModel):
     question: str
     options: list[str]
     page_label: str | None
+    page_index: int | None = None
+    segment_id: str | None = None
     answer: int | None = Field(
         default=None, description="Only for the quiz's maker, who has to review it."
     )
@@ -126,6 +128,8 @@ def register(app: FastAPI, deps: Deps) -> None:
                 question=q["question"],
                 options=q["options"],
                 page_label=q["page_label"],
+                page_index=q.get("page_index"),
+                segment_id=q.get("segment_id"),
                 answer=q["answer"] if mine else None,
             )
             for q in json.loads(quiz.questions)

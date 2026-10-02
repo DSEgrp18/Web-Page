@@ -16,7 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .passages import Passage
-from .retrieval import Hit, LexicalIndex
+from .retrieval import Hit
+from .retrieval_select import build_index
 
 # Question scaffolding is not evidence. This intentionally small set is not a
 # Sinhala stopword list (there is no evaluated one in this project); it simply
@@ -70,7 +71,12 @@ class Answer:
     """
 
 
-def answer_question(question: str, passages: tuple[Passage, ...] | list[Passage]) -> Answer:
+def answer_question(
+    question: str,
+    passages: tuple[Passage, ...] | list[Passage],
+    *,
+    mode: str = "lexical",
+) -> Answer:
     """Return only evidence the document actually supplies.
 
     A retrieval hit whose only terms are question scaffolding is not enough to
@@ -78,7 +84,7 @@ def answer_question(question: str, passages: tuple[Passage, ...] | list[Passage]
     whereas a confident answer from an unrelated passage is hard to detect
     without sight and harder to undo.
     """
-    hits = LexicalIndex(passages).search(question, limit=3)
+    hits = build_index(passages, mode).search(question, limit=3)
     supported = tuple(hit for hit in hits if _has_content_support(hit))
     if not supported:
         return Answer(answer=None, citations=(), abstained=True)
@@ -88,6 +94,28 @@ def answer_question(question: str, passages: tuple[Passage, ...] | list[Passage]
     # or combined with external knowledge; the citations below provide any
     # additional retrieved context without pretending it is one answer.
     return Answer(answer=supported[0].passage.text, citations=citations, abstained=False)
+
+
+def grounded_summary(
+    passages: tuple[Passage, ...] | list[Passage],
+    *,
+    focus: str = "",
+    mode: str = "lexical",
+) -> Answer:
+    """Study-mode summary: only retrieved passages, quoted and cited.
+
+    This is not read mode. The text is assembled from the book's own sentences
+    for a labelled study view, not narrated as the document.
+    """
+    query = focus.strip() or "ප්‍රධාන අදහස්"
+    hits = build_index(passages, mode).search(query, limit=5)
+    supported = tuple(hit for hit in hits if _has_content_support(hit))
+    if not supported:
+        return Answer(answer=None, citations=(), abstained=True)
+    chosen = supported[:3]
+    citations = tuple(_citation(hit.passage) for hit in chosen)
+    answer = "\n\n".join(hit.passage.text for hit in chosen)
+    return Answer(answer=answer, citations=citations, abstained=False, generated=True)
 
 
 def _has_content_support(hit: Hit) -> bool:

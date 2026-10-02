@@ -14,7 +14,7 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 
-from sinhala_documents.retrieval import LexicalIndex
+from sinhala_documents.retrieval_select import MODES, build_index
 
 from .books import passages, prepare
 from .stats import bootstrap
@@ -48,14 +48,20 @@ def hit(retrieved_pages: list[int], gold: frozenset[int]) -> bool:
     return any(page in gold for page in retrieved_pages)
 
 
-def recall_at(questions: list[Question], root: Path, *, k: int = 5) -> dict:
-    indexes: dict[str, LexicalIndex] = {}
+def recall_at(
+    questions: list[Question], root: Path, *, k: int = 5, mode: str = "lexical"
+) -> dict:
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES}")
+    indexes: dict[str, object] = {}
     scores: list[float] = []
     for question in questions:
         if not question.answerable:
             continue
         if question.book not in indexes:
-            indexes[question.book] = LexicalIndex(passages(prepare(root / question.book)))
+            indexes[question.book] = build_index(
+                passages(prepare(root / question.book)), mode
+            )
         hits = indexes[question.book].search(question.question, limit=k)
         scores.append(1.0 if hit([h.passage.page_index for h in hits], question.pages) else 0.0)
     return {
@@ -63,5 +69,9 @@ def recall_at(questions: list[Question], root: Path, *, k: int = 5) -> dict:
         "answerable": len(scores),
         "unanswerable": sum(not q.answerable for q in questions),
         "books": len(indexes),
-        "retriever": "lexical BM25 (sinhala_documents.retrieval.LexicalIndex)",
+        "retriever": mode,
     }
+
+
+def compare_modes(questions: list[Question], root: Path, *, k: int = 5) -> dict:
+    return {mode: recall_at(questions, root, k=k, mode=mode) for mode in MODES}

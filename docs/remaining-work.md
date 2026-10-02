@@ -120,16 +120,16 @@ None of these is started unless noted. They run in roughly this order.
 
 ---
 
-## 5. Planned features not yet built
+## 5. Planned features (section shipped; evaluation data still pending)
 
-| What | Notes | Owner |
-| --- | --- | --- |
-| **Dense and hybrid retrieval**, compared against lexical | CLAUDE.md requires the comparison. Only lexical (BM25) exists | — |
-| **Answer evaluation** (roadmap item 40) | Citation support, correctness and abstention. No evaluation set exists yet | — |
-| **OCR review and correction workflow** for teachers | OCR'd pages are flagged, but nobody can correct them. A correction must create a new document version | — |
-| **Quiz results screen** (F34) | Plan §8.7 asks for a results table and **Hear the question**; today there's a score heading only | — |
-| **Voice cold-start notice** | Check whether [#28](https://github.com/DSEgrp18/Web-Page/issues/28) is done; the placeholder-tone notice exists, but a "the voice is warming up" state may not | — |
-| **Summaries grounded in the document** | Listed as "later" in CLAUDE.md | — |
+| What | Status |
+| --- | --- |
+| **Dense and hybrid retrieval** vs lexical | `SINHALA_READER_RETRIEVAL` (`lexical`, `dense`, `hybrid`); `swara_eval retrieval --compare` |
+| **Answer evaluation** (roadmap 40) | `swara_eval answers` (citation, correctness, abstention); needs CSV under `evaluation/data/` |
+| **OCR teacher correction** | `POST …/pages/{n}/correction`, reader form on `needs_review` pages, version bump |
+| **Quiz results** (F34) | Results table + **Hear the question** on the practice finish screen |
+| **Voice cold-start notice** | Reader polls `/readiness`; warming banner distinct from placeholder tone |
+| **Grounded summaries** | `POST …/summary` (study mode, labelled `generated`, retrieval-backed) |
 
 ---
 

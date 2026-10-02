@@ -243,7 +243,12 @@ function PageNotes({ page, documentNotes }: { page: Page; documentNotes: string[
   // A note already said about the whole book is not said again for the page:
   // pasted text carried the same note on the book and on every section.
   for (const note of page.notes) {
-    if (!documentNotes.includes(note)) messages.push({ text: note, lang: "en" });
+    if (documentNotes.includes(note)) continue;
+    if (note === "note:page_teacher_corrected") {
+      messages.push({ text: strings.pageTeacherCorrectedNote });
+      continue;
+    }
+    messages.push({ text: note, lang: "en" });
   }
 
   if (messages.length === 0) return null;
