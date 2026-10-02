@@ -455,6 +455,4 @@ def test_without_an_engine_the_book_is_still_prepared_and_says_what_is_unread() 
 
     parsed = [parse(n) for n in document.notes]
     assert any(item and item[0] == "ocr_failed" for item in parsed)
-    assert any(
-        item and "not installed" in item[1].get("reason", "") for item in parsed
-    )
+    assert any(item and "not installed" in item[1].get("reason", "") for item in parsed)

@@ -459,4 +459,3 @@ def test_ordinary_sinhala_with_sri_is_not_garbled() -> None:
     assert not looks_garbled_native(prose)
     page = pages(Page(blocks=(Text(prose, y=700),)))[0]
     assert page.quality is QualityState.ACCEPTED
-
