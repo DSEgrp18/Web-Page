@@ -6,11 +6,13 @@
 # accepts an upload and the thing that prepares it. That skew is invisible until
 # a document prepared by the old worker is served by the new API.
 #
-# Deliberately absent: torch and coqui-tts. They add several gigabytes for a
-# voice that cannot run without the model bundle, which is mounted rather than
-# built in. See infra/README.md for running the real voice.
+# Deliberately absent by default: torch and coqui-tts (voice), and torch for
+# TrOCR. Voice uses tts.Dockerfile. TrOCR is an optional build-arg
+# WITH_TROCR=1 used by compose.trocr.yml, so the slim image stays the default.
 
 FROM python:3.13-slim
+
+ARG WITH_TROCR=0
 
 # psycopg[binary] ships its own libpq, so no build toolchain is needed. Kept
 # slim on purpose: every package here is one more thing to patch in an image
@@ -45,9 +47,22 @@ RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       "redis>=5" \
       "langgraph>=1.2"
 
+# Optional TrOCR stack. Built only when compose.trocr.yml sets WITH_TROCR=1.
+# torch from the CPU index first, then transformers and Pillow — same pattern as
+# tts.Dockerfile. The checkpoint itself is mounted, never copied into the image.
+RUN if [ "$WITH_TROCR" = "1" ]; then \
+      pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu \
+        "torch>=2.5" \
+      && pip install --no-cache-dir \
+        "transformers>=4.40,<5" \
+        "Pillow>=10"; \
+    fi
+
 # Tesseract and its Sinhala model, for pages whose embedded text does not match
 # what is printed. See services/worker/src/sinhala_documents/ocr.py. It reads
-# page images locally: nothing is sent anywhere.
+# page images locally: nothing is sent anywhere. TrOCR still needs it for line
+# layout when SINHALA_READER_OCR_ENGINE=trocr.
 RUN apt-get update \
  && apt-get install --no-install-recommends -y tesseract-ocr tesseract-ocr-sin \
  && rm -rf /var/lib/apt/lists/*
