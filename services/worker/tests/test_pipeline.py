@@ -69,7 +69,7 @@ def test_a_readable_page_beside_an_unreadable_one_still_plays() -> None:
 
 def test_a_page_with_nothing_to_read_is_reported() -> None:
     document = prepared(sinhala_page(), Page(images=1))
-    assert any("read aloud" in note for note in document.notes)
+    assert any("doc_unreadable_pages" in note for note in document.notes)
 
 
 # --------------------------------------------------------------------------

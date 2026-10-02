@@ -47,6 +47,7 @@ from .model import (
     QualityState,
     worst,
 )
+from .notes import make as note
 from .ocr import OcrAdapter, OcrMode, apply_ocr
 from .pdf_extract import extract_document
 from .structure import BlockRole, is_narrated, number_style_for
@@ -366,9 +367,7 @@ def prepare_document(
     notes = list(extraction.notes)
     unreadable = [page.page_index for page in pages if not page.has_audio]
     if unreadable:
-        notes.append(
-            f"{len(unreadable)} of {len(pages)} page(s) have nothing that can be read aloud."
-        )
+        notes.append(note("doc_unreadable_pages", count=len(unreadable), total=len(pages)))
     return ReadableDocument(
         version=version,
         pages=pages,

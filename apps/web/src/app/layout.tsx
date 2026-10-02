@@ -12,7 +12,10 @@ import { Providers } from "./providers";
 const abhayaLibre = Abhaya_Libre({
   subsets: ["sinhala", "latin"],
   weight: ["400", "700"],
-  variable: "--font-display",
+  // Same trick as Roboto: `--font-display` in CSS is a stack built from this
+  // face. A property defined as `var(--font-display)` is invalid, so Abhaya
+  // Libre never applied.
+  variable: "--font-display-face",
   display: "swap",
 });
 

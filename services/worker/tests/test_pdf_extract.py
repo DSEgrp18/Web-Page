@@ -130,10 +130,11 @@ def test_the_note_distinguishes_decoded_from_undecodable() -> None:
     decoded = pages(legacy_page("ABCDEF+FMAbhaya"))[0].lines[0].spans[0]
     unsupported = pages(legacy_page("DL-Manel"))[0].lines[0].spans[0]
     variant = pages(legacy_page("RFWEJF+FMAbabldBold"))[0].lines[0].spans[0]
-    assert "Converted from" in decoded.notes[0]
-    assert "no validated conversion table" in unsupported.notes[0]
+    assert decoded.notes[0].startswith("note:converted_legacy")
+    assert "legacy_unsupported" in unsupported.notes[0]
     # A variant says whose table decoded it, so the borrowing stays visible.
-    assert "variant of fmabhaya" in variant.notes[0]
+    assert "converted_variant" in variant.notes[0]
+    assert "fmabhaya" in variant.notes[0]
 
 
 def test_a_validated_variant_is_readable() -> None:
@@ -173,7 +174,7 @@ def test_an_image_only_page_is_classified_for_ocr() -> None:
     page = pages(Page(images=1))[0]
     assert page.kind is PageKind.IMAGE
     assert page.image_count == 1
-    assert "read aloud" in page.notes[0]
+    assert page.notes[0].startswith("note:page_image_only")
 
 
 def test_an_image_only_page_is_never_reported_as_accepted() -> None:
@@ -185,7 +186,7 @@ def test_a_page_with_both_text_and_images_keeps_its_text() -> None:
     page = pages(sinhala_page(images=2))[0]
     assert page.kind is PageKind.MIXED
     assert page.readable_text
-    assert "not described" in " ".join(page.notes)
+    assert any(note.startswith("note:page_mixed_images") for note in page.notes)
 
 
 def test_a_blank_page_is_blank_rather_than_broken() -> None:
@@ -254,7 +255,7 @@ def test_only_the_requested_pages_are_extracted() -> None:
 def test_a_stale_page_request_is_reported_rather_than_raised() -> None:
     document = extract_document(build_pdf([sinhala_page()]), page_indexes=[7])
     assert document.pages == ()
-    assert any("requested pages" in note for note in document.notes)
+    assert any("doc_pages_missing" in note for note in document.notes)
 
 
 # --------------------------------------------------------------------------
@@ -284,7 +285,7 @@ def test_the_document_lists_what_still_needs_work() -> None:
     )
     assert [page.page_index for page in document.pages_needing_ocr] == [1]
     assert [page.page_index for page in document.pages_needing_review] == [1, 2]
-    assert any("images with no readable text" in note for note in document.notes)
+    assert any("doc_image_pages" in note for note in document.notes)
 
 
 # --------------------------------------------------------------------------
@@ -334,11 +335,11 @@ def test_off_page_content_does_not_interleave_with_visible_text() -> None:
 def test_dropping_off_page_content_is_reported() -> None:
     """A producer leaving this much on the pasteboard is worth knowing about."""
     page = pages(Page(blocks=(Text("හැංගුණු පෙළ " * 4, x=900, y=700),)))[0]
-    assert any("outside the printed area" in note for note in page.notes)
+    assert any("page_off_page" in note for note in page.notes)
 
 
 def test_ordinary_pages_are_not_accused_of_hiding_anything() -> None:
-    assert not any("outside the printed area" in note for note in pages(sinhala_page())[0].notes)
+    assert not any("page_off_page" in note for note in pages(sinhala_page())[0].notes)
 
 
 # --------------------------------------------------------------------------
@@ -380,9 +381,12 @@ def test_a_font_that_identifies_nothing_is_judged_on_all_its_text() -> None:
 
 
 def test_the_note_explains_what_the_font_was_judged_on() -> None:
+    from sinhala_documents.notes import parse
+
     page = pages(unnamed_legacy_page())[0]
     notes = [note for span in page.lines[0].spans for note in span.notes]
-    assert any("CIDFont+F2" in note for note in notes)
+    names = [parse(note)[1].get("name", "") for note in notes if parse(note)]
+    assert any("CIDFont+F2" in name for name in names)
 
 
 def test_it_is_withheld_even_with_no_legacy_font_beside_it() -> None:
@@ -405,12 +409,8 @@ def test_the_note_only_claims_what_the_page_supports() -> None:
     """
     with_context = pages(unnamed_legacy_page())[0]
     alone = pages(unnamed_legacy_page(with_known_legacy=False))[0]
-    assert any("legacy" in n for span in with_context.lines[0].spans for n in span.notes)
-    assert any(
-        "neither Sinhala nor ordinary English" in n
-        for span in alone.lines[0].spans
-        for n in span.notes
-    )
+    assert any("unnamed_legacy" in n for span in with_context.lines[0].spans for n in span.notes)
+    assert any("suspect_font" in n for span in alone.lines[0].spans for n in span.notes)
 
 
 def test_readable_text_in_an_unknown_font_is_left_alone() -> None:
@@ -432,3 +432,31 @@ def test_another_script_is_shown_but_not_read() -> None:
     )[0]
     assert page.readable_text == ""
     assert page.text != ""
+
+
+def test_chrome_print_garble_is_withheld() -> None:
+    """A Sinhala PDF printed from Chrome: NULs and a repeated cluster.
+
+    The codepoints are real Sinhala, so the legacy-encoding checks never fire.
+    Narrating it would read ශ්‍රීශ්‍රීශ්‍රී as if it were the book.
+    """
+    from sinhala_documents.pdf_extract import _classify_span
+    from sinhala_documents.fonts import looks_garbled_native
+
+    garbage = "ශ්‍රී" * 8 + "\x00"
+    assert looks_garbled_native(garbage)
+    method, quality, notes, text = _classify_span(garbage, "AAAAAA+NotoSansSinhala")
+    assert method is ExtractionMethod.NATIVE
+    assert quality is QualityState.UNDECODABLE
+    assert notes[0].startswith("note:garbled_native")
+    assert "\x00" not in text
+
+
+def test_ordinary_sinhala_with_sri_is_not_garbled() -> None:
+    from sinhala_documents.fonts import looks_garbled_native
+
+    prose = "ශ්‍රී ලංකාවේ ඉතිහාසය ගැන මෙම පරිච්ඡේදයේ කියවේ."
+    assert not looks_garbled_native(prose)
+    page = pages(Page(blocks=(Text(prose, y=700),)))[0]
+    assert page.quality is QualityState.ACCEPTED
+

@@ -17,13 +17,10 @@
  * these strings and nothing else, so an awkward or wrong word is the whole
  * interface. See `apps/web/README.md`.
  *
- * A note on what is *not* here: page and book notes from the API. They are
- * English prose written by the pipeline (`file_extract.py`, `pdf_extract.py`,
- * `ocr.py`), shown as received and marked `lang="en"` so a screen reader
- * reads them with an English voice. Translating them needs stable note codes
- * from the API first (docs/ui-audit.md F07). A job's failure `detail` is an
- * English diagnostic too, so a failed book is described from its stage
- * instead (`jobFailureMessage`).
+ * A note on what is *not* here: a job's failure `detail` is an English
+ * diagnostic, so a failed book is described from its stage instead
+ * (`jobFailureMessage`). Pipeline notes arrive as codes (`note:…`) and are
+ * translated by `pipelineNote`.
  */
 
 import type { Job } from "./types";
@@ -277,6 +274,9 @@ export const si = {
   noReview: "පරීක්ෂා කළ යුතු පිටු නැත.",
   pageAccept: "පිළිගන්න",
   pageWithhold: "නවත්වන්න",
+  openFlaggedPage: (label: string) => `පිටුව ${label} බලන්න`,
+  savePageDecision: "තීරණය සුරකින්න",
+  pageDecisionSaved: "පිටුවේ තීරණය සුරැකුණා.",
   undecidedCount: (count: number) => `තවම තීරණය නොකළ පිටු ${count}ක්`,
   basisHeading: "බෙදා ගැනීමේ අයිතිය",
   basisIntro: "මෙම පොත ඔබේ පන්තිය සමඟ බෙදා ගැනීමට ඔබට අයිතිය ඇත්තේ ඇයි? ඔබේ පිළිතුර සටහන් වේ.",
@@ -753,6 +753,68 @@ export const si = {
   suggestThisPage: "මෙම පිටුවේ ඇත්තේ කුමක්ද?",
   suggestExplain: "මෙය ගැන පොතේ කියන්නේ කුමක්ද?",
   conversationLabel: "ප්‍රශ්න හා පිළිතුරු",
+
+  // -- language ----------------------------------------------------------
+  /** Shown on an English page that is a draft of a Sinhala one. Never on a
+   * Sinhala page, but every key exists in both dictionaries. */
+  // Page and book notes from the API. Codes (`note:garbled_native`) are
+  // translated here; leftover English prose is shown as received.
+  pipelineNote: (code: string, params: Record<string, string>) => {
+    const n = params.name ?? "";
+    const family = params.family ?? "";
+    const count = params.count ?? "";
+    const total = params.total ?? "";
+    const withheld = params.withheld ?? "";
+    const reason = params.reason ?? "";
+    switch (code) {
+      case "garbled_native":
+        return "මෙම පිටුවේ අකුරු නිවැරදිව උපුටා ගත නොහැකි විය. එය ශබ්දයට හරවා නැත; පින්තූරයෙන් කියවීමට යයි.";
+      case "legacy_unsupported":
+        return `"${n}" යනු පරිවර්තන වගුවක් නැති පැරණි අකුරු මෝස්තරයකි. පින්තූරයෙන් කියවීම හෝ අතින් පරීක්ෂාව අවශ්‍යයි.`;
+      case "legacy_variant":
+        return `"${n}" යනු ${family} වගුව යෙදේදැයි තහවුරු නොවූ පැරණි අකුරු මෝස්තරයකි.`;
+      case "suspect_encoding":
+        return "උපුටා ගත් අකුරු සිංහල හෝ සාමාන්‍ය ඉංග්‍රීසි ලෙස නොපෙනේ. පරීක්ෂාව අවශ්‍යයි.";
+      case "other_script":
+        return "මෙය වෙනත් අකුරු පද්ධතියකින් ලියා ඇත. මෙම කියවනයට ඒ සඳහා හඬක් නැත.";
+      case "converted_legacy":
+        return `"${n}" පැරණි අකුරු මෝස්තරයෙන් පරිවර්තනය කළා. පරීක්ෂා කර නැත.`;
+      case "converted_variant":
+        return `"${n}" (${family}) පැරණි අකුරු මෝස්තරයෙන් පරිවර්තනය කළා. පරීක්ෂා කර නැත.`;
+      case "conversion_failed":
+        return `"${n}" පරිවර්තනය වැරදි සිංහලක් බිහි කළ නිසා කියවිය නොහැක.`;
+      case "mapping_missing":
+        return `"${n}" සඳහා පරිවර්තන වගුව පූරණය කළ නොහැකි විය.`;
+      case "unnamed_legacy":
+        return `"${n}" මගින් සකස් වූ සියලු අකුරු අර්ථවත් නැත. පැරණි අකුරු මෝස්තරයක් ලෙස සලකා ඇත.`;
+      case "suspect_font":
+        return `"${n}" මගින් සකස් වූ අකුරු සිංහල හෝ ඉංග්‍රීසි නොවේ.`;
+      case "page_image_only":
+        return "මෙම පිටුවේ පින්තූර පමණි. කියවිය හැකි අකුරු නැත.";
+      case "page_mixed_images":
+        return `මෙම පිටුවේ පින්තූර ${count}ක් ඇත. ඒවා විස්තර කර නැත.`;
+      case "page_blank":
+        return "මෙම පිටුව හිස්ය.";
+      case "page_columns":
+        return "මෙම පිටුව තීරු දෙකකින් සැලසුම් කර ඇති බවට සැකයක් ඇත. කියවන අනුපිළිවෙල මුද්‍රිත අනුපිළිවෙලට නොගැළපෙන්නට පුළුවන.";
+      case "page_unreadable_lines":
+        return `මෙම පිටුවේ පේළි ${total}න් ${withheld}ක් කියවිය නොහැක.`;
+      case "page_off_page":
+        return `මුද්‍රිත ප්‍රදේශයෙන් පිටත අකුරු ${count}ක් ඉවත් කර ඇත.`;
+      case "doc_pages_missing":
+        return "ඉල්ලූ පිටු මෙම ලේඛනයේ නැත.";
+      case "doc_image_pages":
+        return `පිටු ${total}න් ${count}ක් පින්තූර පමණි.`;
+      case "doc_unreadable_pages":
+        return `පිටු ${total}න් ${count}ක් කියවිය නොහැක.`;
+      case "ocr_recognised":
+        return "මෙම පිටුව පින්තූරයෙන් කියවා ඇත. අකුරු වැරදි විය හැක; පුද්ගලයෙකු පරීක්ෂා කර නැත.";
+      case "ocr_failed":
+        return `පිටු ${count}ක් පින්තූරයෙන් කියවිය නොහැකි විය (${reason}). තිබූ අකුරු තබා ගන්නා ලදී.`;
+      default:
+        return n ? `${code}: ${n}` : code;
+    }
+  },
 
   // -- language ----------------------------------------------------------
   /** Shown on an English page that is a draft of a Sinhala one. Never on a

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAnnouncer } from "@/components/Announcer";
 import { BrandMark } from "@/components/BrandMark";
 import { ResetNoticeBanner } from "@/components/ResetNoticeBanner";
+import { RouteFocus } from "@/components/RouteFocus";
 import { SiteFooter } from "@/components/PublicFrame";
 import { useReader, type UnavailableKind } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
@@ -53,6 +54,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <RouteFocus />
       <a className="skip-link" href="#main">
         {strings.skipToContent}
       </a>

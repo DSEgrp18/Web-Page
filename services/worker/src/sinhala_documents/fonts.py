@@ -22,6 +22,7 @@ Two independent signals, deliberately kept apart:
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 
 #: Six uppercase letters and a plus sign, prepended by PDF producers to the name
@@ -253,6 +254,41 @@ def identify_legacy_font(raw_name: str) -> LegacyFont | None:
 
 def contains_sinhala(text: str) -> bool:
     return _SINHALA.search(text) is not None
+
+
+#: NULs and Chrome-print runs of one cluster (ශ්‍රීශ්‍රීශ්‍රී) are real Sinhala
+#: codepoints, so :func:`looks_like_legacy_text` lets them through as accepted.
+_MIN_GARBLED_LENGTH = 20
+_GARBLED_REPEAT_RATIO = 0.55
+
+
+def looks_garbled_native(text: str) -> bool:
+    """Whether extracted Unicode is garbage that must not be narrated.
+
+    A PDF printed from Chrome can embed Sinhala that repeats one cluster and
+    interleave NUL bytes. That is not a legacy font, so the encoding checks
+    that bail out when Sinhala is present never see it. Withholding is the
+    safe mark: ``needs_review`` is still spoken.
+    """
+    if "\x00" in text:
+        return True
+    compact = "".join(text.split())
+    n = len(compact)
+    if n < _MIN_GARBLED_LENGTH:
+        return False
+    # Sliding blocks of 2–8 codepoints. Three or more copies of the same
+    # short cluster covering most of the run is the Chrome-print signature,
+    # not ordinary prose that happens to contain ශ්‍රී once.
+    best = 0.0
+    for size in range(2, 9):
+        if size * 3 > n:
+            break
+        chunks = [compact[i : i + size] for i in range(0, n - size + 1, size)]
+        if len(chunks) < 3:
+            continue
+        _token, freq = Counter(chunks).most_common(1)[0]
+        best = max(best, (freq * size) / n)
+    return best >= _GARBLED_REPEAT_RATIO
 
 
 def non_ascii_ratio(text: str) -> float:
