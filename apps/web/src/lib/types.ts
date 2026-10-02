@@ -403,6 +403,7 @@ export interface ReportView {
   quiz_id: string | null;
   question_id: string | null;
   created_at: string;
+  handled_at: string | null;
 }
 
 export interface ChapterProgress {

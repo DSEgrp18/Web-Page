@@ -612,6 +612,13 @@ export class ReaderApi {
     return this.json<ReportView[]>(`/documents/${encodeURIComponent(documentId)}/reports`);
   }
 
+  async markReportHandled(documentId: string, reportId: string): Promise<void> {
+    await this.request(
+      `/documents/${encodeURIComponent(documentId)}/reports/${encodeURIComponent(reportId)}/handled`,
+      { method: "POST" },
+    );
+  }
+
   // -- track -------------------------------------------------------------
 
   /** Sentences listened to the end of, so progress can count them. */

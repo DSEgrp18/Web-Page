@@ -12,6 +12,7 @@ import {
 import { useAnnouncer } from "@/components/Announcer";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useReader } from "@/components/ReaderProvider";
+import { ApiError } from "@/lib/client";
 import { useStrings } from "@/components/LocaleProvider";
 
 /**
@@ -85,15 +86,17 @@ function ChangePassword() {
   const strings = useStrings();
   const { changePassword } = useReader();
   const { say } = useAnnouncer();
-  const { setFailure, notice } = useFailure();
+  const { setFailure, notice, errorId } = useFailure();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [busy, setBusy] = useState(false);
+  const [badCurrent, setBadCurrent] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
+    setBadCurrent(false);
     try {
       await changePassword(current, next);
       setCurrent("");
@@ -101,6 +104,7 @@ function ChangePassword() {
       setFailure(null);
       say(strings.passwordChanged);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) setBadCurrent(true);
       setFailure(
         explain(
           error,
@@ -121,17 +125,24 @@ function ChangePassword() {
       {notice}
       <form className="account-fields" onSubmit={submit} noValidate>
         <PasswordField
-          label={strings.currentPasswordLabel}
+          label={strings.changePasswordCurrentLabel}
           autoComplete="current-password"
-          name="current-password"
+          name="change-current-password"
+          showPasswordLabel={strings.showPasswordForChange}
           value={current}
-          onChange={setCurrent}
+          invalid={badCurrent}
+          errorId={errorId}
+          onChange={(value) => {
+            setCurrent(value);
+            setBadCurrent(false);
+          }}
         />
         <PasswordField
           label={strings.newPasswordLabel}
           hint={strings.passwordHint(MIN_PASSWORD_LENGTH)}
           autoComplete="new-password"
-          name="new-password"
+          name="change-new-password"
+          showPasswordLabel={strings.showPasswordForChangeNew}
           value={next}
           onChange={setNext}
         />
@@ -152,17 +163,20 @@ function NewRecoveryCode({
 }) {
   const strings = useStrings();
   const { newRecoveryCode } = useReader();
-  const { setFailure, notice } = useFailure();
+  const { setFailure, notice, errorId } = useFailure();
   const [current, setCurrent] = useState("");
   const [busy, setBusy] = useState(false);
+  const [badCurrent, setBadCurrent] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
+    setBadCurrent(false);
     try {
       onMade(await newRecoveryCode(current));
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) setBadCurrent(true);
       setFailure(explain(error, { 401: strings.errorWrongPassword }, strings));
       setBusy(false);
     }
@@ -178,11 +192,17 @@ function NewRecoveryCode({
       {notice}
       <form className="account-fields" onSubmit={submit} noValidate>
         <PasswordField
-          label={strings.currentPasswordLabel}
+          label={strings.recoveryPasswordCurrentLabel}
           autoComplete="current-password"
-          name="current-password"
+          name="recovery-current-password"
+          showPasswordLabel={strings.showPasswordForRecovery}
           value={current}
-          onChange={setCurrent}
+          invalid={badCurrent}
+          errorId={errorId}
+          onChange={(value) => {
+            setCurrent(value);
+            setBadCurrent(false);
+          }}
         />
         <button className="btn" type="submit" aria-busy={busy}>
           {strings.newRecoveryAction}
@@ -224,17 +244,20 @@ function DeleteAccount() {
   const strings = useStrings();
   const { deleteAccount } = useReader();
   const { say } = useAnnouncer();
-  const { setFailure, notice } = useFailure();
+  const { setFailure, notice, errorId } = useFailure();
   const [current, setCurrent] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [badCurrent, setBadCurrent] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
 
   async function erase() {
     setConfirming(false);
+    setBadCurrent(false);
     try {
       await deleteAccount(current);
       say(strings.accountDeleted);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) setBadCurrent(true);
       setFailure(explain(error, { 401: strings.errorWrongPassword }, strings));
     }
   }
@@ -252,11 +275,17 @@ function DeleteAccount() {
         noValidate
       >
         <PasswordField
-          label={strings.currentPasswordLabel}
+          label={strings.deletePasswordCurrentLabel}
           autoComplete="current-password"
           name="delete-current-password"
+          showPasswordLabel={strings.showPasswordForDelete}
           value={current}
-          onChange={setCurrent}
+          invalid={badCurrent}
+          errorId={errorId}
+          onChange={(value) => {
+            setCurrent(value);
+            setBadCurrent(false);
+          }}
         />
         <button ref={trigger} className="btn btn-danger" type="submit">
           {strings.deleteAccountAction}

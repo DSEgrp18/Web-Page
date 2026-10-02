@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { explain, useFailure } from "@/components/AccountForms";
-import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
+import { bookTitle } from "@/lib/books";
 import type { ReportKind } from "@/lib/types";
 import { useStrings } from "@/components/LocaleProvider";
+import { Quoted } from "@/components/BookText";
 
 const KINDS: ReportKind[] = ["pronunciation", "extraction", "question", "accessibility", "other"];
 
@@ -27,7 +28,6 @@ export interface ReportTarget {
 export function ReportForm({ target }: { target: ReportTarget }) {
   const strings = useStrings();
   const { api } = useReader();
-  const { say } = useAnnouncer();
   const { setFailure, notice } = useFailure();
   const initial =
     KINDS.find((k) => k === target.kind) ?? (target.segment ? "pronunciation" : "other");
@@ -35,9 +35,35 @@ export function ReportForm({ target }: { target: ReportTarget }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [bookName, setBookName] = useState<string | null>(null);
+  const [sentence, setSentence] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const messageId = useId();
   const name = useId();
+
+  useEffect(() => {
+    if (!target.document) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const book = await api.getDocument(target.document!);
+        if (!cancelled) setBookName(bookTitle(book));
+      } catch {
+        /* The form still works; the subject line stays empty. */
+      }
+      if (target.segment) {
+        try {
+          const segment = await api.getSegment(target.document!, target.segment);
+          if (!cancelled) setSentence(segment.display_text);
+        } catch {
+          /* Segment may have moved after a reprocessing. */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, target.document, target.segment]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -55,7 +81,6 @@ export function ReportForm({ target }: { target: ReportTarget }) {
       });
       setFailure(null);
       setSent(true);
-      say(strings.reportSent);
       heading.current?.focus();
     } catch (error) {
       setFailure(explain(error, {}, strings));
@@ -64,8 +89,6 @@ export function ReportForm({ target }: { target: ReportTarget }) {
     }
   }
 
-  // Back to the sentence the report was about, not just the book: the
-  // reader was in the middle of it.
   const back = target.document
     ? `/library/${encodeURIComponent(target.document)}${
         target.segment ? `?segment=${encodeURIComponent(target.segment)}` : ""
@@ -83,6 +106,17 @@ export function ReportForm({ target }: { target: ReportTarget }) {
       ) : (
         <>
           <p className="hint">{target.document ? strings.reportWhoBook : strings.reportWhoSite}</p>
+          {bookName ? (
+            <p>
+              <strong>{strings.reportAboutBook}</strong> {bookName}
+            </p>
+          ) : null}
+          {sentence ? (
+            <p lang="si">
+              <Quoted format={strings.reportAboutSentence} text={sentence} />
+            </p>
+          ) : null}
+          {target.question ? <p className="hint">{strings.reportsQuestion}</p> : null}
           {notice}
           <form className="account-fields" onSubmit={submit} noValidate>
             <fieldset className="decision">

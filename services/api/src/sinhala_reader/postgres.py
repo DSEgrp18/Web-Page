@@ -495,6 +495,12 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             CHECK (media_type IN ('audio/wav', 'audio/ogg'));
         """,
     ),
+    (
+        "0017_report_handled",
+        """
+        ALTER TABLE problem_reports ADD COLUMN handled_at text;
+        """,
+    ),
 )
 
 
@@ -1146,8 +1152,9 @@ class PostgresStore(Store):
             connection.execute(
                 """
                 INSERT INTO problem_reports (report_id, reporter, kind, message, document_id,
-                                             segment_id, quiz_id, question_id, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                             segment_id, quiz_id, question_id, created_at,
+                                             handled_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     report.report_id,
@@ -1159,9 +1166,29 @@ class PostgresStore(Store):
                     report.quiz_id,
                     report.question_id,
                     report.created_at,
+                    report.handled_at,
                 ),
             )
         return report
+
+    def mark_report_handled(
+        self, document_id: str, owner: str, report_id: str
+    ) -> ProblemReport | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                """
+                UPDATE problem_reports r
+                   SET handled_at = %s
+                  FROM documents d
+                 WHERE r.report_id = %s AND r.document_id = %s AND d.document_id = r.document_id
+                   AND d.owner = %s AND r.handled_at IS NULL
+             RETURNING r.*
+                """,
+                (_now(), report_id, document_id, owner),
+            ).fetchone()
+        if row is None:
+            return None
+        return ProblemReport(**{**row, "kind": ReportKind(row["kind"])})
 
     def reports_on(self, document_id: str, owner: str) -> list[ProblemReport]:
         with self._pool.connection() as connection:

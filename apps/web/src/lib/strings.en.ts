@@ -37,6 +37,10 @@ export const en: Strings = {
   newPasswordLabel: "New password",
   passwordHint: (min: number) => `At least ${n(min, "character")}.`,
   showPassword: "Show password",
+  showPasswordForChange: "Change password: show current password",
+  showPasswordForChangeNew: "Change password: show new password",
+  showPasswordForRecovery: "Recovery code: show current password",
+  showPasswordForDelete: "Delete account: show current password",
   displayNameLabel: "Your name",
   displayNameHint: "The name Swara calls you by.",
   recoveryCodeLabel: "Recovery code",
@@ -57,6 +61,9 @@ export const en: Strings = {
   roleName: (role: string) =>
     role === "teacher" ? "Teacher" : role === "admin" ? "Administrator" : "Student",
   currentPasswordLabel: "Current password",
+  changePasswordCurrentLabel: "Change password — current password",
+  recoveryPasswordCurrentLabel: "Recovery code — current password",
+  deletePasswordCurrentLabel: "Delete account — current password",
   changePasswordHeading: "Change password",
   changePasswordAction: "Change password",
   passwordChanged: "Password changed. You have been signed out on your other devices.",
@@ -155,6 +162,11 @@ export const en: Strings = {
   reportSent: "Thank you. Your report has been sent.",
   reportWhoBook: "The book's owner sees this. Your name is not shown.",
   reportWhoSite: "This goes to the people who run the service.",
+  reportAboutBook: "Book:",
+  reportAboutSentence: (sentence: string) => `Sentence: ${sentence}`,
+  markReportHandled: "Mark as handled",
+  reportMarkedHandled: "Report marked as handled.",
+  reportHandled: "Marked as handled.",
   reportsLink: "Reported problems",
   reportsHeading: (title: string) => `${title} — reported problems`,
   reportsNone: "No problems have been reported yet.",
@@ -249,6 +261,26 @@ export const en: Strings = {
     (used ? "Your password has been changed with that code. " : "It has not been used yet. ") +
     "If you did not ask for it, tell your teacher or the service team.",
   resetNoticeSeen: "Understood",
+  formatDateTime: (year: number, month: number, day: number, hour: number, minute: number) => {
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ] as const;
+    const h = hour % 12 || 12;
+    const ampm = hour < 12 ? "am" : "pm";
+    const mm = String(minute).padStart(2, "0");
+    return `${months[month] ?? month + 1} ${day}, ${year}, ${h}:${mm} ${ampm}`;
+  },
   renameClassLabel: "Class name",
   renameClassAction: "Save name",
   classRenamed: "Class renamed.",

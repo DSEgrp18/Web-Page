@@ -307,6 +307,14 @@ export class FakeServer {
     }
     const bookReports = /^\/documents\/([^/]+)\/reports$/.exec(path);
     if (method === "GET" && bookReports) return this.json(this.bookReports);
+    const markHandled = /^\/documents\/([^/]+)\/reports\/([^/]+)\/handled$/.exec(path);
+    if (method === "POST" && markHandled) {
+      const [, , reportId] = markHandled;
+      const row = this.bookReports.find((r) => r.report_id === reportId);
+      if (!row) return this.notFound();
+      row.handled_at = new Date().toISOString();
+      return new Response(null, { status: 204 });
+    }
     const heard = /^\/documents\/([^/]+)\/heard$/.exec(path);
     if (method === "POST" && heard) {
       const body = JSON.parse(String(init.body)) as { segment_ids: string[] };
