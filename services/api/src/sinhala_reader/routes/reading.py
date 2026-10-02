@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from functools import partial
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Response, status
+from pydantic import BaseModel, Field
+from sinhala_documents.corrections import apply_page_correction
 from sinhala_tts.adapter import TextNotSpeakableError
 
 from ..audio import extension_for
+from ..preparation import get_prepared, store_prepared
 from ..schemas import (
     AudioManifest,
     BookmarkBody,
@@ -33,6 +37,10 @@ if TYPE_CHECKING:
 MAX_BOOKMARKS = 500
 
 
+class PageCorrectionBody(BaseModel):
+    text: str = Field(min_length=1, max_length=50_000)
+
+
 def register(app: FastAPI, deps: Deps) -> None:
     """Add the reading routes to ``app``, acting through ``deps``."""
     readable = partial(readable_in, deps)
@@ -50,6 +58,36 @@ def register(app: FastAPI, deps: Deps) -> None:
         page = prepared.page(page_index)
         if page is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such page.")
+        return PageDetail.of(page)
+
+    @app.post("/documents/{document_id}/pages/{page_index}/correction", tags=["reading"])
+    def correct_page(
+        document_id: str,
+        page_index: int,
+        body: PageCorrectionBody,
+        owner: str = Depends(require_owner),
+    ) -> PageDetail:
+        """Replace one page's text after teacher review; bumps the document version."""
+        reading = readable(document_id, owner)
+        document = reading.document
+        prepared = get_prepared(deps.store, document_id)
+        if prepared is None or document.version is None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "This document is not ready yet.")
+        try:
+            updated = apply_page_correction(prepared, page_index, body.text.strip())
+        except ValueError as error:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such page.") from error
+        store_prepared(deps.store, document_id, updated)
+        deps.store.put_document(
+            replace(
+                document,
+                version=updated.version,
+                segment_count=len(updated.segments),
+                notes=updated.notes,
+            )
+        )
+        page = updated.page(page_index)
+        assert page is not None
         return PageDetail.of(page)
 
     @app.get("/documents/{document_id}/segments/{segment_id}", tags=["reading"])

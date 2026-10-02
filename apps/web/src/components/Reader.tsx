@@ -10,6 +10,7 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { PdfPanel } from "@/components/PdfPanel";
 import { PlayerBar } from "@/components/PlayerBar";
 import { usePreferences } from "@/components/PreferencesProvider";
+import { PageCorrection } from "@/components/PageCorrection";
 import { ReadingPanel } from "@/components/ReadingPanel";
 import { SaveOffline } from "@/components/SaveOffline";
 import { useReader } from "@/components/ReaderProvider";
@@ -105,6 +106,8 @@ export function Reader({
   /** Focus is moved on navigation, but never on arrival. */
   const navigated = useRef(false);
   const announcedPlaceholder = useRef(false);
+  const announcedVoiceWarm = useRef(false);
+  const [voiceWarming, setVoiceWarming] = useState(false);
   const cuedBookmark = useRef<string | null>(null);
   /** A cited sentence on a page still loading: cued when it arrives. */
   const pendingCue = useRef<string | null>(null);
@@ -194,6 +197,35 @@ export function Reader({
       cancelled = true;
     };
   }, [api, documentId, pageIndex, fail]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer = 0;
+    async function poll() {
+      try {
+        const readiness = await api.readiness();
+        if (cancelled) return;
+        const warming =
+          readiness.real_model &&
+          (readiness.readiness === "loading" || readiness.readiness === "not_loaded");
+        setVoiceWarming(warming);
+        if (warming) timer = window.setTimeout(() => void poll(), 8000);
+      } catch {
+        if (!cancelled) setVoiceWarming(false);
+      }
+    }
+    void poll();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (!voiceWarming || announcedVoiceWarm.current) return;
+    announcedVoiceWarm.current = true;
+    say(strings.voiceWarming);
+  }, [voiceWarming, say, strings.voiceWarming]);
 
   useEffect(() => {
     if (!page) return;
@@ -484,6 +516,16 @@ export function Reader({
         onPlayIndex={player.playAt}
         documentNotes={book.notes}
       />
+      {page && book ? (
+        <PageCorrection
+          documentId={documentId}
+          page={page}
+          onSaved={(saved) => {
+            setPage(saved);
+            void api.getDocument(documentId).then(setBook).catch(fail);
+          }}
+        />
+      ) : null}
       <div className="reading-pager">
         <button
           type="button"
@@ -692,7 +734,8 @@ export function Reader({
 
       <PlayerBar
         player={player}
-        disabled={segments.length === 0}
+        disabled={segments.length === 0 || voiceWarming}
+        voiceWarming={voiceWarming}
         position={currentIndex + 1}
         total={segments.length}
         bookmarkLabel={bookmarkLabel}

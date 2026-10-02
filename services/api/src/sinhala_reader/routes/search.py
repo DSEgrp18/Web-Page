@@ -17,8 +17,9 @@ from typing import TYPE_CHECKING
 from fastapi import Depends, FastAPI, Query
 from pydantic import BaseModel
 from sinhala_documents.passages import build_passages
-from sinhala_documents.retrieval import LexicalIndex
+from sinhala_documents.retrieval_select import SearchIndex, build_index
 
+from ..retrieval import retrieval_mode
 from ..security import require_owner
 from .common import prepared_for_in, readable_in
 
@@ -31,7 +32,7 @@ MAX_RELATED = 5
 
 #: Indexes kept, by document, version and withheld pages: search is typed a few
 #: letters at a time, and rebuilding BM25 over a textbook per request is waste.
-_INDEXES: OrderedDict[tuple, LexicalIndex] = OrderedDict()
+_INDEXES: OrderedDict[tuple, SearchIndex] = OrderedDict()
 _INDEX_LIMIT = 16
 _LOCK = threading.Lock()
 
@@ -58,13 +59,13 @@ def normalise(text: str) -> str:
 def register(app: FastAPI, deps: Deps) -> None:
     """Add the search route to ``app``, acting through ``deps``."""
 
-    def index_for(key: tuple, prepared) -> LexicalIndex:
+    def index_for(key: tuple, prepared) -> SearchIndex:
         with _LOCK:
             found = _INDEXES.get(key)
             if found is not None:
                 _INDEXES.move_to_end(key)
                 return found
-        built = LexicalIndex(build_passages(prepared))
+        built = build_index(build_passages(prepared), retrieval_mode())
         with _LOCK:
             _INDEXES[key] = built
             while len(_INDEXES) > _INDEX_LIMIT:

@@ -46,10 +46,29 @@ def _rq1_analyse(args: argparse.Namespace) -> None:
 
 
 def _retrieval(args: argparse.Namespace) -> None:
-    from .retrieval import read_questions, recall_at
+    from .retrieval import compare_modes, read_questions, recall_at
 
     questions = read_questions(Path(args.questions))
-    print(write_result(args.name, {"rq": "retrieval", **recall_at(questions, DATA, k=args.k)}))
+    if args.compare:
+        payload = {"rq": "retrieval", "modes": compare_modes(questions, DATA, k=args.k)}
+    else:
+        payload = {
+            "rq": "retrieval",
+            **recall_at(questions, DATA, k=args.k, mode=args.mode),
+        }
+    print(write_result(args.name, payload))
+
+
+def _answers(args: argparse.Namespace) -> None:
+    from .answers import evaluate, read_answer_questions
+
+    questions = read_answer_questions(Path(args.questions))
+    print(
+        write_result(
+            args.name,
+            {"rq": "answers", **evaluate(questions, DATA, mode=args.mode)},
+        )
+    )
 
 
 def _rq3(args: argparse.Namespace) -> None:
@@ -101,8 +120,16 @@ def main(argv: list[str] | None = None) -> None:
     c = commands.add_parser("retrieval", help="Recall@k over a question file.")
     c.add_argument("--questions", required=True)
     c.add_argument("--k", type=int, default=5)
+    c.add_argument("--mode", default="lexical", choices=("lexical", "dense", "hybrid"))
+    c.add_argument("--compare", action="store_true", help="Score lexical, dense and hybrid.")
     c.add_argument("--name", default="retrieval")
     c.set_defaults(run=_retrieval)
+
+    c = commands.add_parser("answers", help="Citation, correctness and abstention on answers.")
+    c.add_argument("--questions", required=True)
+    c.add_argument("--mode", default="lexical", choices=("lexical", "dense", "hybrid"))
+    c.add_argument("--name", default="answers")
+    c.set_defaults(run=_answers)
 
     c = commands.add_parser("rq3", help="Summarise task sessions and UMUX-Lite.")
     c.add_argument("--sessions", required=True)

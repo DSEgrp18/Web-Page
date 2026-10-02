@@ -85,7 +85,7 @@ from .answerer import Answer, Citation
 from .answering import AnswerAdapter, AnswerUnavailable, Exchange
 from .gemini import API_KEY_ENV, ENDPOINT, REQUEST_TIMEOUT_SECONDS, _post
 from .passages import Passage
-from .retrieval import LexicalIndex
+from .retrieval_select import SearchIndex, build_index
 
 #: Bump on any change to either prompt, either schema, retrieval settings, or
 #: the parsing below. Part of the adapter version, so it reaches provenance: an
@@ -300,7 +300,8 @@ def ground(
     passages: tuple[Passage, ...],
     queries: list[str],
     *,
-    index: LexicalIndex | None = None,
+    index: SearchIndex | None = None,
+    mode: str = "lexical",
 ) -> tuple[Passage, ...]:
     """The passages to answer from: best matches and their neighbours, in book order.
 
@@ -313,7 +314,7 @@ def ground(
     """
     if not passages:
         return ()
-    index = index or LexicalIndex(passages)
+    index = index or build_index(passages, mode)
     position = {passage.passage_id: number for number, passage in enumerate(passages)}
 
     fused: dict[int, float] = {}
@@ -358,7 +359,9 @@ class GeminiAnswerer(AnswerAdapter):
         post: Callable[..., dict] | None = None,
         timeout: int = REQUEST_TIMEOUT_SECONDS,
         answer_timeout: int = ANSWER_TIMEOUT_SECONDS,
+        retrieval_mode: str = "lexical",
     ) -> None:
+        self._retrieval_mode = retrieval_mode
         self._api_key = api_key if api_key is not None else os.environ.get(API_KEY_ENV, "")
         self._model = model or os.environ.get(MODEL_ENV, "").strip() or DEFAULT_MODEL
         self._plan_model = (
@@ -442,8 +445,8 @@ class GeminiAnswerer(AnswerAdapter):
         if not _has_latin(question) or not queries:
             queries.append(question)
 
-        index = LexicalIndex(passages)
-        grounding = ground(passages, queries, index=index)
+        index = build_index(passages, self._retrieval_mode)
+        grounding = ground(passages, queries, index=index, mode=self._retrieval_mode)
         if not grounding:
             # Nothing retrieved means nothing to ground on. Calling the model
             # here is how a plausible fabrication gets made.

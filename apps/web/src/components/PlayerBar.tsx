@@ -33,6 +33,7 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 export function PlayerBar({
   player,
   disabled,
+  voiceWarming = false,
   position,
   total,
   bookmarkLabel,
@@ -42,6 +43,7 @@ export function PlayerBar({
 }: {
   player: ReturnType<typeof usePlayer>;
   disabled: boolean;
+  voiceWarming?: boolean;
   /** 1-based index of the sentence cued or playing; 0 when there is none. */
   position: number;
   total: number;
@@ -156,6 +158,11 @@ export function PlayerBar({
         </select>
       </div>
 
+      {voiceWarming ? (
+        <p className="player-warning">
+          <strong>{strings.voiceWarmingHeading}</strong> {strings.voiceWarming}
+        </p>
+      ) : null}
       {player.realModel === false ? (
         <p className="player-warning">
           <strong>{strings.placeholderAudioHeading}</strong>

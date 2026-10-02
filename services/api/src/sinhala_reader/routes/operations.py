@@ -81,6 +81,9 @@ def register(app: FastAPI, deps: Deps) -> None:
                 f"stops, and its job stays 'running' for ever. Set {QUEUE_ENV}=celery "
                 f"and {REDIS_URL_ENV} for a durable queue."
             )
+        from ..retrieval import retrieval_note
+
+        limitations.append(retrieval_note())
         if not is_durable(deps.store):
             limitations.append(
                 "Storage is in memory. Documents, audio and reading positions are lost "

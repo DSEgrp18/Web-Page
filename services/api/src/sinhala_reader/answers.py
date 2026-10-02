@@ -20,6 +20,8 @@ import os
 from sinhala_documents.answering import AnswerAdapter, ExtractiveAnswerer
 from sinhala_documents.gemini_answers import GeminiAnswerer
 
+from .retrieval import retrieval_mode
+
 #: Which answerer to use. See :data:`MODES`.
 ANSWERS_ENV = "SINHALA_READER_ANSWERS"
 
@@ -40,10 +42,11 @@ def build_answerer() -> AnswerAdapter:
         ValueError: if the mode is not one of :data:`MODES`. Deliberately fatal.
     """
     mode = answers_mode()
+    retrieval = retrieval_mode()
     if mode == EXTRACTIVE:
-        return ExtractiveAnswerer()
+        return ExtractiveAnswerer(mode=retrieval)
     if mode == GEMINI:
-        return GeminiAnswerer()
+        return GeminiAnswerer(retrieval_mode=retrieval)
     raise ValueError(
         f"{ANSWERS_ENV}={mode!r} is not an answerer this server knows. "
         f"Use one of: {', '.join(MODES)}."

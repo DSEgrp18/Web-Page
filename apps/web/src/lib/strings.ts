@@ -338,6 +338,12 @@ export const si = {
   nextQuestion: "ඊළඟ ප්‍රශ්නය",
   finishQuiz: "අවසන් කරන්න",
   quizScore: (right: number, total: number) => `ප්‍රශ්න ${total} න් ${right}ක් නිවැරදියි.`,
+  quizResultsCaption: "ඔබේ පිළිතුරු",
+  quizResultsColQuestion: "ප්‍රශ්නය",
+  quizResultsColOutcome: "පිළිතුර",
+  quizResultRight: "නිවැරදියි",
+  quizResultWrong: "වැරදියි",
+  hearQuestion: "ප්‍රශ්නය අසන්න",
   backToQuizzes: "ප්‍රශ්න කට්ටල වෙත ආපසු",
   /** From the reader, after "hear the source": on to the next question. */
   backToQuiz: "ප්‍රශ්නවලට ආපසු යන්න",
@@ -581,9 +587,18 @@ export const si = {
   placeholderAudioHeading: "මෙය සැබෑ කථනයක් නොවේ",
   placeholderAudio:
     "මෙම ශබ්දය ආදර්ශන ස්වරයකි. සිංහල කථන ආකෘතිය තවම සම්බන්ධ කර නැති නිසා, මෙය පොතේ අන්තර්ගතය කියවන්නේ නැත.",
+  voiceWarmingHeading: "හඬ සූදානම් වෙමින්",
+  voiceWarming:
+    "සැබෑ Sinhala හඬ තවම පූරණය වෙමින් පවතී. මිනිත්තු කිහිපයක් ගත විය හැක. එය සූදානම් වන තුරු ශබ්දය ඇසෙන්නේ නැත.",
 
   // -- what the page loses ----------------------------------------------
   pageNotesHeading: "මෙම පිටුව ගැන",
+  pageCorrectionHeading: "පිටුවේ පෙළ නිවැරදි කරන්න",
+  pageCorrectionIntro:
+    "OCR හෝ extraction වැරදි නම්, මෙහි නිවැරදි Sinhala පෙළ ඇතුළත් කරන්න. සුරැකීමෙන් පසු පොතේ නව අනුවාදයක් සෑදෙන අතර, මෙම පිටුවේ හඬ නැවත හැදෙයි.",
+  pageCorrectionLabel: "පිටුවේ පෙළ",
+  savePageCorrection: "නිවැරදි පෙළ සුරකින්න",
+  pageCorrected: "පිටුවේ පෙළ සුරකින ලදී.",
   qualityNeedsReview: "මෙම පිටුවේ සමහර කොටස් නිවැරදිව කියවා ඇත්දැයි තහවුරු කර නැත.",
   qualityUndecodable: "මෙම පිටුව කියවිය නොහැකි විය. එය ශබ්දයට හරවා නැත.",
   kindImage: "මෙම පිටුව රූපයකි. එහි අකුරු තවම හඳුනාගෙන නැත.",
@@ -807,6 +822,8 @@ export const si = {
         return `පිටු ${total}න් ${count}ක් පින්තූර පමණි.`;
       case "doc_unreadable_pages":
         return `පිටු ${total}න් ${count}ක් කියවිය නොහැක.`;
+      case "page_teacher_corrected":
+        return "මෙම පිටුවේ පෙළ ගුරුවරයෙක් සමාලෝචනය කර නිවැරදි කළා.";
       case "ocr_recognised":
         return "මෙම පිටුව පින්තූරයෙන් කියවා ඇත. අකුරු වැරදි විය හැක; පුද්ගලයෙකු පරීක්ෂා කර නැත.";
       case "ocr_failed":
