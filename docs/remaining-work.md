@@ -91,15 +91,15 @@ questions were poor, and they were.
 
 | # | What | Detail | Where | Owner |
 | --- | --- | --- | --- | --- |
-| 3.1 | **The API runs out of memory loading the real voice** (audit E1) | Killed and restarted about once a minute; every request in flight fails, including registration. Profile the ~8 GB peak while a book is prepared; load the checkpoint with less headroom | `services/tts`, `infra/` | — |
-| 3.2 | **Garbled PDFs are accepted and read aloud** (audit F08) | A Sinhala PDF printed from Chrome comes out as repeated clusters (`ශ්‍රීශ්‍රීශ්‍රී`) and NUL characters, and every page is marked accepted. It is then narrated, searched and quoted. Detect it, mark the pages `needs_review` or `undecodable`, and route them to OCR | `services/worker/src/sinhala_documents/pdf_extract.py` | — |
-| 3.3 | **Production must refuse unsafe defaults** | The code still *defaults* to a trusted identity header, in-memory storage and a thread per job; only compose overrides them. A production start should fail unless sessions, Postgres and Celery are configured | `services/api` | — |
-| 3.4 | **Focus is lost after navigation** (F42) | After sign-in, or after deleting a class, focus is left on `<body>`. One rule for every route, then check it with NVDA | `apps/web` | — |
-| 3.5 | **Reviewing a flagged page** (F25) | The teacher can't see the page being judged, and each arrow key in the choice saves a decision silently. Needs a `?page=` address in the reader | `ShareBook.tsx`, reader | — |
-| 3.6 | **Pipeline notes are English inside a Sinhala page** (F07) | They're marked `lang="en"` now; translating them needs note *codes* from the API, not prose | worker + web | — |
-| 3.7 | **Docker images are out of date** | The web image predates the English interface and the new icon, and the API image lacks `langgraph`. Rebuild, and pin when to rebuild in `infra/README.md` | `infra/` | — |
-| 3.8 | **Phase 7 tidy-up** | Self-host the fonts. Fix `--font-display`, which is defined in terms of itself, so Abhaya Libre never renders: fixing it restyles every heading. Reorder `infra/tts.Dockerfile` so small code changes don't trigger a multi-gigabyte rebuild | `apps/web`, `infra/` | — |
-| 3.9 | **Book illustration halo in dark mode** | `swara-book.webp`, used on the signed-out page and as the library cover, has a white halo on dark backgrounds; the old icon had the same fault | `apps/web/public/brand/` | — |
+| 3.1 | **The API runs out of memory loading the real voice** (audit E1) | Addressed: fp16 load on CPU, PDF worker no longer loads XTTS, voice-worker only. Measure RSS on the audit host after rebuild. | `services/tts`, `infra/` | this PR |
+| 3.2 | **Garbled PDFs are accepted and read aloud** (audit F08) | Addressed: NULs and repeated clusters → `undecodable` (`note:garbled_native`), OCR `broken` can replace them. | `pdf_extract.py` | this PR |
+| 3.3 | **Production must refuse unsafe defaults** | Addressed: `SINHALA_READER_ENV=production` fails closed without sessions, Postgres, Celery, Redis limits. Compose sets it on the API. | `services/api` | this PR |
+| 3.4 | **Focus is lost after navigation** (F42) | Addressed in code (`RouteFocus`). Still needs an NVDA pass on sign-in and delete-class. | `apps/web` | this PR |
+| 3.5 | **Reviewing a flagged page** (F25) | Addressed: `?page=` on the reader; radios draft; Save commits. NVDA on the share screen still needed. | `ShareBook.tsx`, reader | this PR |
+| 3.6 | **Pipeline notes are English inside a Sinhala page** (F07) | Addressed: codes from the worker, translated in both UI languages. Old English prose still falls back with `lang="en"`. | worker + web | this PR |
+| 3.7 | **Docker images are out of date** | Rebuild checklist is in `infra/README.md`. Images themselves are not rebuilt in CI from this PR; run `.\refresh` on the host. | `infra/` | this PR |
+| 3.8 | **Phase 7 tidy-up** | `--font-display-face` so Abhaya Libre applies (headings restyle). `next/font/google` already self-hosts at runtime. TTS Dockerfile installs torch before copying constraints. | `apps/web`, `infra/` | this PR |
+| 3.9 | **Book illustration halo in dark mode** | Dark theme uses `mix-blend-mode: multiply` so the white fringe of `swara-book.webp` takes the page colour. Re-export of the webp still optional. | `globals.css` | this PR |
 
 ---
 

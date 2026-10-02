@@ -59,11 +59,14 @@ type Side = "original" | "reading";
 export function Reader({
   documentId,
   bookmarkSegmentId,
+  initialPageIndex,
   backToQuiz,
 }: {
   documentId: string;
   /** From a bookmarks link; it is cued but never played automatically. */
   bookmarkSegmentId?: string;
+  /** From `?page=` (0-based). Beats saved progress; a bookmark still wins. */
+  initialPageIndex?: number;
   /** From a quiz's "hear the source": where "back to the questions" goes. */
   backToQuiz?: string;
 }) {
@@ -128,16 +131,20 @@ export function Reader({
         const detail = await api.getDocument(documentId);
         if (cancelled) return;
         setBook(detail);
-      } catch (cause) {
-        if (!cancelled) fail(cause);
-        return;
-      }
-      try {
+        const last = Math.max(0, detail.page_count - 1);
         if (bookmarkSegmentId) {
           const segment = await api.getSegment(documentId, bookmarkSegmentId);
           if (!cancelled) {
             setPageIndex(segment.page_index);
             setPdfPageIndex(segment.page_index);
+          }
+          return;
+        }
+        if (initialPageIndex !== undefined) {
+          const index = Math.min(Math.max(initialPageIndex, 0), last);
+          if (!cancelled) {
+            setPageIndex(index);
+            setPdfPageIndex(index);
           }
           return;
         }
@@ -163,7 +170,7 @@ export function Reader({
     return () => {
       cancelled = true;
     };
-  }, [api, documentId, bookmarkSegmentId, fail]);
+  }, [api, documentId, bookmarkSegmentId, initialPageIndex, fail]);
 
   // -- the current page --------------------------------------------------
 

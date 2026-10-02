@@ -391,6 +391,24 @@ describe("coming back", () => {
 
     expect(await screen.findByRole("button", { name: ON_PAGE_TWO })).toBeTruthy();
   });
+
+  it("opens the page named in the address, not the saved position", async () => {
+    const server = new FakeServer({
+      books: [book()],
+      progress: {
+        document_id: "doc-1",
+        segment_id: "0000-s0",
+        offset_seconds: 0,
+        document_version: "v1",
+        updated_at: "2026-09-09T00:00:00Z",
+        segment_index: 0,
+        stale: false,
+      },
+    });
+    renderApp(<Reader documentId="doc-1" initialPageIndex={1} />, server);
+
+    expect(await screen.findByRole("button", { name: ON_PAGE_TWO })).toBeTruthy();
+  });
 });
 
 describe("bookmarking", () => {

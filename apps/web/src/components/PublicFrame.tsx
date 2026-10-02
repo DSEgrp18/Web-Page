@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { BrandMark } from "@/components/BrandMark";
+import { RouteFocus } from "@/components/RouteFocus";
 import { useReader } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
 import { useStrings } from "@/components/LocaleProvider";
@@ -65,6 +66,7 @@ export function PublicFrame({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <RouteFocus />
       <a className="skip-link" href="#main">
         {strings.skipToContent}
       </a>

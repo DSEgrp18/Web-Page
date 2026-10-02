@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { usePreferences } from "@/components/PreferencesProvider";
 import { roleLabel } from "@/lib/roles";
 import type { Page, Segment } from "@/lib/types";
+import { formatPipelineNote } from "@/lib/pipelineNotes";
 import { useStrings } from "@/components/LocaleProvider";
 
 /**
@@ -149,14 +150,14 @@ export function ReadingPanel({
           <div className="notice notice-warn">
             <h3>{strings.documentNotesHeading}</h3>
             <ul>
-              {documentNotes.map((note) => (
-                // The pipeline writes its notes in English; `lang` is what
-                // makes a screen reader switch voice for them instead of
-                // reading English with the Sinhala one. (docs/ui-audit.md F07)
-                <li key={note} lang="en">
-                  {note}
-                </li>
-              ))}
+              {documentNotes.map((note) => {
+                const shown = formatPipelineNote(note, strings);
+                return (
+                  <li key={note} lang={shown.coded ? undefined : "en"}>
+                    {shown.text}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ) : null}
@@ -234,21 +235,14 @@ function splitWords(text: string): string[] {
  */
 function PageNotes({ page, documentNotes }: { page: Page; documentNotes: string[] }) {
   const strings = useStrings();
-  // Ours are in the interface's language; the pipeline's are English, and
-  // are marked so.
   const messages: { text: string; lang?: "en" }[] = [];
   if (page.quality === "undecodable") messages.push({ text: strings.qualityUndecodable });
   else if (page.quality === "needs_review") messages.push({ text: strings.qualityNeedsReview });
   if (page.kind === "image") messages.push({ text: strings.kindImage });
-  // A note already said about the whole book is not said again for the page:
-  // pasted text carried the same note on the book and on every section.
   for (const note of page.notes) {
     if (documentNotes.includes(note)) continue;
-    if (note === "note:page_teacher_corrected") {
-      messages.push({ text: strings.pageTeacherCorrectedNote });
-      continue;
-    }
-    messages.push({ text: note, lang: "en" });
+    const shown = formatPipelineNote(note, strings);
+    messages.push({ text: shown.text, lang: shown.coded ? undefined : "en" });
   }
 
   if (messages.length === 0) return null;

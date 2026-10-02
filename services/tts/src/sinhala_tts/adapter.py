@@ -508,31 +508,54 @@ class XttsAdapter(TtsAdapter):
             )
 
     def _load_bundle(self) -> _LoadedModel:
+        import gc
+
         import torch
         from TTS.tts.configs.xtts_config import XttsConfig
         from TTS.tts.models.xtts import Xtts
 
         model_dir = resolve_model_dir(self._model_dir_setting)
+        device = self._requested_device or ("cuda" if torch.cuda.is_available() else "cpu")
 
         config = XttsConfig()
         config.load_json(str(model_dir / "config.json"))
         model = Xtts.init_from_config(config)
-        model.load_checkpoint(
-            config,
-            checkpoint_path=str(model_dir / "model.pth"),
-            vocab_path=str(model_dir / "vocab.json"),
-            use_deepspeed=False,
-        )
+
+        # Coqui's loader calls torch.load without map_location, so the
+        # 5.6 GB checkpoint materialises as fp32 on CPU and peaks near 8 GB —
+        # enough to OOM-kill the API on a ~10 GB host (audit E1). Pin the
+        # load to CPU, then shrink immediately. weights_only is not used:
+        # this checkpoint is not a plain state_dict.
+        original_load = torch.load
+
+        def _load(*args: object, **kwargs: object):
+            kwargs.setdefault("map_location", "cpu")
+            return original_load(*args, **kwargs)
+
+        torch.load = _load  # type: ignore[method-assign]
+        try:
+            model.load_checkpoint(
+                config,
+                checkpoint_path=str(model_dir / "model.pth"),
+                vocab_path=str(model_dir / "vocab.json"),
+                use_deepspeed=False,
+            )
+        finally:
+            torch.load = original_load  # type: ignore[method-assign]
         model.eval()
 
-        device = self._requested_device or ("cuda" if torch.cuda.is_available() else "cpu")
         half = False
+        if self._precision == "fp16":
+            # Half on CPU as well: the compose default is cpu, and fp32 is
+            # what filled RAM until the process was killed. Inference stays
+            # on the requested device; this is precision, not a silent move.
+            model.half()
+            half = True
+        gc.collect()
+
         if device == "cuda":
             try:
                 model.cuda()
-                if self._precision == "fp16":
-                    model.half()
-                    half = True
             except torch.cuda.OutOfMemoryError:
                 # Kept, but never silent: readiness becomes DEGRADED and every
                 # segment records device="cpu". CLAUDE.md forbids quietly moving
@@ -540,7 +563,9 @@ class XttsAdapter(TtsAdapter):
                 # the fallback and surface it.
                 torch.cuda.empty_cache()
                 model.float().cpu()
+                half = False
                 device = "cpu"
+                gc.collect()
 
         conditioning = self._compute_conditioning(model, config, model_dir)
         return _LoadedModel(

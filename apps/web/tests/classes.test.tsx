@@ -365,7 +365,12 @@ describe("sharing a book", () => {
 
     const page = await screen.findByRole("group", { name: `${strings.pageWord} 5` });
     await user.click(within(page).getByRole("radio", { name: strings.pageWithhold }));
+    expect(server.reviews["doc-1"]![0]!.decision).toBeNull();
+    await user.click(within(page).getByRole("button", { name: strings.savePageDecision }));
     await waitFor(() => expect(server.reviews["doc-1"]![0]!.decision).toBe("withheld"));
+    expect(
+      screen.getByRole("link", { name: strings.openFlaggedPage("5") }).getAttribute("href"),
+    ).toBe("/library/doc-1?page=5");
 
     const basis = screen.getByRole("group", { name: strings.basisIntro });
     await user.click(
@@ -397,6 +402,7 @@ describe("sharing a book", () => {
 
     const page = screen.getByRole("group", { name: `${strings.pageWord} 5` });
     await user.click(within(page).getByRole("radio", { name: strings.pageAccept }));
+    await user.click(within(page).getByRole("button", { name: strings.savePageDecision }));
     await waitFor(() => expect(server.reviews["doc-1"]![0]!.decision).toBe("accepted"));
     await user.click(screen.getByRole("button", { name: strings.publishAction }));
     expect(noticeText()).toContain(strings.errorChooseBasis);

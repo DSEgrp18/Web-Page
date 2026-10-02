@@ -45,6 +45,10 @@ ADAPTER_ENV = "SINHALA_READER_TTS"
 #: to CPU anyway, and saves the time spent discovering that.
 DEVICE_ENV = "SINHALA_READER_TTS_DEVICE"
 
+#: ``fp16`` (default) or ``fp32``. Half is how the CPU load stays inside a
+#: ~10 GB host; full precision is an explicit choice, not the fallback.
+PRECISION_ENV = "SINHALA_READER_TTS_PRECISION"
+
 DEVELOPMENT = "development"
 XTTS = "xtts"
 MODES = (DEVELOPMENT, XTTS)
@@ -66,10 +70,16 @@ def build_adapter() -> TtsAdapter:
         return DevelopmentAdapter()
     if mode == XTTS:
         device = os.environ.get(DEVICE_ENV, "").strip().lower() or None
+        precision = os.environ.get(PRECISION_ENV, "").strip().lower() or "fp16"
+        if precision not in ("fp16", "fp32"):
+            raise ValueError(
+                f"{PRECISION_ENV}={precision!r} is not a precision this server knows. "
+                "Use fp16 or fp32."
+            )
         # The bundle location is the TTS package's own setting
         # (SINHALA_TTS_MODEL_DIR); this module does not restate it, so there is
         # one place a model path is configured rather than two that can differ.
-        return XttsAdapter(device=device)
+        return XttsAdapter(device=device, precision=precision)
     raise ValueError(
         f"{ADAPTER_ENV}={mode!r} is not a voice this server knows. Use one of: {', '.join(MODES)}."
     )

@@ -269,6 +269,9 @@ export const en: Strings = {
   noReview: "No pages need checking.",
   pageAccept: "Accept",
   pageWithhold: "Withhold",
+  openFlaggedPage: (label: string) => `Open page ${label}`,
+  savePageDecision: "Save this decision",
+  pageDecisionSaved: "The page decision was saved.",
   undecidedCount: (count: number) => `${n(count, "page")} not decided yet`,
   basisHeading: "Your right to share",
   basisIntro:
@@ -734,6 +737,63 @@ export const en: Strings = {
   suggestThisPage: "What is on this page?",
   suggestExplain: "What does the book say about this?",
   conversationLabel: "Questions and answers",
+
+  pipelineNote: (code: string, params: Record<string, string>) => {
+    const n = params.name ?? "";
+    const family = params.family ?? "";
+    const count = params.count ?? "";
+    const total = params.total ?? "";
+    const withheld = params.withheld ?? "";
+    const reason = params.reason ?? "";
+    switch (code) {
+      case "garbled_native":
+        return "The letters on this page could not be extracted correctly. They are not read aloud; the page will be read from its image.";
+      case "legacy_unsupported":
+        return `The font “${n}” has no validated conversion table. It needs optical recognition or a person to check it.`;
+      case "legacy_variant":
+        return `The font “${n}” looks like a variant of ${family}. Whether that table applies has not been checked.`;
+      case "suspect_encoding":
+        return "The extracted characters do not look like Sinhala or ordinary English. They need checking.";
+      case "other_script":
+        return "This text is in another script, which this reader has no voice for.";
+      case "converted_legacy":
+        return `Converted from the legacy font “${n}”. The text was decoded, not proofread.`;
+      case "converted_variant":
+        return `Converted from the legacy font “${n}”, a variant of ${family}. The text was decoded, not proofread.`;
+      case "conversion_failed":
+        return `Converting “${n}” produced malformed Sinhala, so it cannot be read aloud.`;
+      case "mapping_missing":
+        return `The conversion table for “${n}” could not be loaded.`;
+      case "unnamed_legacy":
+        return `All the text set in “${n}” decodes to nonsense. It is treated as legacy text.`;
+      case "suspect_font":
+        return `Text set in “${n}” is neither Sinhala nor ordinary English.`;
+      case "page_image_only":
+        return "This page contains images and no readable text.";
+      case "page_mixed_images":
+        return `This page contains ${count} image(s) alongside its text. Their content is not described.`;
+      case "page_blank":
+        return "This page is blank.";
+      case "page_columns":
+        return "This page looks like it is laid out in columns. The reading order may not match the printed order.";
+      case "page_unreadable_lines":
+        return `${withheld} of ${total} lines on this page cannot be read yet.`;
+      case "page_off_page":
+        return `${count} characters drawn outside the printed area were left out.`;
+      case "doc_pages_missing":
+        return "None of the requested pages exist in this document.";
+      case "doc_image_pages":
+        return `${count} of ${total} extracted pages are images with no readable text.`;
+      case "doc_unreadable_pages":
+        return `${count} of ${total} pages have nothing that can be read aloud.`;
+      case "ocr_recognised":
+        return "This page was read from its image. Recognition can misread letters, and a person has not checked it.";
+      case "ocr_failed":
+        return `${count} page(s) could not be read from their image (${reason}) and keep their embedded text.`;
+      default:
+        return n ? `${code}: ${n}` : code;
+    }
+  },
 
   // -- language ----------------------------------------------------------
   draftTranslation:

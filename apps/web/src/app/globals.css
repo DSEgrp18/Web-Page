@@ -61,7 +61,7 @@
 
   /* -- type ------------------------------------------------------------- */
   --font-sinhala: var(--font-ui), "Noto Sans Sinhala", "Iskoola Pota", sans-serif;
-  --font-display: var(--font-display), "Abhaya Libre", var(--font-ui), serif;
+  --font-display: var(--font-display-face), "Abhaya Libre", var(--font-ui), serif;
   --font-latin: var(--font-latin-face), ui-sans-serif, system-ui, sans-serif;
 
   --text-xs: 0.8125rem;
@@ -3033,21 +3033,25 @@ h4 {
 .welcome-art {
   max-width: 30rem;
   filter: saturate(0.78) contrast(1.04);
-  mix-blend-mode: multiply;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .welcome-art {
-    opacity: 0.72;
-    mix-blend-mode: screen;
-    filter: saturate(0.5) hue-rotate(105deg);
+  :root:not([data-theme="light"]) .welcome-art,
+  :root:not([data-theme="light"]) .account-art,
+  :root:not([data-theme="light"]) .book-cover-fallback {
+    /* White fringe in the webp becomes the page colour; screen made it glow. */
+    mix-blend-mode: multiply;
+    opacity: 1;
+    filter: saturate(0.85);
   }
 }
 
-:root[data-theme="dark"] .welcome-art {
-  opacity: 0.72;
-  mix-blend-mode: screen;
-  filter: saturate(0.5) hue-rotate(105deg);
+:root[data-theme="dark"] .welcome-art,
+:root[data-theme="dark"] .account-art,
+:root[data-theme="dark"] .book-cover-fallback {
+  mix-blend-mode: multiply;
+  opacity: 1;
+  filter: saturate(0.85);
 }
 
 .welcome[data-compact="true"] {
