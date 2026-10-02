@@ -309,7 +309,7 @@ export class FakeServer {
     if (method === "GET" && bookReports) return this.json(this.bookReports);
     const markHandled = /^\/documents\/([^/]+)\/reports\/([^/]+)\/handled$/.exec(path);
     if (method === "POST" && markHandled) {
-      const [, documentId, reportId] = markHandled;
+      const [, , reportId] = markHandled;
       const row = this.bookReports.find((r) => r.report_id === reportId);
       if (!row) return this.notFound();
       row.handled_at = new Date().toISOString();

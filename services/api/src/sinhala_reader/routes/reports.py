@@ -103,9 +103,7 @@ def register(app: FastAPI, deps: Deps) -> None:
         status_code=status.HTTP_204_NO_CONTENT,
         tags=["reports"],
     )
-    def mark_handled(
-        document_id: str, report_id: str, owner: str = Depends(require_owner)
-    ) -> None:
+    def mark_handled(document_id: str, report_id: str, owner: str = Depends(require_owner)) -> None:
         """The book's owner marks a report as handled."""
         owned_in(deps, document_id, owner)
         if store.mark_report_handled(document_id, owner, report_id) is None:
