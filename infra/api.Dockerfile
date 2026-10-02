@@ -47,14 +47,15 @@ RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       "redis>=5" \
       "langgraph>=1.2"
 
-# Optional TrOCR stack. Built only when compose.trocr.yml sets WITH_TROCR=1.
-# torch from the CPU index first, then transformers and Pillow — same pattern as
-# tts.Dockerfile. The checkpoint itself is mounted, never copied into the image.
+# Optional TrOCR stack. Built only when compose.trocr.yml / CI smoke sets
+# WITH_TROCR=1. torch from the CPU index first, then transformers and Pillow —
+# pinned by the same constraints file so a rebuild cannot drift. The checkpoint
+# itself is mounted, never copied into the image.
 RUN if [ "$WITH_TROCR" = "1" ]; then \
-      pip install --no-cache-dir \
+      pip install --no-cache-dir -c /tmp/constraints.txt \
         --index-url https://download.pytorch.org/whl/cpu \
         "torch>=2.5" \
-      && pip install --no-cache-dir \
+      && pip install --no-cache-dir -c /tmp/constraints.txt \
         "transformers>=4.40,<5" \
         "Pillow>=10"; \
     fi

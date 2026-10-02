@@ -300,6 +300,30 @@ jobs:
         run: npm test
         working-directory: browser-tests
 
+  # Real TrOCR path in Docker: build WITH_TROCR=1, mount the pinned Hub
+  # checkpoint, recognise a synthetic Sinhala line. Keeps the slim default image
+  # free of torch; this job is what proves the Trocr overlay actually works.
+  trocr-ocr-docker:
+    name: Trocr OCR (Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Cache TrOCR checkpoint
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: models/trocr_sinhala_eshangj
+          key: trocr-eshangj-0c1687ce548c38d4d6b5acc611ec5f91f5a6b412
+      - name: Build Trocr image and run recognition smoke
+        run: |
+          chmod +x scripts/ci_trocr_docker.sh
+          scripts/ci_trocr_docker.sh
+
   # Aggregate gate. This is the single required status check on main, so it must
   # always report a conclusion, even when a job above is skipped or cancelled.
   #
@@ -320,6 +344,7 @@ jobs:
         reader-api,
         reader-ui,
         reader-browser,
+        trocr-ocr-docker,
       ]
     runs-on: ubuntu-latest
     timeout-minutes: 5
