@@ -252,11 +252,7 @@ class TesseractOcr(OcrAdapter):
         run=subprocess.run,
     ) -> None:
         self._executable = executable or os.environ.get(TESSERACT_ENV, "").strip() or "tesseract"
-        self._tessdata_dir = (
-            tessdata_dir
-            or os.environ.get(TESSDATA_DIR_ENV, "").strip()
-            or None
-        )
+        self._tessdata_dir = tessdata_dir or os.environ.get(TESSDATA_DIR_ENV, "").strip() or None
         self._timeout = timeout
         self._run = run
         self._engine: str | None = None
