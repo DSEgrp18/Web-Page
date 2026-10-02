@@ -81,3 +81,16 @@ PYTHONPATH=services/worker/src:services/api/src \
    change compose defaults.
 
 Until then, Trocr remains an opt-in overlay.
+
+## CI Docker smoke
+
+Every pull request runs `scripts/ci_trocr_docker.sh` (job **Trocr OCR (Docker)**
+in `.github/workflows/ci.yml`). It:
+
+1. Downloads the pinned `eshangj` checkpoint (Actions cache between runs).
+2. Builds `infra/api.Dockerfile` with `WITH_TROCR=1`.
+3. Mounts the checkpoint and runs `scripts/smoke_trocr_ocr.py` inside the
+   container (Tesseract layout + TrOCR text on a synthetic Sinhala line).
+
+A CER above 0.35 fails the job. Operators can run the same script locally after
+downloading the checkpoint.
