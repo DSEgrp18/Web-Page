@@ -12,9 +12,20 @@ import type { DocumentSummary } from "./types";
 export type Shelf = "all" | "reading" | "finished" | "processing";
 export type Order = "recent" | "added" | "title";
 
+const IMAGE_EXTENSION = /\.(png|jpe?g|gif|webp|bmp|tiff?)$/i;
+
+/** Drop a trailing image extension so `page.png` reads as a title, not a filename. */
+export function titleFromFilename(filename: string): string {
+  const trimmed = filename.trim();
+  if (!IMAGE_EXTENSION.test(trimmed)) return trimmed;
+  const cut = trimmed.lastIndexOf(".");
+  if (cut <= 0) return trimmed;
+  return trimmed.slice(0, cut) || trimmed;
+}
+
 /** What to call a book: the reader's name for it, or the file they uploaded. */
 export function bookTitle(book: DocumentSummary): string {
-  return book.title?.trim() || book.filename;
+  return book.title?.trim() || titleFromFilename(book.filename);
 }
 
 /** A book is readable once preparation has produced a version. */

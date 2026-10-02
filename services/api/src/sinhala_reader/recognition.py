@@ -54,6 +54,8 @@ def _installed() -> bool:
 
 def ocr_limitations() -> list[str]:
     """What a deployment should know about the recognition setting, for readiness."""
+    from .queue import uses_celery
+
     mode = ocr_mode()
     if mode is OcrMode.OFF:
         return [
@@ -72,7 +74,13 @@ def ocr_limitations() -> list[str]:
     ]
     if not _installed():
         notes.append(
-            "Tesseract is not installed, so no page can be recognised and those pages "
-            "keep their embedded text."
+            "Tesseract is not installed on this process, so no page can be recognised here "
+            "and those pages keep their embedded text."
+        )
+    if uses_celery():
+        notes.append(
+            "The `ocr` field in this response describes the API process only. Page "
+            "recognition during preparation runs in the worker, which may have Tesseract "
+            "even when this process does not."
         )
     return notes

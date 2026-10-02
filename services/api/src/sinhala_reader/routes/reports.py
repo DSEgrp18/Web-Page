@@ -39,6 +39,7 @@ class ReportView(BaseModel):
     quiz_id: str | None
     question_id: str | None
     created_at: str
+    handled_at: str | None = None
 
 
 def register(app: FastAPI, deps: Deps) -> None:
@@ -92,6 +93,20 @@ def register(app: FastAPI, deps: Deps) -> None:
                     quiz_id=found.quiz_id,
                     question_id=found.question_id,
                     created_at=found.created_at,
+                    handled_at=found.handled_at,
                 )
             )
         return views
+
+    @app.post(
+        "/documents/{document_id}/reports/{report_id}/handled",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["reports"],
+    )
+    def mark_handled(
+        document_id: str, report_id: str, owner: str = Depends(require_owner)
+    ) -> None:
+        """The book's owner marks a report as handled."""
+        owned_in(deps, document_id, owner)
+        if store.mark_report_handled(document_id, owner, report_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such report.")

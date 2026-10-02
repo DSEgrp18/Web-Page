@@ -46,6 +46,10 @@ export const si = {
   newPasswordLabel: "නව මුරපදය",
   passwordHint: (min: number) => `අවම වශයෙන් අකුරු ${min} ක්.`,
   showPassword: "මුරපදය පෙන්වන්න",
+  showPasswordForChange: "මුරපදය වෙනස් කිරීම: වත්මන් මුරපදය පෙන්වන්න",
+  showPasswordForChangeNew: "මුරපදය වෙනස් කිරීම: නව මුරපදය පෙන්වන්න",
+  showPasswordForRecovery: "නැවත ලබා ගැනීමේ කේතය: වත්මන් මුරපදය පෙන්වන්න",
+  showPasswordForDelete: "ගිණුම මකා දැමීම: වත්මන් මුරපදය පෙන්වන්න",
   displayNameLabel: "ඔබේ නම",
   displayNameHint: "ස්වර ඔබට ආමන්ත්‍රණය කරන නම.",
   recoveryCodeLabel: "ප්‍රතිසාධන කේතය",
@@ -67,6 +71,9 @@ export const si = {
   roleName: (role: string) =>
     role === "teacher" ? "ගුරු" : role === "admin" ? "පරිපාලක" : "ශිෂ්‍ය",
   currentPasswordLabel: "වත්මන් මුරපදය",
+  changePasswordCurrentLabel: "මුරපදය වෙනස් කිරීම — වත්මන් මුරපදය",
+  recoveryPasswordCurrentLabel: "නැවත ලබා ගැනීමේ කේතය — වත්මන් මුරපදය",
+  deletePasswordCurrentLabel: "ගිණුම මකා දැමීම — වත්මන් මුරපදය",
   changePasswordHeading: "මුරපදය වෙනස් කරන්න",
   changePasswordAction: "මුරපදය වෙනස් කරන්න",
   passwordChanged: "මුරපදය වෙනස් කළා. වෙනත් උපාංගවල ඔබ පිටවී ඇත.",
@@ -161,6 +168,11 @@ export const si = {
   reportSent: "ස්තූතියි. ඔබේ වාර්තාව යවන ලදී.",
   reportWhoBook: "පොතේ හිමිකරුට මෙය පෙනේ. ඔබේ නම නොපෙනේ.",
   reportWhoSite: "මෙය පද්ධතිය පවත්වාගෙන යන අයට යැවේ.",
+  reportAboutBook: "පොත:",
+  reportAboutSentence: (sentence: string) => `වාක්‍යය: ${sentence}`,
+  markReportHandled: "සටහන් කර ඇත ලෙස සලකන්න",
+  reportMarkedHandled: "වාර්තාව සටහන් කර ඇත ලෙස සලකන ලදී.",
+  reportHandled: "සටහන් කර ඇත ලෙස සලකන ලදී.",
   reportsLink: "වාර්තා කළ ගැටලු",
   reportsHeading: (title: string) => `${title} — වාර්තා කළ ගැටලු`,
   reportsNone: "තවම ගැටලු වාර්තා කර නැත.",
@@ -254,6 +266,26 @@ export const si = {
     (used ? "එම කේතයෙන් මුරපදය වෙනස් කර ඇත. " : "එය තවම භාවිත කර නැත. ") +
     "ඔබ එය ඉල්ලුවේ නැත්නම්, ඔබේ ගුරුවරයාට හෝ සේවා කණ්ඩායමට කියන්න.",
   resetNoticeSeen: "තේරුණා",
+  formatDateTime: (year: number, month: number, day: number, hour: number, minute: number) => {
+    const months = [
+      "ජනවාරි",
+      "පෙබරවාරි",
+      "මාර්තු",
+      "අප්‍රේල්",
+      "මැයි",
+      "ජූනි",
+      "ජූලි",
+      "අගෝස්තු",
+      "සැප්තැම්බර්",
+      "ඔක්තෝබර්",
+      "නොවැම්බර්",
+      "දෙසැම්බර්",
+    ] as const;
+    const h = hour % 12 || 12;
+    const ampm = hour < 12 ? "පෙ.ව." : "ප.ව.";
+    const mm = String(minute).padStart(2, "0");
+    return `${year} ${months[month] ?? month + 1} ${day}, ${h}:${mm} ${ampm}`;
+  },
   renameClassLabel: "පන්තියේ නම",
   renameClassAction: "නම සුරකින්න",
   classRenamed: "පන්තියේ නම වෙනස් කළා.",

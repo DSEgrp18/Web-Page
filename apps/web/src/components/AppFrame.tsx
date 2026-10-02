@@ -214,14 +214,21 @@ function Unavailable({ kind }: { kind: UnavailableKind }) {
         {strings.errorHeading}
       </h1>
       <p className="notice notice-bad">{message}</p>
-      <button
-        type="button"
-        className="btn btn-primary"
-        aria-disabled={checking || undefined}
-        onClick={() => void tryAgain()}
-      >
-        {strings.retry}
-      </button>
+      <div className="notice-actions">
+        <button
+          type="button"
+          className="btn btn-primary"
+          aria-disabled={checking || undefined}
+          onClick={() => void tryAgain()}
+        >
+          {strings.retry}
+        </button>
+        {kind === "offline" ? (
+          <Link className="btn btn-quiet" href="/offline">
+            {strings.offlineNav}
+          </Link>
+        ) : null}
+      </div>
     </section>
   );
 }
