@@ -26,10 +26,11 @@ export default async function ReaderPage({
     segment?: string | string[];
     quiz?: string | string[];
     question?: string | string[];
+    page?: string | string[];
   }>;
 }) {
   const { id } = await params;
-  const { segment, quiz, question } = await searchParams;
+  const { segment, quiz, question, page } = await searchParams;
   // Arriving from a quiz's "hear the source": a way back to the next question.
   const at = Number.parseInt(typeof question === "string" ? question : "", 10);
   const next = Number.isFinite(at) && at > 0 ? at : 0;
@@ -37,10 +38,14 @@ export default async function ReaderPage({
     typeof quiz === "string" && quiz
       ? `/library/${encodeURIComponent(id)}/practice?quiz=${encodeURIComponent(quiz)}&question=${next}`
       : undefined;
+  const requestedPage = Number.parseInt(typeof page === "string" ? page : "", 10);
+  const initialPageIndex =
+    Number.isFinite(requestedPage) && requestedPage >= 1 ? requestedPage - 1 : undefined;
   return (
     <Reader
       documentId={id}
       bookmarkSegmentId={typeof segment === "string" ? segment : undefined}
+      initialPageIndex={initialPageIndex}
       backToQuiz={backToQuiz}
     />
   );

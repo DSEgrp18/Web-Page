@@ -60,6 +60,7 @@ from .model import (
     TextLine,
     TextSpan,
 )
+from .notes import make as note
 
 #: Bump on any change to rendering, recognition settings, or how words become
 #: lines. Part of the adapter version, and so of provenance and cache identity.
@@ -87,10 +88,7 @@ TIMEOUT_SECONDS = 120
 _AL_LAKUNA = "\u0dca"
 _ZWNJ = "\u200c"
 
-NOTE = (
-    "This page was read from its image by optical character recognition. Recognition "
-    "can misread letters, and this page has not been checked by a person."
-)
+NOTE = note("ocr_recognised")
 
 
 class OcrUnavailable(RuntimeError):
@@ -472,8 +470,5 @@ def apply_ocr(
 
     notes = list(extraction.notes)
     if failed:
-        notes.append(
-            f"{len(failed)} page(s) could not be read by optical character recognition "
-            f"and keep their embedded text: {reason}"
-        )
+        notes.append(note("ocr_failed", count=len(failed), reason=reason))
     return replace(extraction, pages=tuple(pages), notes=tuple(notes))

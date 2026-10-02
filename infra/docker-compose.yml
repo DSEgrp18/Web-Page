@@ -61,6 +61,7 @@ services:
       # .env.example); without it the API refuses to start and says how to
       # make one.
       SINHALA_READER_AUTH: sessions
+      SINHALA_READER_ENV: production
       SINHALA_READER_DATABASE_URL: postgresql://reader:dev@postgres:5432/reader
       SINHALA_READER_QUEUE: celery
       SINHALA_READER_REDIS_URL: redis://redis:6379/0

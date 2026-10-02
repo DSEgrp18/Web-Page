@@ -49,4 +49,11 @@ describe("typography for Sinhala", () => {
       .filter((middle) => /vw/.test(middle) && !/rem/.test(middle));
     expect(middles).toEqual([]);
   });
+
+  it("does not define --font-display in terms of itself", () => {
+    const display = /--font-display:\s*([^;]+)/.exec(css)?.[1];
+    expect(display).toBeTruthy();
+    expect(display).not.toMatch(/var\(--font-display\)/);
+    expect(display).toMatch(/var\(--font-display-face\)/);
+  });
 });

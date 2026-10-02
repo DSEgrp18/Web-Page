@@ -50,6 +50,29 @@ GitHub, switch to `main` (`git switch main`) before running it.
 
 Afterwards, reload the browser with `Ctrl+Shift+R`.
 
+## When to rebuild which image
+
+A container runs the code copied into its image. Restarting is not enough.
+`.\refresh` rebuilds web, api and worker; use `-Only` when you know which
+layer changed.
+
+| What changed | Rebuild |
+| --- | --- |
+| `apps/web/**`, brand icons, strings, fonts | `.\refresh -Only web` |
+| `services/api/**`, `services/worker/**`, `infra/api.Dockerfile`, quiz/langgraph | `.\refresh -Only api,worker` |
+| `infra/constraints/python.txt` (except torch pins) | `api` + `worker` — the voice image's torch layer stays cached |
+| `infra/tts.Dockerfile` or torch/coqui pins | api + worker **with** `compose.voice.yml` |
+| Only compose env (`SINHALA_READER_QUIZ=graph`) | Recreate containers; the image must already contain the package |
+
+The web image must include the English interface and the icons in
+`apps/web/public/brand/`. The API/worker image must import `langgraph` when
+quiz generation is set to `graph`. After a backend rebuild:
+
+```powershell
+docker compose -f infra/docker-compose.yml exec api python -c "import langgraph; print('langgraph ok')"
+```
+
+
 ## Why this exists, beyond convenience
 
 Run by hand, the API defaults to in-memory storage and a thread per job, and

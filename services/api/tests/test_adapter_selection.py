@@ -22,6 +22,7 @@ from sinhala_reader import Deps, create_app
 from sinhala_reader.adapters import (
     ADAPTER_ENV,
     DEVICE_ENV,
+    PRECISION_ENV,
     adapter_mode,
     build_adapter,
     loaded_model_version,
@@ -35,6 +36,7 @@ def no_inherited_voice(monkeypatch: pytest.MonkeyPatch) -> None:
     """Each test states its own configuration; none inherits the shell's."""
     monkeypatch.delenv(ADAPTER_ENV, raising=False)
     monkeypatch.delenv(DEVICE_ENV, raising=False)
+    monkeypatch.delenv(PRECISION_ENV, raising=False)
 
 
 class TestChoosing:
@@ -63,6 +65,18 @@ class TestChoosing:
         monkeypatch.setenv(ADAPTER_ENV, "xtts")
         monkeypatch.setenv(DEVICE_ENV, "cpu")
         assert build_adapter()._requested_device == "cpu"
+
+    def test_half_precision_is_the_default_for_the_real_voice(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(ADAPTER_ENV, "xtts")
+        assert build_adapter()._precision == "fp16"
+
+    def test_an_unknown_precision_stops_the_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(ADAPTER_ENV, "xtts")
+        monkeypatch.setenv(PRECISION_ENV, "int8")
+        with pytest.raises(ValueError, match="int8"):
+            build_adapter()
 
     def test_an_unknown_voice_stops_the_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # CLAUDE.md forbids silently falling back to another voice. A typo in a

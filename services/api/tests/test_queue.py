@@ -411,3 +411,45 @@ def test_importing_the_queue_module_does_not_import_celery() -> None:
         line for line in source.splitlines() if line.startswith(("import celery", "from celery"))
     ]
     assert module_level == []
+
+
+class TestProductionRefusesUnsafeDefaults:
+    def test_unset_env_still_starts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("SINHALA_READER_ENV", raising=False)
+        from sinhala_reader.security import check_configuration
+
+        check_configuration()
+
+    def test_production_without_sessions_refuses_to_start(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sinhala_reader.security import check_configuration
+
+        monkeypatch.setenv("SINHALA_READER_ENV", "production")
+        monkeypatch.setenv("SINHALA_READER_AUTH", "development")
+        with pytest.raises(ValueError, match="sessions"):
+            check_configuration()
+
+    def test_production_needs_postgres_celery_and_redis_limits(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sinhala_reader.security import check_configuration
+
+        monkeypatch.setenv("SINHALA_READER_ENV", "production")
+        monkeypatch.setenv("SINHALA_READER_AUTH", "sessions")
+        monkeypatch.setenv("SINHALA_READER_SECRET", "x" * 32)
+        monkeypatch.delenv("SINHALA_READER_DATABASE_URL", raising=False)
+        with pytest.raises(ValueError, match="DATABASE"):
+            check_configuration()
+        monkeypatch.setenv("SINHALA_READER_DATABASE_URL", "postgresql://reader:dev@localhost/reader")
+        monkeypatch.setenv("SINHALA_READER_QUEUE", "thread")
+        with pytest.raises(ValueError, match="celery"):
+            check_configuration()
+        monkeypatch.setenv("SINHALA_READER_QUEUE", "celery")
+        monkeypatch.setenv("SINHALA_READER_REDIS_URL", "redis://localhost:6379/0")
+        monkeypatch.setenv("SINHALA_READER_RATE_LIMIT", "memory")
+        with pytest.raises(ValueError, match="redis"):
+            check_configuration()
+        monkeypatch.setenv("SINHALA_READER_RATE_LIMIT", "redis")
+        check_configuration()
+
