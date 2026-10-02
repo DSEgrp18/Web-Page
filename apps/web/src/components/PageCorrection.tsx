@@ -60,8 +60,13 @@ export function PageCorrection({
         onChange={(event) => setText(event.target.value)}
         required
       />
-      <button className="btn btn-primary" type="submit" disabled={busy}>
-        {busy ? strings.saving : strings.savePageCorrection}
+      <button
+        className="btn btn-primary"
+        type="submit"
+        disabled={busy}
+        aria-disabled={busy || undefined}
+      >
+        {strings.savePageCorrection}
       </button>
     </form>
   );
