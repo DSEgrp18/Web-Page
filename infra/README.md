@@ -29,7 +29,7 @@ rebuild, not a restart. From the repository root:
 ```
 
 It pulls the current branch (fast-forward only, so it never merges or discards
-anything), rebuilds `web`, `api` and `worker` one at a time, recreates the
+anything), rebuilds `web`, `api`, `worker` and `voice-worker` one at a time, recreates the
 containers whose image changed, waits for the API to be healthy, and prints
 the status. Books, reading positions and bookmarks are kept.
 
