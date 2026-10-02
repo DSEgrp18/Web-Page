@@ -255,7 +255,9 @@ class TrocrSinhalaOcr(OcrAdapter):
                 "TrOCR needs Pillow to crop line images from the page render."
             ) from error
         except Exception as error:  # noqa: BLE001
-            raise OcrUnavailable(f"The page image could not be opened for TrOCR: {error}") from error
+            raise OcrUnavailable(
+                f"The page image could not be opened for TrOCR: {error}"
+            ) from error
 
         # Warm the model once before the line loop so a missing checkpoint fails
         # the whole page rather than halfway through.

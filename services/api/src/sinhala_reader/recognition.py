@@ -22,9 +22,9 @@ import shutil
 from sinhala_documents.ocr import TESSERACT_ENV, OcrAdapter, OcrMode, TesseractOcr
 from sinhala_documents.trocr_ocr import (
     CHECKPOINT_ENV,
+    CHECKPOINTS,
     DEVICE_ENV,
     MODEL_DIR_ENV,
-    CHECKPOINTS,
     TrocrSinhalaOcr,
     resolve_checkpoint,
     resolve_device,
