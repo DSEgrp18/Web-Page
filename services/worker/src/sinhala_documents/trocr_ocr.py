@@ -267,7 +267,7 @@ class TrocrSinhalaOcr(OcrAdapter):
         width, height = page.size
         pad = self._crop_padding
         recognised: list[OcrWord] = []
-        for (_key, members) in _group_line_boxes(layout_words):
+        for _key, members in _group_line_boxes(layout_words):
             left, top, right, bottom = _union_box(members)
             crop_box = (
                 max(0, left - pad),
