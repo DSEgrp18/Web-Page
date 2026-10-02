@@ -203,6 +203,11 @@ commands and the bake-off checklist are in
 [`docs/trocr-sinhala-ocr.md`](../docs/trocr-sinhala-ocr.md). Do **not** switch
 the base compose default to Trocr until that bake-off picks a winner.
 
+CI builds the Trocr image (`WITH_TROCR=1`) and runs
+`scripts/ci_trocr_docker.sh` on every pull request: it downloads the pinned
+eshangj checkpoint (cached between runs), mounts it, and checks that a
+synthetic Sinhala line is recognised with a low character-error rate.
+
 ## Changing a Python dependency
 
 Every Python package in the `api` and voice images is pinned by
