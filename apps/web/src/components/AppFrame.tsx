@@ -5,7 +5,16 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useAnnouncer } from "@/components/Announcer";
+import { AuthVisual } from "@/components/AccountForms";
 import { BrandMark } from "@/components/BrandMark";
+import {
+  BookmarkIcon,
+  ClassesIcon,
+  LibraryIcon,
+  OfflineIcon,
+  ProgressIcon,
+  SignOutIcon,
+} from "@/components/Icons";
 import { ResetNoticeBanner } from "@/components/ResetNoticeBanner";
 import { RouteFocus } from "@/components/RouteFocus";
 import { SiteFooter } from "@/components/PublicFrame";
@@ -71,35 +80,40 @@ export function AppFrame({ children }: { children: ReactNode }) {
                     href="/library"
                     aria-current={pathname === "/library" ? "page" : undefined}
                   >
-                    {strings.libraryHeading}
+                    <LibraryIcon />
+                    <span>{strings.libraryHeading}</span>
                   </Link>
                   <Link
                     className="nav-link"
                     href="/bookmarks"
                     aria-current={pathname === "/bookmarks" ? "page" : undefined}
                   >
-                    {strings.bookmarksNav}
+                    <BookmarkIcon />
+                    <span>{strings.bookmarksNav}</span>
                   </Link>
                   <Link
                     className="nav-link"
                     href="/classes"
                     aria-current={pathname.startsWith("/classes") ? "page" : undefined}
                   >
-                    {strings.classesNav}
+                    <ClassesIcon />
+                    <span>{strings.classesNav}</span>
                   </Link>
                   <Link
                     className="nav-link"
                     href="/progress"
                     aria-current={pathname === "/progress" ? "page" : undefined}
                   >
-                    {strings.progressNav}
+                    <ProgressIcon />
+                    <span>{strings.progressNav}</span>
                   </Link>
                   <Link
                     className="nav-link"
                     href="/offline"
                     aria-current={pathname === "/offline" ? "page" : undefined}
                   >
-                    {strings.offlineNav}
+                    <OfflineIcon />
+                    <span>{strings.offlineNav}</span>
                   </Link>
                 </nav>
                 <div className="shell-actions">
@@ -157,17 +171,24 @@ function AccountBadge() {
       {/* The name is the way to the account page. The visible name stays
           first in the accessible name, so a voice-control user can say it. */}
       <Link className="account-name" href="/account">
-        {account?.display_name}
+        {/* The visible name comes first in the link, so a voice-control user
+            can say what they see; the badge, decoration and hidden, follows
+            it in the markup and is drawn first by CSS. */}
+        <span className="account-name-text">{account?.display_name}</span>
         <span className="visually-hidden"> — {strings.accountHeading}</span>
+        <span className="account-avatar" aria-hidden="true">
+          {Array.from(account?.display_name ?? "?")[0]}
+        </span>
       </Link>
       <button
         type="button"
-        className="btn btn-quiet btn-sm"
+        className="btn btn-quiet btn-sm account-signout"
         onClick={() => {
           void signOut().then(() => say(strings.signedOut));
         }}
       >
-        {strings.signOut}
+        <SignOutIcon size={18} />
+        <span>{strings.signOut}</span>
       </button>
     </p>
   );
@@ -266,15 +287,7 @@ function SignedOut({ pathname }: { pathname: string }) {
       : `?next=${encodeURIComponent(pathname + search)}`;
   return (
     <div className="account-screen">
-      <img
-        className="account-art"
-        src="/brand/swara-book.webp"
-        alt=""
-        width={700}
-        height={450}
-        loading="eager"
-        decoding="async"
-      />
+      <AuthVisual />
       <section className="account-form card" aria-labelledby="signed-out-heading">
         <h1 id="signed-out-heading" ref={heading} tabIndex={-1}>
           {strings.signedOutHeading}

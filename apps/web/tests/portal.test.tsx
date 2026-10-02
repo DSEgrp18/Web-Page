@@ -47,18 +47,23 @@ describe("the front door", () => {
   it("says what Swara is, and offers the way in", async () => {
     render(await LandingPage());
 
-    expect(screen.getByRole("heading", { level: 1, name: landing.heading })).toBeTruthy();
-    expect(screen.getByRole("link", { name: strings.registerHeading }).getAttribute("href")).toBe(
-      "/register",
+    // The headline says what Swara does; the masthead and the closing band
+    // carry its name.
+    expect(screen.getByRole("heading", { level: 1, name: landing.tagline })).toBeTruthy();
+    // Offered at the top and again at the end; every copy goes the same way.
+    const register = screen.getAllByRole("link", { name: strings.registerHeading });
+    const signIn = screen.getAllByRole("link", { name: strings.signInAction });
+    expect(register.length).toBeGreaterThan(0);
+    expect(signIn.length).toBeGreaterThan(0);
+    expect(register.map((link) => link.getAttribute("href"))).toEqual(
+      register.map(() => "/register"),
     );
-    expect(screen.getByRole("link", { name: strings.signInAction }).getAttribute("href")).toBe(
-      "/sign-in",
-    );
+    expect(signIn.map((link) => link.getAttribute("href"))).toEqual(signIn.map(() => "/sign-in"));
   });
 
   it("says plainly which steps are not built yet", async () => {
     const { container } = render(await LandingPage());
-    const steps = within(container.querySelector<HTMLElement>(".landing-steps")!);
+    const steps = within(container.querySelector<HTMLElement>(".lp-steps")!);
 
     // `queryAll`: every step has shipped now, and none is marked.
     const notYet = landing.steps.filter((step) => !step.ready).length;

@@ -74,27 +74,41 @@ const NON_TEXT = 3; // 1.4.11, control boundaries and the focus ring
 
 const pairs: [string, string, number][] = [
   // Text that inherits onto any surface.
-  ...["--ink", "--ink-muted", "--green", "--green-deep", "--bad-ink"].flatMap((ink) =>
+  ...["--ink", "--ink-muted", "--brand", "--brand-deep", "--bad-ink"].flatMap((ink) =>
     SURFACES.map((surface): [string, string, number] => [ink, surface, TEXT]),
   ),
   // The current sentence, the selected nav link and pressed tools.
-  ["--ink", "--green-wash", TEXT],
-  ["--ink-muted", "--green-wash", TEXT],
-  ["--green-deep", "--green-wash", TEXT],
+  ["--ink", "--brand-wash", TEXT],
+  ["--ink-muted", "--brand-wash", TEXT],
+  ["--brand-deep", "--brand-wash", TEXT],
   // Primary buttons, the skip link and selected tabs, at rest and hovered.
-  ["--ink-on-green", "--green", TEXT],
-  ["--ink-on-green", "--green-deep", TEXT],
-  ["--paper", "--green-deep", TEXT],
+  ["--ink-on-brand", "--brand", TEXT],
+  ["--ink-on-brand", "--brand-deep", TEXT],
+  ["--paper", "--brand-deep", TEXT],
   // Pills, notices and the player warning: status ink, and body ink, on washes.
   ...["ok", "warn", "bad"].flatMap((s): [string, string, number][] => [
     [`--${s}-ink`, `--${s}-wash`, TEXT],
     ["--ink", `--${s}-wash`, TEXT],
     ["--ink-muted", `--${s}-wash`, TEXT],
   ]),
+  // The logo's orange: deep orange words on any surface and on the warm wash,
+  // and navy words on the orange button.
+  ...SURFACES.map((surface): [string, string, number] => ["--accent-deep", surface, TEXT]),
+  ["--accent-deep", "--accent-wash", TEXT],
+  ["--ink", "--accent-wash", TEXT],
+  ["--ink-muted", "--accent-wash", TEXT],
+  ["--ink-on-accent", "--accent", TEXT],
+  // The navy band and the covers drawn in the brand's colourways.
+  ["--ink-on-navy", "--navy", TEXT],
+  ["--brand-deep", "--brand-wash", TEXT],
+  ["--brand", "--brand-wash", TEXT],
+  // Words on the brand's blue fields: the welcome, the banner, the white
+  // button on them.
+  ["--brand-deep", "--ink-on-brand", TEXT],
   // Control edges and the 3px focus ring, on everything they sit on.
-  ...[...SURFACES, "--green-wash"].flatMap((surface): [string, string, number][] => [
+  ...[...SURFACES, "--brand-wash"].flatMap((surface): [string, string, number][] => [
     ["--edge", surface, NON_TEXT],
-    ["--green", surface, NON_TEXT],
+    ["--brand", surface, NON_TEXT],
   ]),
 ];
 
@@ -111,14 +125,23 @@ describe("token contrast", () => {
     });
   });
 
-  // The body's glow: 9% of --green over --paper at the top of every page.
+  // The body's glows: 9% of --brand and 7% of --accent over --paper at the
+  // top of every page.
   // The browser run removes gradients before measuring, so this is where the
   // brightest point of the glow is checked.
   describe.each(themes)("text on the page glow, %s theme", (_name, theme) => {
-    const glow = over(colour(theme, "--green"), 0.09, colour(theme, "--paper"));
-    it.each(["--ink", "--ink-muted", "--green", "--green-deep", "--bad-ink"])("%s", (ink) => {
-      expect(ratio(colour(theme, ink), glow)).toBeGreaterThanOrEqual(TEXT);
-    });
+    const glows = [
+      over(colour(theme, "--brand"), 0.09, colour(theme, "--paper")),
+      over(colour(theme, "--accent"), 0.07, colour(theme, "--paper")),
+    ];
+    it.each(["--ink", "--ink-muted", "--brand", "--brand-deep", "--bad-ink", "--accent-deep"])(
+      "%s",
+      (ink) => {
+        for (const glow of glows) {
+          expect(ratio(colour(theme, ink), glow)).toBeGreaterThanOrEqual(TEXT);
+        }
+      },
+    );
   });
 
   it("measures known values correctly", () => {

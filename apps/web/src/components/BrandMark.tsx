@@ -1,44 +1,48 @@
 import Link from "next/link";
 
 /**
- * The Swara mark: the open book, and ස්වර beside it.
+ * The Swara mark: the roof over an open book, and ස්වර beside it, as the logo
+ * draws them.
  *
- * Plain `<img>` rather than `next/image`. The optimiser earns its keep on
- * user-uploaded photographs of unknown size; this is a 12 KiB WebP at a fixed
- * size in the masthead of every screen, and routing it through a server
- * endpoint would add a request without changing a byte that reaches the page.
- * Explicit `width`/`height` do the one thing that actually matters here —
- * reserve the box, so the header does not jump when the image lands.
+ * Two images, one per theme, because the logo's blue is too dark to see on
+ * the night palette: the dark copy lifts the blue and keeps the orange. CSS
+ * shows the one that matches the theme, whether the reader's system chose it
+ * or the reader did in Settings (`data-theme`), which a `<picture>` media
+ * query cannot see.
  *
- * The image is decorative: the wordmark beside it already says "ස්වර", and a
- * screen reader announcing the book twice is noise. So `alt=""`, and the link's
- * accessible name comes from the text.
+ * Plain `<img>` rather than `next/image`: a fixed-size mark in the masthead of
+ * every screen gains nothing from the optimiser's extra request. Explicit
+ * `width`/`height` reserve the box, so the header does not jump when it lands.
  *
- * The wordmark is the same in every interface language — it is the name, not a
- * word to translate — and it is Sinhala, so it says so for a screen reader
- * speaking English around it.
+ * The images are decorative; the link's name is the word itself, in Sinhala,
+ * marked as Sinhala for a screen reader speaking English around it. It is the
+ * same name in every interface language: it is the name, not a word to
+ * translate.
  */
 export function BrandMark({ href = "/" }: { href?: string }) {
   return (
     <Link className="brand" href={href}>
       <img
-        className="brand-mark"
-        src="/brand/swara-mark.webp"
+        className="brand-lockup brand-lockup-light"
+        src="/brand/swara-lockup.webp"
         alt=""
-        width={168}
-        height={108}
-        // The masthead mark is above the fold on every screen; lazy-loading it
-        // only guarantees it arrives late.
+        width={528}
+        height={140}
+        // Above the fold on every screen; lazy-loading only makes it late.
         loading="eager"
         decoding="async"
       />
-      <span>
-        <span className="brand-word" lang="si">
-          ස්වර
-        </span>
-        <span className="brand-latin" lang="en">
-          Swara
-        </span>
+      <img
+        className="brand-lockup brand-lockup-dark"
+        src="/brand/swara-lockup-dark.webp"
+        alt=""
+        width={528}
+        height={140}
+        loading="eager"
+        decoding="async"
+      />
+      <span className="visually-hidden" lang="si">
+        ස්වර
       </span>
     </Link>
   );
