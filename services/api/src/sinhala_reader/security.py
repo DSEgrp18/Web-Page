@@ -176,9 +176,7 @@ def check_configuration() -> None:
             "(PostgreSQL); in-memory storage is not allowed."
         )
     if queue_mode() != CELERY:
-        raise ValueError(
-            f"{APP_ENV}={PRODUCTION_ENV} needs {QUEUE_ENV}={CELERY} and a broker URL."
-        )
+        raise ValueError(f"{APP_ENV}={PRODUCTION_ENV} needs {QUEUE_ENV}={CELERY} and a broker URL.")
     broker_url()
     if rate_limit_mode() != REDIS:
         raise ValueError(
