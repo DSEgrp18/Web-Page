@@ -13,7 +13,7 @@ from ..adapters import ADAPTER_ENV, adapter_mode, loaded_model_version
 from ..answers import answer_limitations, answers_mode
 from ..audio import AUDIO_FORMAT_ENV, audio_format
 from ..queue import QUEUE_ENV, REDIS_URL_ENV, queue_mode, uses_celery
-from ..recognition import ocr_limitations, ocr_mode
+from ..recognition import ocr_engine, ocr_limitations, ocr_mode, trocr_checkpoint_alias
 from ..security import (
     AUTH_MODE_ENV,
     allowed_origins,
@@ -122,12 +122,16 @@ def register(app: FastAPI, deps: Deps) -> None:
         limitations.extend(structure_limitations())
         limitations.extend(ocr_limitations())
         limitations.extend(answer_limitations())
+        recognition_mode = ocr_mode()
+        engine = "off" if recognition_mode.value == "off" else ocr_engine()
         return {
             "alive": report.alive,
             "serving": report.serving,
             "readiness": report.readiness,
             "structure": structure_mode(),
-            "ocr": ocr_mode().value,
+            "ocr": recognition_mode.value,
+            "ocr_engine": engine,
+            "ocr_trocr_checkpoint": trocr_checkpoint_alias() if engine == "trocr" else None,
             "answers": answers_mode(),
             "real_model": deps.adapter.is_real_model,
             # Not `adapter.model_version`: that loads the bundle if it has not
