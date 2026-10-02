@@ -567,7 +567,6 @@ export const en: Strings = {
 
   // -- what the page loses ----------------------------------------------
   pageNotesHeading: "About this page",
-  pageTeacherCorrectedNote: "A teacher reviewed and corrected the text on this page.",
   pageCorrectionHeading: "Correct this page's text",
   pageCorrectionIntro:
     "If OCR or extraction got this page wrong, enter the correct Sinhala text here. Saving creates a new version of the book and regenerates audio for this page.",
@@ -786,6 +785,8 @@ export const en: Strings = {
         return `${count} of ${total} extracted pages are images with no readable text.`;
       case "doc_unreadable_pages":
         return `${count} of ${total} pages have nothing that can be read aloud.`;
+      case "page_teacher_corrected":
+        return "A teacher reviewed and corrected the text on this page.";
       case "ocr_recognised":
         return "This page was read from its image. Recognition can misread letters, and a person has not checked it.";
       case "ocr_failed":

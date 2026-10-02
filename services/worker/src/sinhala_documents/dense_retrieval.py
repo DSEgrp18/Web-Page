@@ -55,7 +55,8 @@ class DenseIndex:
         ceiling = max(1, int(total * COMMON_TERM_FRACTION))
         self._informative = {gram for gram, count in documents.items() if count <= ceiling}
         self._weighted = [
-            Counter({g: c * self._idf.get(g, 0.0) for g, c in grams.items()}) for grams in self._grams
+            Counter({g: c * self._idf.get(g, 0.0) for g, c in grams.items()})
+            for grams in self._grams
         ]
 
     @property
@@ -72,7 +73,9 @@ class DenseIndex:
             score = _cosine(weighted_query, self._weighted[index])
             if score <= 0:
                 continue
-            matched_tokens = tuple(t for t in set(tokenize(question)) if t in tokenize(passage.text))
+            matched_tokens = tuple(
+                t for t in set(tokenize(question)) if t in tokenize(passage.text)
+            )
             informative = any(g in self._informative for g in query if g in self._grams[index])
             if not informative and not matched_tokens:
                 continue
@@ -113,7 +116,10 @@ class HybridIndex:
             terms.setdefault(hit.passage.passage_id, hit.terms)
         ordered = sorted(
             scores.items(),
-            key=lambda item: (-item[1], next(p.page_index for p in self._passages if p.passage_id == item[0])),
+            key=lambda item: (
+                -item[1],
+                next(p.page_index for p in self._passages if p.passage_id == item[0]),
+            ),
         )
         by_id = {p.passage_id: p for p in self._passages}
         hits = [

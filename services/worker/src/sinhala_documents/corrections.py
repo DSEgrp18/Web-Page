@@ -18,7 +18,7 @@ from .structure import BlockRole
 
 
 def _new_version(previous: str, page_index: int, text: str) -> str:
-    digest = hashlib.sha256(f"{page_index}:{text}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha256(f"{page_index}:{text}".encode()).hexdigest()[:12]
     return f"{previous}+page{page_index}-corr-{digest}"
 
 

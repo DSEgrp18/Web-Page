@@ -301,7 +301,6 @@ def ground(
     queries: list[str],
     *,
     index: SearchIndex | None = None,
-    *,
     mode: str = "lexical",
 ) -> tuple[Passage, ...]:
     """The passages to answer from: best matches and their neighbours, in book order.

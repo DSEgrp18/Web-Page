@@ -418,7 +418,8 @@ function TakeQuiz({
         <h1 ref={heading} tabIndex={-1}>
           {strings.quizScore(right, total)}
         </h1>
-        <table className="data-table">
+        <div className="table-scroll">
+        <table className="member-table">
           <caption>{strings.quizResultsCaption}</caption>
           <thead>
             <tr>
@@ -456,6 +457,7 @@ function TakeQuiz({
             })}
           </tbody>
         </table>
+        </div>
         <button className="btn btn-primary" type="button" onClick={onBack}>
           {strings.backToQuizzes}
         </button>
