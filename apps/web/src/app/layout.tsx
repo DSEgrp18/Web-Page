@@ -23,21 +23,24 @@ import { Providers } from "./providers";
  */
 const yaldevi = Yaldevi({
   subsets: ["sinhala", "latin"],
-  weight: ["500", "600", "700"],
+  weight: ["600", "700"],
   variable: "--font-display-face",
   display: "swap",
 });
 
 const notoSansSinhala = Noto_Sans_Sinhala({
   subsets: ["sinhala", "latin"],
-  weight: ["400", "500", "600", "700"],
+  // Only the weights the stylesheet sets. A weight nothing uses is a download
+  // for every reader, and one more file Google may have to generate on the fly
+  // (a `kit` URL, which next/font's dev bundler cannot resolve).
+  weight: ["400", "600", "700"],
   variable: "--font-ui",
   display: "swap",
 });
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "600", "700", "800"],
   variable: "--font-latin-face",
   display: "swap",
 });
