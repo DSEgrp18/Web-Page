@@ -6,11 +6,13 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, Request
+from sinhala_documents.answerer import grounded_summary
 from sinhala_documents.answering import Exchange, answer_with_fallback
 from sinhala_documents.passages import build_passages
 
 from ..ratelimit import enforce
-from ..schemas import QuestionBody, StudyAnswer, StudyCitation
+from ..retrieval import retrieval_mode
+from ..schemas import QuestionBody, StudyAnswer, StudyCitation, SummaryBody
 from ..security import require_owner
 from .common import prepared_for_in, readable_in
 
@@ -48,6 +50,34 @@ def register(app: FastAPI, deps: Deps) -> None:
             build_passages(prepared),
             tuple(Exchange(question=turn.question, answer=turn.answer) for turn in body.history),
         )
+        return StudyAnswer(
+            document_id=document_id,
+            answer=result.answer,
+            citations=[
+                StudyCitation(
+                    passage_id=citation.passage_id,
+                    page_index=citation.page_index,
+                    page_label=citation.page_label,
+                    section=citation.section,
+                    segment_ids=list(citation.segment_ids),
+                    quote=citation.quote,
+                )
+                for citation in result.citations
+            ],
+            abstained=result.abstained,
+            generated=result.generated,
+        )
+
+    @app.post("/documents/{document_id}/summary", tags=["study"])
+    def summarize_document(
+        document_id: str, body: SummaryBody, request: Request, owner: str = Depends(require_owner)
+    ) -> StudyAnswer:
+        """Labelled study summary from retrieved passages only (not read mode)."""
+        reading = readable(document_id, owner)
+        enforce(request, "question", owner)
+        prepared = prepared_for(reading)
+        passages = build_passages(prepared)
+        result = grounded_summary(passages, focus=body.focus, mode=retrieval_mode())
         return StudyAnswer(
             document_id=document_id,
             answer=result.answer,

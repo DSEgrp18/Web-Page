@@ -824,6 +824,8 @@ export class FakeServer {
           question: "ශ්‍රී ලංකාවේ අගනුවර _____ වේ.",
           options: ["කොළඹ", "කෝට්ටේ", "ගාල්ල", "මහනුවර"],
           page_label: "1",
+          page_index: 0,
+          segment_id: "0000-s0",
           answer: 1,
         },
         {
@@ -831,6 +833,8 @@ export class FakeServer {
           question: "_____ ප්‍රධාන වරාය නගරයයි.",
           options: ["යාපනය", "ත්‍රිකුණාමලය", "කොළඹ", "මාතර"],
           page_label: "1",
+          page_index: 0,
+          segment_id: "0000-s1",
           answer: 2,
         },
       ],

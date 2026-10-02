@@ -97,6 +97,8 @@ const REQUIRED_PATHS = [
   ["get", "/documents/{document_id}/segments/{segment_id}/audio"],
   ["get", "/documents/{document_id}/segments/{segment_id}/audio/manifest"],
   ["post", "/documents/{document_id}/questions"],
+  ["post", "/documents/{document_id}/summary"],
+  ["post", "/documents/{document_id}/pages/{page_index}/correction"],
   ["post", "/documents/{document_id}/bookmarks"],
   ["get", "/documents/{document_id}/bookmarks"],
   ["delete", "/documents/{document_id}/bookmarks/{bookmark_id}"],

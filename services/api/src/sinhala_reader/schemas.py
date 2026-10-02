@@ -437,6 +437,14 @@ class QuestionBody(BaseModel):
     history: list[HistoryTurn] = Field(default_factory=list, max_length=MAX_HISTORY)
 
 
+class SummaryBody(BaseModel):
+    focus: str = Field(
+        default="",
+        max_length=MAX_QUESTION,
+        description="Optional topic or section title to retrieve around.",
+    )
+
+
 class StudyCitation(BaseModel):
     """The exact source and place supporting an extractive answer."""
 

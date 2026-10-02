@@ -19,6 +19,13 @@ const POLL_MS = 10_000;
 /** A right answer is plain news; a wrong one is set apart. */
 const RESULT = { right: "notice", wrong: "notice notice-warn" } as const;
 
+type QuizAttempt = {
+  question_id: string;
+  choice: number;
+  correct: boolean;
+  segment_id: string | null;
+};
+
 /**
  * Practice questions on one book: the quizzes, making one, and taking one.
  *
@@ -337,6 +344,20 @@ function TakeQuiz({
     return quiz.answers.filter((a) => before.has(a.question_id) && a.correct).length;
   });
   const [finished, setFinished] = useState(startAt >= quiz.questions.length);
+  const [attempts, setAttempts] = useState<QuizAttempt[]>(() => {
+    const before = new Set(quiz.questions.slice(0, startAt).map((q) => q.question_id));
+    return quiz.answers
+      .filter((a) => before.has(a.question_id))
+      .map((a) => {
+        const question = quiz.questions.find((q) => q.question_id === a.question_id);
+        return {
+          question_id: a.question_id,
+          choice: a.choice,
+          correct: a.correct,
+          segment_id: question?.segment_id ?? null,
+        };
+      });
+  });
   const heading = useRef<HTMLHeadingElement>(null);
   const nextButton = useRef<HTMLButtonElement>(null);
   const name = useId();
@@ -364,6 +385,15 @@ function TakeQuiz({
       setFailure(null);
       setResult(checked);
       if (checked.correct) setRight((count) => count + 1);
+      setAttempts((rows) => [
+        ...rows.filter((row) => row.question_id !== question.question_id),
+        {
+          question_id: question.question_id,
+          choice,
+          correct: checked.correct,
+          segment_id: checked.segment_id ?? question.segment_id ?? null,
+        },
+      ]);
       const answer = question.options[checked.answer] ?? "";
       say(checked.correct ? strings.rightAnswer : strings.wrongAnswer(answer));
     } catch (error) {
@@ -382,11 +412,58 @@ function TakeQuiz({
   }
 
   if (finished || !question) {
+    const byId = new Map(attempts.map((row) => [row.question_id, row]));
     return (
       <div className="account-page">
         <h1 ref={heading} tabIndex={-1}>
           {strings.quizScore(right, total)}
         </h1>
+        <div className="table-scroll">
+          <table className="member-table">
+            <caption>{strings.quizResultsCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col" className="visually-hidden">
+                  #
+                </th>
+                <th scope="col">{strings.quizResultsColQuestion}</th>
+                <th scope="col">{strings.quizResultsColOutcome}</th>
+                <th scope="col">{strings.hearQuestion}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {quiz.questions.map((item, position) => {
+                const row = byId.get(item.question_id);
+                const segmentId = row?.segment_id ?? item.segment_id;
+                return (
+                  <tr key={item.question_id}>
+                    <td className="latin">{position + 1}</td>
+                    <td lang="si">
+                      <Question text={item.question} />
+                    </td>
+                    <td>
+                      {row
+                        ? row.correct
+                          ? strings.quizResultRight
+                          : strings.quizResultWrong
+                        : "—"}
+                    </td>
+                    <td>
+                      {segmentId ? (
+                        <Link
+                          className="btn btn-quiet btn-sm"
+                          href={`/library/${encodeURIComponent(documentId)}?segment=${encodeURIComponent(segmentId)}`}
+                        >
+                          {strings.hearQuestion}
+                        </Link>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
         <button className="btn btn-primary" type="button" onClick={onBack}>
           {strings.backToQuizzes}
         </button>

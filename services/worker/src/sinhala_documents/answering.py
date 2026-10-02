@@ -81,9 +81,12 @@ class ExtractiveAnswerer(AnswerAdapter):
     unaffordable, or wrong.
     """
 
+    def __init__(self, *, mode: str = "lexical") -> None:
+        self._mode = mode
+
     @property
     def version(self) -> str:
-        return "extractive/1"
+        return f"extractive/1+{self._mode}"
 
     def answer(
         self,
@@ -94,7 +97,7 @@ class ExtractiveAnswerer(AnswerAdapter):
         # History is ignored. Word overlap has no way to resolve "them", and
         # quietly searching with an earlier question's words would return
         # extracts for a question the reader did not just ask.
-        return answer_question(question, passages)
+        return answer_question(question, passages, mode=self._mode)
 
 
 def answer_with_fallback(

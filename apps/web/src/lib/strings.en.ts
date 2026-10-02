@@ -335,6 +335,12 @@ export const en: Strings = {
   nextQuestion: "Next question",
   finishQuiz: "Finish",
   quizScore: (right: number, total: number) => `${right} of ${n(total, "question")} right.`,
+  quizResultsCaption: "Your answers",
+  quizResultsColQuestion: "Question",
+  quizResultsColOutcome: "Answer",
+  quizResultRight: "Right",
+  quizResultWrong: "Not right",
+  hearQuestion: "Hear the question",
   backToQuizzes: "Back to question sets",
   backToQuiz: "Back to the questions",
   correctIs: (answer: string) => `The answer: ${answer}`,
@@ -555,9 +561,18 @@ export const en: Strings = {
   placeholderAudioHeading: "This is not real speech",
   placeholderAudio:
     "This sound is a demonstration tone. The Sinhala speech model is not connected yet, so it is not reading the book.",
+  voiceWarmingHeading: "The voice is warming up",
+  voiceWarming:
+    "The real Sinhala voice is still loading. This can take over a minute from cold. Nothing will speak until it is ready.",
 
   // -- what the page loses ----------------------------------------------
   pageNotesHeading: "About this page",
+  pageCorrectionHeading: "Correct this page's text",
+  pageCorrectionIntro:
+    "If OCR or extraction got this page wrong, enter the correct Sinhala text here. Saving creates a new version of the book and regenerates audio for this page.",
+  pageCorrectionLabel: "Page text",
+  savePageCorrection: "Save corrected text",
+  pageCorrected: "The page text was saved.",
   qualityNeedsReview: "Some parts of this page have not been confirmed as read correctly.",
   qualityUndecodable: "This page could not be read. It has not been turned into audio.",
   kindImage: "This page is an image. Its text has not been recognised yet.",
@@ -770,6 +785,8 @@ export const en: Strings = {
         return `${count} of ${total} extracted pages are images with no readable text.`;
       case "doc_unreadable_pages":
         return `${count} of ${total} pages have nothing that can be read aloud.`;
+      case "page_teacher_corrected":
+        return "A teacher reviewed and corrected the text on this page.";
       case "ocr_recognised":
         return "This page was read from its image. Recognition can misread letters, and a person has not checked it.";
       case "ocr_failed":
