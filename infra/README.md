@@ -73,6 +73,11 @@ docker compose -f infra/docker-compose.yml exec api python -c "import langgraph;
 ```
 
 
+## Operations notes
+
+See [`docs/runbook.md`](../docs/runbook.md) for readiness quirks (for example OCR
+reported on the API process while recognition runs in the worker).
+
 ## Why this exists, beyond convenience
 
 Run by hand, the API defaults to in-memory storage and a thread per job, and

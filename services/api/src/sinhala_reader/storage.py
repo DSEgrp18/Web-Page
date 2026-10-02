@@ -435,6 +435,7 @@ class ProblemReport:
     quiz_id: str | None = None
     question_id: str | None = None
     created_at: str = field(default_factory=_now)
+    handled_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -851,6 +852,12 @@ class Store(ABC):
     @abstractmethod
     def reports_on(self, document_id: str, owner: str) -> list[ProblemReport]:
         """Reports on a book, newest first, for its owner only; empty for anyone else."""
+
+    @abstractmethod
+    def mark_report_handled(
+        self, document_id: str, owner: str, report_id: str
+    ) -> ProblemReport | None:
+        """Set ``handled_at`` on one report, for the book's owner only."""
 
     def sharing_members(self, class_id: str, teacher_id: str) -> list[Membership]:
         """Active members who chose to share their progress, for their teacher only."""
@@ -1431,6 +1438,20 @@ class InMemoryStore(Store):
                 return []
             found = [r for r in self._reports.values() if r.document_id == document_id]
         return sorted(found, key=lambda r: (r.created_at, r.report_id), reverse=True)
+
+    def mark_report_handled(
+        self, document_id: str, owner: str, report_id: str
+    ) -> ProblemReport | None:
+        with self._lock:
+            document = self._documents.get(document_id)
+            if document is None or document.owner != owner:
+                return None
+            found = self._reports.get(report_id)
+            if found is None or found.document_id != document_id:
+                return None
+            updated = replace(found, handled_at=_now())
+            self._reports[report_id] = updated
+            return updated
 
     def put_heard(self, heard: Heard) -> Heard:
         with self._lock:

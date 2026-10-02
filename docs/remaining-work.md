@@ -151,15 +151,15 @@ Only aggregate results are committed; `scripts/verify-repo-hygiene.sh` enforces 
 
 ## 7. Smaller fixes (from the UI audit)
 
-| ID | What | Owner |
-| --- | --- | --- |
-| F33 | The report form never says which book or sentence the report is about | — |
-| F35 | On the account page, three "current password" fields and four "show password" buttons share identical names, and a wrong password isn't tied to its field (`aria-invalid`, `aria-describedby`) | — |
-| F36 | A teacher can't mark a report as handled | — |
-| F37 | An uploaded image's book title keeps the extension (`පිටුව.png`) | — |
-| F30 | Dates fall back to English inside Sinhala sentences on browsers without Sinhala locale data | — |
-| E5 | `/readiness` says OCR is `broken` from the API process while it works in the worker. Explain it in the runbook | — |
-| — | The "can't reach the server" panel should link to saved chapters (`/offline`) | — |
+| ID | Status |
+| --- | --- |
+| F33 | Report form names the book and sentence; thanks announced once (heading focus only) |
+| F35 | Distinct password labels and show-password names; `aria-invalid` + `aria-describedby` on wrong password |
+| F36 | Owner marks a report handled (`POST …/reports/{id}/handled`) |
+| F37 | Display title strips file extensions (`titleFromFilename` / `bookTitle`) |
+| F30 | `formatDateTime` uses interface month names (no `si-LK` locale dependency) |
+| E5 | [`docs/runbook.md`](runbook.md) + readiness limitation when OCR runs in the worker |
+| — | Unavailable (offline) panel links to `/offline` |
 
 ---
 

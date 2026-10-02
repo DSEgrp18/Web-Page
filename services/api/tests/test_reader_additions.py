@@ -126,3 +126,24 @@ class TestReports:
         school.client.delete(f"/documents/{doc}", headers=school.teacher)
 
         assert school.store.reports_on(doc, school.teacher_id) == []
+
+    def test_the_owner_marks_a_report_handled(self, school: School) -> None:
+        doc = school.upload([sinhala_page()])
+        school.publish(doc)
+        page = school.client.get(f"/documents/{doc}/pages/0", headers=school.student).json()
+        segment = page["segments"][0]
+        report(
+            school,
+            school.student,
+            kind="pronunciation",
+            document_id=doc,
+            segment_id=segment["segment_id"],
+        )
+        listed = school.client.get(f"/documents/{doc}/reports", headers=school.teacher).json()
+        report_id = listed[0]["report_id"]
+        marked = school.client.post(
+            f"/documents/{doc}/reports/{report_id}/handled", headers=school.teacher
+        )
+        assert marked.status_code == 204, marked.text
+        again = school.client.get(f"/documents/{doc}/reports", headers=school.teacher).json()
+        assert again[0]["handled_at"] is not None
