@@ -440,8 +440,8 @@ def test_chrome_print_garble_is_withheld() -> None:
     The codepoints are real Sinhala, so the legacy-encoding checks never fire.
     Narrating it would read ශ්‍රීශ්‍රීශ්‍රී as if it were the book.
     """
-    from sinhala_documents.pdf_extract import _classify_span
     from sinhala_documents.fonts import looks_garbled_native
+    from sinhala_documents.pdf_extract import _classify_span
 
     garbage = "ශ්‍රී" * 8 + "\x00"
     assert looks_garbled_native(garbage)

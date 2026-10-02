@@ -441,7 +441,9 @@ class TestProductionRefusesUnsafeDefaults:
         monkeypatch.delenv("SINHALA_READER_DATABASE_URL", raising=False)
         with pytest.raises(ValueError, match="DATABASE"):
             check_configuration()
-        monkeypatch.setenv("SINHALA_READER_DATABASE_URL", "postgresql://reader:dev@localhost/reader")
+        monkeypatch.setenv(
+            "SINHALA_READER_DATABASE_URL", "postgresql://reader:dev@localhost/reader"
+        )
         monkeypatch.setenv("SINHALA_READER_QUEUE", "thread")
         with pytest.raises(ValueError, match="celery"):
             check_configuration()
@@ -452,4 +454,3 @@ class TestProductionRefusesUnsafeDefaults:
             check_configuration()
         monkeypatch.setenv("SINHALA_READER_RATE_LIMIT", "redis")
         check_configuration()
-
