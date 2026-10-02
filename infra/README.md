@@ -142,7 +142,7 @@ which.
 On by default here, for broken pages only. Some PDFs carry embedded text that is
 not what is printed: legacy fonts the converter cannot decode, or a hidden
 second copy of the page that extraction reads as well. Those pages are rendered
-and read by **Tesseract, inside the container**. Nothing is sent anywhere.
+and read **inside the container**. Nothing is sent anywhere.
 
 | `SINHALA_READER_OCR` | Pages read from their image |
 | --- | --- |
@@ -150,10 +150,30 @@ and read by **Tesseract, inside the container**. Nothing is sent anywhere.
 | `all` | Every page |
 | `off` (default outside compose) | None; broken pages stay unread |
 
+| `SINHALA_READER_OCR_ENGINE` | Recogniser |
+| --- | --- |
+| `tesseract` (default) | Tesseract Sinhala, layout and text |
+| `trocr` | Tesseract for line boxes, TrOCR for Sinhala text |
+
 Recognised text can misread letters, so those pages are marked as not checked,
-and the document version changes with the mode, which regenerates their audio.
-Measured on the 168-page Grade 11 history textbook: 19 pages were recognised,
-and preparation took about 89 seconds instead of 19.
+and the document version changes with the mode and engine, which regenerates
+their audio. Measured on the 168-page Grade 11 history textbook with Tesseract:
+19 pages were recognised, and preparation took about 89 seconds instead of 19.
+
+### Optional TrOCR overlay
+
+TrOCR needs torch and a downloaded Hub checkpoint (~1.3 GB). Use the overlay,
+the same way the real voice uses `compose.voice.yml`:
+
+```bash
+export TROCR_MODEL_DIR="/path/to/models/trocr_sinhala_eshangj"
+docker compose -f infra/docker-compose.yml -f infra/compose.trocr.yml up --build
+```
+
+Checkpoint aliases: `eshangj` (default in the overlay) or `ransaka`. Download
+commands and the bake-off checklist are in
+[`docs/trocr-sinhala-ocr.md`](../docs/trocr-sinhala-ocr.md). Do **not** switch
+the base compose default to Trocr until that bake-off picks a winner.
 
 ## What this is not
 

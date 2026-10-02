@@ -16,8 +16,12 @@ requires-python = ">=3.12"
 #   unresolved licence question in the XTTS weights. A second one is not worth
 #   the speed.
 #
-# Deliberately absent: any OCR engine. Image-only pages are classified and
-# reported here; recognising them is a later increment with its own evaluation.
+# Deliberately absent from the default install: any OCR engine. Image-only pages
+# are classified and reported here; recognising them is selected at the API
+# composition root. Tesseract is invoked as a subprocess (system package).
+# TrOCR is an optional extra: torch and transformers are large and only needed
+# when SINHALA_READER_OCR_ENGINE=trocr.
+#
 # sinhala-tts supplies segmentation and the Sinhala text front end. The join
 # lives here rather than in the API because this is where documents are turned
 # into work: extraction and segmentation are one pipeline, and splitting them
@@ -26,6 +30,13 @@ requires-python = ">=3.12"
 # It is a path dependency because neither package is published; CI puts both
 # source trees on the path directly, the way the tests do.
 dependencies = ["pdfplumber>=0.11.4"]
+
+[project.optional-dependencies]
+trocr = [
+  "torch>=2.5",
+  "transformers>=4.40,<5",
+  "Pillow>=10",
+]
 
 [dependency-groups]
 dev = ["pytest>=8"]
