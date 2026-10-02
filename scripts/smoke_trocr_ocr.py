@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 """Smoke-test TrOCR Sinhala OCR the way the reader runs it in Docker.
 
-TrOCR checkpoints are line/crop models. This smoke renders a tight Sinhala line
-image (training-like), feeds it through TrocrSinhalaOcr with a deterministic
-layout box covering the crop, and fails unless the recognised text is close to
-the intended phrase. Intended to run inside the api image built with
-WITH_TROCR=1, with the checkpoint mounted at SINHALA_READER_TROCR_MODEL_DIR.
+Fetches one in-distribution line image from the public Sinhala OCR dataset the
+checkpoint was trained on, runs TrocrSinhalaOcr with a deterministic full-crop
+layout box, and fails unless the recognised text is close to the dataset label.
 """
 
 from __future__ import annotations
 
 import io
+import json
 import os
 import sys
 import unicodedata
+import urllib.request
 from pathlib import Path
 
-EXPECTED = "ශ්‍රී ලංකා"
+#: One row from the public synthetic Sinhala OCR set used to train these models.
+DATASET_ROWS_URL = (
+    "https://datasets-server.huggingface.co/rows"
+    "?dataset=Ransaka%2Fsinhala_synthetic_ocr-large"
+    "&config=default&split=train&offset=0&length=1"
+)
 
 
 def _normalise(text: str) -> str:
@@ -41,45 +46,24 @@ def _cer(reference: str, hypothesis: str) -> float:
     return prev[-1] / len(ref)
 
 
-def _sinhala_font() -> str:
-    candidates = [
-        Path("/usr/share/fonts/truetype/noto/NotoSansSinhala-Regular.ttf"),
-        Path("/usr/share/fonts/truetype/noto/NotoSansSinhala-Bold.ttf"),
-        Path("/usr/share/fonts/opentype/noto/NotoSansSinhala-Regular.otf"),
-    ]
-    for path in candidates:
-        if path.is_file():
-            return str(path)
-    for root in (Path("/usr/share/fonts"), Path("/usr/local/share/fonts")):
-        if not root.is_dir():
-            continue
-        matches = sorted(root.rglob("*Sinhala*.ttf")) + sorted(
-            root.rglob("*Sinhala*.otf")
-        )
-        if matches:
-            return str(matches[0])
-    raise SystemExit(
-        "No Sinhala font found. Install fonts-noto-core (or equivalent) in the image."
-    )
-
-
-def _render_line(text: str) -> tuple[bytes, int, int]:
-    """A tight line crop, the shape TrOCR was trained on."""
-    from PIL import Image, ImageDraw, ImageFont
-
-    font = ImageFont.truetype(_sinhala_font(), 48)
-    # Measure text, then pad a little so marks above/below the line are kept.
-    probe = Image.new("RGB", (8, 8), "white")
-    draw = ImageDraw.Draw(probe)
-    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
-    width = max(32, right - left + 24)
-    height = max(32, bottom - top + 24)
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
-    draw.text((12, 12 - top), text, fill="black", font=font)
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return buffer.getvalue(), width, height
+def _load_sample() -> tuple[bytes, str]:
+    """PNG bytes and ground-truth text from the Hub dataset viewer API."""
+    with urllib.request.urlopen(DATASET_ROWS_URL, timeout=60) as response:
+        payload = json.load(response)
+    rows = payload.get("rows") or []
+    if not rows:
+        raise SystemExit(f"No rows returned from {DATASET_ROWS_URL}")
+    row = rows[0]["row"]
+    text = row.get("text") or row.get("label") or ""
+    image = row.get("image") or {}
+    source = image.get("src")
+    if not text or not source:
+        raise SystemExit(f"Unexpected dataset row shape: {sorted(row)}")
+    with urllib.request.urlopen(source, timeout=60) as response:
+        png = response.read()
+    if not png:
+        raise SystemExit("Downloaded sample image was empty.")
+    return png, text
 
 
 def main() -> int:
@@ -103,14 +87,18 @@ def main() -> int:
     )
     device = os.environ.get("SINHALA_READER_TROCR_DEVICE", "cpu").strip() or "cpu"
 
+    from PIL import Image
+
     from sinhala_documents.ocr import OcrAdapter, OcrWord, lines_from_words
     from sinhala_documents.trocr_ocr import TrocrSinhalaOcr
 
-    png, width, height = _render_line(EXPECTED)
+    print(f"Fetching sample from {DATASET_ROWS_URL}", flush=True)
+    png, expected = _load_sample()
+    with Image.open(io.BytesIO(png)) as image:
+        width, height = image.size
+    print(f"sample_size={width}x{height} expected={expected!r}", flush=True)
 
     class LineLayout(OcrAdapter):
-        """One box over the whole crop — TrOCR sees a line image, not a page."""
-
         @property
         def version(self) -> str:
             return "smoke-line/1"
@@ -131,7 +119,7 @@ def main() -> int:
         return 1
     lines = lines_from_words(words, dpi=300, version=adapter.version)
     hypothesis = _normalise(" ".join(line.text for line in lines))
-    reference = _normalise(EXPECTED)
+    reference = _normalise(expected)
     cer = _cer(reference, hypothesis)
     print(f"expected={reference!r}")
     print(f"got={hypothesis!r}")
@@ -139,7 +127,6 @@ def main() -> int:
     if not any("\u0d80" <= ch <= "\u0dff" for ch in hypothesis):
         print("Recognised text has no Sinhala codepoints.", file=sys.stderr)
         return 1
-    # Clean synthetic line crops should be close. Allow some ZWJ / glyph variance.
     if cer > 0.35:
         print(f"CER {cer:.3f} is too high (limit 0.35).", file=sys.stderr)
         return 1

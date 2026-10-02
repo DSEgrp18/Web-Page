@@ -39,26 +39,16 @@ docker build \
   --tag "$IMAGE_TAG" \
   .
 
-# fonts-noto-core supplies Noto Sans Sinhala for the synthetic page render.
-# Installed at run time so the slim image stays free of font packages unless
-# this smoke (or an operator) asks for them.
+# No font package needed: the smoke fetches an in-distribution line image from
+# the public Hub dataset and recognises it with the mounted checkpoint.
 echo "Running Trocr smoke inside ${IMAGE_TAG}"
 docker run --rm \
-  --user root \
   -e SINHALA_READER_TROCR_MODEL_DIR=/models/trocr_sinhala \
   -e SINHALA_READER_TROCR_CHECKPOINT=eshangj \
   -e SINHALA_READER_TROCR_DEVICE=cpu \
   -v "${MODELS_DIR}:/models/trocr_sinhala:ro" \
   -v "${ROOT}/scripts/smoke_trocr_ocr.py:/app/scripts/smoke_trocr_ocr.py:ro" \
   "$IMAGE_TAG" \
-  bash -lc '
-    set -euo pipefail
-    apt-get update
-    apt-get install --no-install-recommends -y fonts-noto-core
-    rm -rf /var/lib/apt/lists/*
-    # Drop privileges for the actual recognition: the image is meant to run as
-    # reader; root was only needed to install the font for this smoke.
-    su -s /bin/bash reader -c "python /app/scripts/smoke_trocr_ocr.py"
-  '
+  python /app/scripts/smoke_trocr_ocr.py
 
 echo "Trocr Docker smoke passed."
