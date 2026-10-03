@@ -10,8 +10,9 @@
 # What it does, in order:
 #   1. fetches and checks out exactly <commit-sha> (detached, nothing merged);
 #   2. builds the images one at a time (built together they have run Docker out
-#      of memory beside a loaded voice), with the real voice when the model
-#      bundle is in ~/models, the labelled placeholder tone otherwise;
+#      of memory beside a loaded voice): the GPU voice on Modal when
+#      ~/deploy.env sets SINHALA_READER_TTS=modal, otherwise the local voice when
+#      the model bundle is in ~/models, otherwise the labelled placeholder tone;
 #   3. starts them, and smoke-tests the API, the voice's readiness and the web
 #      app from the VM itself;
 #   4. records what is running in ~/deployments.log: commit, voice, image IDs
@@ -50,7 +51,12 @@ PREVIOUS="$(git rev-parse HEAD)"
 
 FILES=(-f infra/docker-compose.yml)
 VOICE=placeholder
-if [ -f "$MODELS/xtts_si_female/model.pth" ]; then
+if [ "${SINHALA_READER_TTS:-}" = modal ]; then
+  # The voice runs on Modal's GPU; this VM holds no model and needs neither
+  # torch nor the 5.6 GB checkpoint in memory. ~/swara/.env carries the
+  # endpoint and its key (SINHALA_READER_TTS_URL, SINHALA_READER_TTS_KEY).
+  VOICE=modal
+elif [ -f "$MODELS/xtts_si_female/model.pth" ]; then
   export MODEL_DIR="$MODELS"
   FILES+=(-f infra/compose.voice.yml)
   VOICE=real
