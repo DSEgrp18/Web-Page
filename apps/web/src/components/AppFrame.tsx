@@ -15,6 +15,7 @@ import {
   ProgressIcon,
   SignOutIcon,
 } from "@/components/Icons";
+import { useBusy } from "@/components/LoadingScreen";
 import { ResetNoticeBanner } from "@/components/ResetNoticeBanner";
 import { RouteFocus } from "@/components/RouteFocus";
 import { SiteFooter } from "@/components/PublicFrame";
@@ -48,6 +49,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
   // The workspace manages its own full-height layout and its own back link.
   const isWorkspace = /^\/library\/[^/]+$/.test(pathname);
   const signedIn = status === "signed_in";
+  // "Who is signed in?" is the first thing every screen waits for.
+  useBusy(status === "loading");
 
   // Leaving the "cannot be reached" panel takes its retry button, and focus
   // with it. The sign-in panel places focus itself; the page they asked for

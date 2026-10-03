@@ -8,6 +8,7 @@ import { explain, useFailure } from "@/components/AccountForms";
 import { useAnnouncer } from "@/components/Announcer";
 import { ClassProgressSection } from "@/components/ClassProgressSection";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useBusy } from "@/components/LoadingScreen";
 import { useReader } from "@/components/ReaderProvider";
 import { ApiError } from "@/lib/client";
 import type { IssuedReset, JoinedClass, MemberDetail, TaughtClass } from "@/lib/types";
@@ -34,7 +35,8 @@ export function ClassDetail({ classId }: { classId: string }) {
   const [room, setRoom] = useState<TaughtClass | JoinedClass | null>(null);
   const [missing, setMissing] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const { setFailure, notice } = useFailure();
+  const { failure, setFailure, notice } = useFailure();
+  useBusy(room === null && !missing && failure === null);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const [resetFor, setResetFor] = useState<MemberDetail | null>(null);
   const [issued, setIssued] = useState<IssuedReset | null>(null);

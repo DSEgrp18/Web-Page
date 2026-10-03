@@ -84,6 +84,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`${yaldevi.variable} ${notoSansSinhala.variable} ${plusJakarta.variable}`}
     >
       <body>
+        {/* Without script nothing would ever lift the loading screen, so it
+            is never drawn at all. */}
+        <noscript>
+          <style>{".loading-screen{display:none}"}</style>
+        </noscript>
         <LocaleProvider locale={locale}>
           <Providers>{children}</Providers>
         </LocaleProvider>
