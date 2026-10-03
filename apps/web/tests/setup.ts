@@ -59,15 +59,10 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-// `next/font/google` needs the Next runtime; tests only need the CSS variables.
-vi.mock("next/font/google", () => {
-  const face = (variable: string) => () => ({ className: "", variable, style: {} });
-  return {
-    Yaldevi: face("--font-display-face"),
-    Noto_Sans_Sinhala: face("--font-ui"),
-    Plus_Jakarta_Sans: face("--font-latin-face"),
-  };
-});
+// `next/font/local` needs the Next runtime; tests only need the CSS variables.
+vi.mock("next/font/local", () => ({
+  default: ({ variable }: { variable: string }) => ({ className: "", variable, style: {} }),
+}));
 
 let objectUrls = 0;
 export const revokedUrls: string[] = [];
