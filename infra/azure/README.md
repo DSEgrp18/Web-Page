@@ -16,6 +16,7 @@ requires.
 | Power | Shuts down every night at 23:00 Sri Lanka time to save credit. Start it with `az vm start -g rg-swara -n swara-vm` |
 | Checkout | `~/swara`, detached at the commit last deployed |
 | Secrets | `~/swara/.env` (`SINHALA_READER_SECRET`), made on the VM, never committed |
+| Settings | `~/deploy.env`, read by `deploy.sh`: `SINHALA_READER_TTS_PRECISION=fp32`, because a half-precision model on CPU fails to compute its speaker conditioning |
 | Voice | The real voice when `~/models/xtts_si_female/` holds the five model files, the labelled placeholder tone otherwise |
 | TLS | Caddy, a separate container, with a Let's Encrypt certificate. Port 80 is open to all for certificate renewal and redirects to HTTPS |
 | History | `~/deployments.log`: every deploy's commit, voice, model checksum and image IDs |
