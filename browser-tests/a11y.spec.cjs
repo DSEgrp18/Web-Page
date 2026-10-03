@@ -154,6 +154,10 @@ async function isolate(page, overlay) {
 }
 
 async function contrastAudit(page, overlay) {
+  // The loading screen makes the page behind it inert, and axe skips inert
+  // content: an audit while it is up would measure the screen and pass a page
+  // it never saw. Wait until it has left the document.
+  await page.locator(".loading-screen").waitFor({ state: "detached" });
   await page.addStyleTag({ content: FLAT });
   let axe = new AxeBuilder({ page }).withTags(TAGS);
   if (overlay) {
