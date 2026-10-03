@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_Sinhala, Plus_Jakarta_Sans, Yaldevi } from "next/font/google";
+import localFont from "next/font/local";
 
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { getLocale, getStrings } from "@/lib/i18n.server";
@@ -21,26 +21,26 @@ import { Providers } from "./providers";
  * property defined in terms of itself is invalid, which is how a face once
  * went unused.
  */
-const yaldevi = Yaldevi({
-  subsets: ["sinhala", "latin"],
-  weight: ["600", "700"],
+// Self-hosted, not fetched from Google at build time: see fonts/README.md.
+// Each is a variable font, so one file carries every weight the stylesheet
+// sets, and `weight` is the range it covers.
+const yaldevi = localFont({
+  src: "./fonts/Yaldevi.woff2",
+  weight: "200 700",
   variable: "--font-display-face",
   display: "swap",
 });
 
-const notoSansSinhala = Noto_Sans_Sinhala({
-  subsets: ["sinhala", "latin"],
-  // Only the weights the stylesheet sets. A weight nothing uses is a download
-  // for every reader, and one more file Google may have to generate on the fly
-  // (a `kit` URL, which next/font's dev bundler cannot resolve).
-  weight: ["400", "600", "700"],
+const notoSansSinhala = localFont({
+  src: "./fonts/NotoSansSinhala.woff2",
+  weight: "100 900",
   variable: "--font-ui",
   display: "swap",
 });
 
-const plusJakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
+const plusJakarta = localFont({
+  src: "./fonts/PlusJakartaSans.woff2",
+  weight: "200 800",
   variable: "--font-latin-face",
   display: "swap",
 });
