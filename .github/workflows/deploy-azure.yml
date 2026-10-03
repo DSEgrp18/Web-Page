@@ -1,0 +1,88 @@
+# Keep the Azure VM on the latest main.
+#
+# Runs after CI has passed on a push to main (a reviewed merge), or by hand
+# from the Actions tab, and deploys that exact commit to the `azure-staging`
+# environment: the IP-restricted VM described in infra/azure/README.md.
+#
+# Security, as CLAUDE.md requires:
+# - No stored credentials. Azure accepts GitHub's short-lived OIDC token for
+#   one identity, `swara-github-deploy`, whose only role is "Swara VM deployer"
+#   on the rg-swara resource group: read, start, stop and run commands on its
+#   VMs. Only the azure-staging environment can obtain it, and only main can
+#   deploy to that environment.
+# - Pull requests never run this: workflow_run fires for CI on main pushes
+#   only, and the job checks it again.
+# - No SSH. The deploy runs inside the VM through `az vm run-command`, so the
+#   VM's firewall stays closed to GitHub's runners.
+# - One deploy at a time; a newer one waits rather than cancelling a deploy
+#   halfway.
+name: Deploy to Azure
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-azure-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to the Azure VM
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    # The first build of the voice images on the VM takes most of an hour;
+    # later ones reuse their layers.
+    timeout-minutes: 90
+    environment:
+      name: azure-staging
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      RG: rg-swara
+      VM: swara-vm
+    steps:
+      - name: Sign in to Azure (OIDC, no stored secret)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # The VM shuts down every night to save credit. Start it for the deploy,
+      # and put it back the way it was afterwards.
+      - name: Start the VM if it is off
+        id: power
+        run: |
+          state="$(az vm get-instance-view -g "$RG" -n "$VM" \
+            --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code | [0]" -o tsv)"
+          echo "was=$state" >> "$GITHUB_OUTPUT"
+          echo "The VM is: $state"
+          if [ "$state" != "PowerState/running" ]; then az vm start -g "$RG" -n "$VM"; fi
+
+      - name: Deploy ${{ env.SHA }}
+        run: |
+          case "$SHA" in *[!0-9a-f]* | "") echo "not a commit SHA: $SHA"; exit 1 ;; esac
+          # The script comes from the commit being deployed, so a change to it
+          # ships with the change it serves.
+          script="cd /home/azureuser/swara && sudo -u azureuser -H git fetch --quiet origin && sudo -u azureuser -H git show $SHA:infra/azure/deploy.sh > /tmp/swara-deploy.sh && sudo -u azureuser -H bash /tmp/swara-deploy.sh $SHA"
+          result="$(az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript \
+            --scripts "$script" --query "value[0].message" -o tsv)"
+          echo "$result"
+          # run-command reports success whatever the script exited with; the
+          # script's own last word is the verdict.
+          echo "$result" | grep -q "DEPLOYED $SHA"
+
+      - name: Put the VM back as it was
+        if: always() && steps.power.outputs.was != '' && steps.power.outputs.was != 'PowerState/running'
+        run: az vm deallocate -g "$RG" -n "$VM" --no-wait
