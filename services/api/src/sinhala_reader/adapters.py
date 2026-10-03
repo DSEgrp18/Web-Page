@@ -34,6 +34,7 @@ import os
 import threading
 
 from sinhala_tts.adapter import DevelopmentAdapter, ReadinessState, TtsAdapter, XttsAdapter
+from sinhala_tts.remote import RemoteVoiceAdapter
 
 log = logging.getLogger(__name__)
 
@@ -49,9 +50,17 @@ DEVICE_ENV = "SINHALA_READER_TTS_DEVICE"
 #: ~10 GB host; full precision is an explicit choice, not the fallback.
 PRECISION_ENV = "SINHALA_READER_TTS_PRECISION"
 
+#: The remote voice (``modal`` mode): its HTTPS endpoint and the key it expects.
+#: The key is a secret: it belongs in the server's environment, never in Git.
+REMOTE_URL_ENV = "SINHALA_READER_TTS_URL"
+REMOTE_KEY_ENV = "SINHALA_READER_TTS_KEY"
+
 DEVELOPMENT = "development"
 XTTS = "xtts"
-MODES = (DEVELOPMENT, XTTS)
+#: The same checkpoint on a GPU on Modal, reached over HTTPS. This server then
+#: holds no model and needs no GPU; see sinhala_tts.remote.
+MODAL = "modal"
+MODES = (DEVELOPMENT, XTTS, MODAL)
 
 
 def adapter_mode() -> str:
@@ -68,6 +77,15 @@ def build_adapter() -> TtsAdapter:
     mode = adapter_mode()
     if mode == DEVELOPMENT:
         return DevelopmentAdapter()
+    if mode == MODAL:
+        url = os.environ.get(REMOTE_URL_ENV, "").strip()
+        key = os.environ.get(REMOTE_KEY_ENV, "").strip()
+        if not url or not key:
+            raise ValueError(
+                f"{ADAPTER_ENV}=modal needs {REMOTE_URL_ENV} (the voice's HTTPS endpoint) "
+                f"and {REMOTE_KEY_ENV} (its key). Never fall back to another voice silently."
+            )
+        return RemoteVoiceAdapter(url, key)
     if mode == XTTS:
         device = os.environ.get(DEVICE_ENV, "").strip().lower() or None
         precision = os.environ.get(PRECISION_ENV, "").strip().lower() or "fp16"
