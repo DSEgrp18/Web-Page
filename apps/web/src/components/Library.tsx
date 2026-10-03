@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import { useAnnouncer } from "@/components/Announcer";
 import { BookCover } from "@/components/BookCover";
+import { useBusy } from "@/components/LoadingScreen";
 import { ClassBooks } from "@/components/ClassBooks";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ErrorNotice } from "@/components/ErrorNotice";
@@ -66,6 +67,8 @@ export function Library() {
 
   const [documents, setDocuments] = useState<DocumentSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Loading until the list arrives, or a failure says it will not.
+  useBusy(documents === null && error === null);
   const [query, setQuery] = useState("");
   const [shelf, setShelf] = useState<Shelf>("all");
   const [order, setOrder] = useState<Order>("recent");

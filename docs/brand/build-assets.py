@@ -139,7 +139,12 @@ def build_logo():
     rgb = np.asarray(Image.open(os.path.join(HERE, "logo-source.png")).convert("RGB")).astype(float)
     alpha, is_orange = cut_out(rgb)
     for suffix, blue in (("", BLUE), ("-dark", BLUE_ON_DARK)):
-        mark, word = split(logo(alpha, is_orange, blue))
+        full = logo(alpha, is_orange, blue)
+        # The whole logo, mark above word: the loading screen's centrepiece.
+        stacked = trim(full)
+        stacked.thumbnail((480, 480), Image.LANCZOS)
+        save_webp(stacked, os.path.join(BRAND, f"swara-logo{suffix}.webp"))
+        mark, word = split(full)
         save_webp(lockup(mark, word), os.path.join(BRAND, f"swara-lockup{suffix}.webp"))
         if not suffix:
             light_mark = mark

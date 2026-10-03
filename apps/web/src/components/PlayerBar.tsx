@@ -3,6 +3,7 @@
 import { useId, useRef, type RefObject } from "react";
 
 import type { usePlayer } from "@/lib/usePlayer";
+import { BrandBars } from "@/components/LoadingScreen";
 import { useStrings } from "@/components/LocaleProvider";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -117,7 +118,12 @@ export function PlayerBar({
        */}
       <p className="player-position" aria-live="off">
         {busy ? (
-          <span className="hint">{strings.buffering}</span>
+          // The loading screen's bars, small and in place: buffering never
+          // covers the controls, so pause and skip work throughout.
+          <span className="player-buffering">
+            <BrandBars small />
+            <span className="hint">{strings.buffering}</span>
+          </span>
         ) : total > 0 && position > 0 ? (
           <span className="latin">{strings.playbackPosition(position, total)}</span>
         ) : null}

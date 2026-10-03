@@ -12,6 +12,7 @@ SHA-256 `e299d992b886c12775630399c06b2cb3f2de0c355f51687f6423241b0ee859e4`).
 
 | File in `apps/web/public/brand/` | What it is |
 | --- | --- |
+| `swara-logo.webp`, `swara-logo-dark.webp` | The whole logo, mark above word, for the loading screen |
 | `swara-lockup.webp` | The mark beside the word, for the masthead and footer |
 | `swara-lockup-dark.webp` | The same with the blue lifted, for the dark theme |
 | `icon.svg` | The mark traced to vector paths; browsers that take SVG icons use it |
