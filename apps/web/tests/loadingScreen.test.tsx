@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "../src/components/LocaleProvider";
@@ -17,11 +17,18 @@ import { si as strings } from "../src/lib/strings";
  * page began loading" is time zero and every wait is exact.
  */
 
-let setLoading: (loading: boolean) => void = () => {};
+/** The page's setter, handed out by an effect (render must not touch it). */
+const page: { set?: (loading: boolean) => void } = {};
+
+function setLoading(loading: boolean) {
+  act(() => page.set?.(loading));
+}
 
 function Page({ initiallyLoading = false }: { initiallyLoading?: boolean }) {
   const [loading, set] = useState(initiallyLoading);
-  setLoading = (value) => act(() => set(value));
+  useEffect(() => {
+    page.set = set;
+  }, []);
   useBusy(loading);
   return <button type="button">{strings.libraryHeading}</button>;
 }
