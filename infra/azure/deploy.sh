@@ -16,6 +16,9 @@
 #      app from the VM itself;
 #   4. records what is running in ~/deployments.log: commit, voice, image IDs
 #      and the model's checksum;
+#
+# Machine-specific Compose settings, such as the voice's precision, come from
+# ~/deploy.env when it exists.
 #   5. on any failure, deploys the commit that was running before and says so.
 #
 # The last line is "DEPLOYED <sha>" only when <sha> is serving and passed its
@@ -29,6 +32,16 @@ APP="$HOME/swara"
 MODELS="$HOME/models"
 LOG="$HOME/deployments.log"
 PROJECT=swara
+
+# This machine's own settings for Compose, kept out of the repository: on this
+# 32 GB CPU VM, SINHALA_READER_TTS_PRECISION=fp32, since a half-precision model
+# on CPU fails to compute its speaker conditioning.
+if [ -f "$HOME/deploy.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$HOME/deploy.env"
+  set +a
+fi
 
 cd "$APP"
 git fetch --quiet origin
