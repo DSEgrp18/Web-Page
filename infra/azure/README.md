@@ -11,14 +11,14 @@ requires.
 
 | | |
 | --- | --- |
-| Address | `https://swara-reader-9259.centralindia.cloudapp.azure.com` |
+| Address | `https://swara.dpdns.org` (an A record, DNS only, at 20.198.69.118). The Azure name `swara-reader-9259.centralindia.cloudapp.azure.com` redirects to it permanently |
 | Size | Standard_E4s_v5: 4 vCPU, 32 GB, 128 GB SSD. A free-trial subscription allows 4 vCPUs and no GPU |
 | Power | Shuts down every night at 23:00 Sri Lanka time to save credit. Start it with `az vm start -g rg-swara -n swara-vm` |
 | Checkout | `~/swara`, detached at the commit last deployed |
 | Secrets | `~/swara/.env` (`SINHALA_READER_SECRET`), made on the VM, never committed |
 | Settings | `~/deploy.env`, read by `deploy.sh`: `SINHALA_READER_TTS_PRECISION=fp32`, because a half-precision model on CPU fails to compute its speaker conditioning |
 | Voice | The real voice when `~/models/xtts_si_female/` holds the five model files, the labelled placeholder tone otherwise |
-| TLS | Caddy, a separate container, with a Let's Encrypt certificate. Port 80 is open to all for certificate renewal and redirects to HTTPS |
+| TLS | Caddy, a separate container (`~/caddy/Caddyfile`), with Let's Encrypt certificates for both names. Port 80 is open to all for certificate renewal and redirects to HTTPS |
 | History | `~/deployments.log`: every deploy's commit, voice, model checksum and image IDs |
 
 ## Continuous deployment
