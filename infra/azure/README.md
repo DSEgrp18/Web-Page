@@ -17,7 +17,7 @@ requires.
 | Checkout | `~/swara`, detached at the commit last deployed |
 | Secrets | `~/swara/.env` (`SINHALA_READER_SECRET`), made on the VM, never committed |
 | Settings | `~/deploy.env`, read by `deploy.sh`: `SINHALA_READER_TTS_PRECISION=fp32`, because a half-precision model on CPU fails to compute its speaker conditioning |
-| Voice | The real voice when `~/models/xtts_si_female/` holds the five model files, the labelled placeholder tone otherwise |
+| Voice | The GPU voice on Modal (`SINHALA_READER_TTS=modal` in `~/deploy.env`; endpoint and key in `~/swara/.env`). The VM itself holds no model in memory. `~/models/xtts_si_female/` still has the five files, so removing that line from `~/deploy.env` and redeploying switches back to the local CPU voice |
 | TLS | Caddy, a separate container, with a Let's Encrypt certificate. Port 80 is open to all for certificate renewal and redirects to HTTPS |
 | History | `~/deployments.log`: every deploy's commit, voice, model checksum and image IDs |
 
