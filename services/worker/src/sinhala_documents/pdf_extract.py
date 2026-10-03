@@ -36,6 +36,7 @@ from .fonts import (
     font_encoding_looks_wrong,
     identify_legacy_font,
     is_unreadable_script,
+    looks_garbled_native,
     looks_like_legacy_text,
 )
 from .layout import suspects_multiple_columns
@@ -51,6 +52,7 @@ from .model import (
     TextLine,
     TextSpan,
 )
+from .notes import make as note
 from .page_labels import page_labels
 from .validation import MAX_PAGES, DocumentRejected, check_pdf_bytes, check_pdf_file
 
@@ -70,63 +72,6 @@ _WORD_GAP_RATIO = 0.25
 #: handful is ordinary rounding at the margin; hundreds mean the producer left
 #: something on the pasteboard.
 _OFF_PAGE_NOTE_THRESHOLD = 20
-
-_LEGACY_CONVERTIBLE_NOTE = (
-    "Text is in the legacy Sinhala font {name}. A conversion table exists for this family "
-    "but the converter is not implemented, so the text cannot be read yet."
-)
-
-_LEGACY_UNSUPPORTED_NOTE = (
-    "Text is in the legacy font {name}, for which there is no validated conversion "
-    "table. It needs optical recognition or manual review."
-)
-
-_LEGACY_VARIANT_NOTE = (
-    "Text is in the legacy font {name}, which looks like a variant of {family}. Whether "
-    "the {family} conversion table applies to it has not been validated, so the text "
-    "cannot be read yet."
-)
-
-_SUSPECT_ENCODING_NOTE = (
-    "The extracted characters do not look like Sinhala or ordinary English, which can mean "
-    "an unrecognised legacy font. It needs checking."
-)
-
-_OTHER_SCRIPT_NOTE = (
-    "This text is written in another script, which this reader has no voice for. It is "
-    "shown but not read aloud."
-)
-
-_CONVERTED_NOTE = (
-    "Converted from the legacy Sinhala font {name} using the FM-Abhaya mapping. The text "
-    "was decoded, not proofread."
-)
-
-_CONVERTED_VARIANT_NOTE = (
-    "Converted from the legacy Sinhala font {name}, a variant of {family}, using the "
-    "{family} mapping. That pairing was validated against a real book rather than assumed. "
-    "The text was decoded, not proofread."
-)
-
-_CONVERSION_FAILED_NOTE = (
-    "Text is in the legacy Sinhala font {name}, but converting it produced malformed "
-    "Sinhala, so it cannot be read aloud. It needs review."
-)
-
-_MAPPING_MISSING_NOTE = (
-    "Text is in the legacy Sinhala font {name}, but the conversion table could not be "
-    "loaded, so it cannot be read yet."
-)
-
-_UNNAMED_LEGACY_NOTE = (
-    "All the text set in {name} on this page decodes to nonsense, and this page also uses "
-    "a known legacy Sinhala font. It is being treated as legacy text and cannot be read yet."
-)
-
-_SUSPECT_FONT_NOTE = (
-    "All the text set in {name} on this page decodes to something that is neither Sinhala "
-    "nor ordinary English, so it cannot be read aloud. It needs checking."
-)
 
 
 def _box(item: dict) -> BoundingBox:
@@ -165,7 +110,7 @@ def _convert_legacy(text: str, name: str, variant_of: str | None = None) -> Verd
         return (
             ExtractionMethod.LEGACY,
             QualityState.UNDECODABLE,
-            (_MAPPING_MISSING_NOTE.format(name=name),),
+            (note("mapping_missing", name=name),),
             text,
         )
 
@@ -173,15 +118,15 @@ def _convert_legacy(text: str, name: str, variant_of: str | None = None) -> Verd
         return (
             ExtractionMethod.LEGACY,
             QualityState.UNDECODABLE,
-            (_CONVERSION_FAILED_NOTE.format(name=name),),
+            (note("conversion_failed", name=name),),
             text,
         )
-    note = (
-        _CONVERTED_VARIANT_NOTE.format(name=name, family=variant_of)
+    coded = (
+        note("converted_variant", name=name, family=variant_of)
         if variant_of
-        else _CONVERTED_NOTE.format(name=name)
+        else note("converted_legacy", name=name)
     )
-    return ExtractionMethod.LEGACY, QualityState.ACCEPTED, (note,), report.text
+    return ExtractionMethod.LEGACY, QualityState.ACCEPTED, (coded,), report.text
 
 
 def _classify_span(text: str, raw_font: str) -> Verdict:
@@ -191,22 +136,28 @@ def _classify_span(text: str, raw_font: str) -> Verdict:
         if legacy.convertible:
             return _convert_legacy(text, legacy.raw_name, legacy.variant_of)
         if legacy.variant_of:
-            note = _LEGACY_VARIANT_NOTE.format(name=legacy.raw_name, family=legacy.variant_of)
+            coded = note("legacy_variant", name=legacy.raw_name, family=legacy.variant_of)
         else:
-            note = _LEGACY_UNSUPPORTED_NOTE.format(name=legacy.raw_name)
-        return ExtractionMethod.LEGACY, QualityState.UNDECODABLE, (note,), text
+            coded = note("legacy_unsupported", name=legacy.raw_name)
+        return ExtractionMethod.LEGACY, QualityState.UNDECODABLE, (coded,), text
 
     if is_unreadable_script(text):
         # Extracted correctly, in a script this reader cannot speak. Withheld
         # rather than flagged: a Sinhala voice handed Tamil or Devanagari
         # produces confident noise, and a listener cannot tell.
-        return ExtractionMethod.NATIVE, QualityState.UNDECODABLE, (_OTHER_SCRIPT_NOTE,), text
+        return ExtractionMethod.NATIVE, QualityState.UNDECODABLE, (note("other_script"),), text
+
+    if looks_garbled_native(text):
+        # Unicode Sinhala that is still garbage (Chrome print: NULs and a
+        # repeated cluster). Must not be narrated; OCR can replace it.
+        cleaned = text.replace("\x00", "")
+        return ExtractionMethod.NATIVE, QualityState.UNDECODABLE, (note("garbled_native"),), cleaned
 
     if looks_like_legacy_text(text):
         # The font name did not give it away. This is a weak, uncalibrated
         # signal, so it asks for review rather than withholding the text: a
         # false positive here would silently hide a page that reads perfectly.
-        return ExtractionMethod.NATIVE, QualityState.NEEDS_REVIEW, (_SUSPECT_ENCODING_NOTE,), text
+        return ExtractionMethod.NATIVE, QualityState.NEEDS_REVIEW, (note("suspect_encoding"),), text
 
     return ExtractionMethod.NATIVE, QualityState.ACCEPTED, (), text
 
@@ -368,7 +319,7 @@ def _reclassify_by_font(lines: tuple[TextLine, ...]) -> tuple[TextLine, ...]:
     )
     method = ExtractionMethod.LEGACY if known_legacy else ExtractionMethod.NATIVE
     quality = QualityState.UNDECODABLE
-    note = _UNNAMED_LEGACY_NOTE if known_legacy else _SUSPECT_FONT_NOTE
+    code = "unnamed_legacy" if known_legacy else "suspect_font"
 
     return tuple(
         TextLine(
@@ -377,7 +328,7 @@ def _reclassify_by_font(lines: tuple[TextLine, ...]) -> tuple[TextLine, ...]:
                     span,
                     method=method,
                     quality=quality,
-                    notes=(note.format(name=span.raw_font),),
+                    notes=(note(code, name=span.raw_font),),
                 )
                 if span.raw_font in wrong and span.method is ExtractionMethod.NATIVE
                 else span
@@ -413,39 +364,24 @@ def _page_notes(
     """
     notes: list[str] = []
     if kind is PageKind.IMAGE:
-        notes.append(
-            "This page contains images and no readable text. It has not been recognised, so "
-            "nothing on it can be read aloud."
-        )
+        notes.append(note("page_image_only"))
     elif kind is PageKind.MIXED:
-        notes.append(
-            f"This page contains {image_count} image(s) alongside its text. "
-            f"Their content is not described."
-        )
+        notes.append(note("page_mixed_images", count=image_count))
     elif kind is PageKind.EMPTY:
-        notes.append("This page is blank.")
+        notes.append(note("page_blank"))
 
     if columns:
-        notes.append(
-            "This page looks like it is laid out in columns. The order the text was read in "
-            "may not match the order it is printed in."
-        )
+        notes.append(note("page_columns"))
 
     withheld = sum(1 for line in lines if line.quality is QualityState.UNDECODABLE)
     if withheld:
-        notes.append(
-            f"{withheld} of {len(lines)} lines on this page use a legacy Sinhala font and "
-            f"cannot be read yet."
-        )
+        notes.append(note("page_unreadable_lines", withheld=withheld, total=len(lines)))
 
     if off_page >= _OFF_PAGE_NOTE_THRESHOLD:
         # Not shown to the reader as a loss — it is not visible on the page
         # either — but a producer that draws this much off the sheet is worth
         # knowing about when a page is reported as unexpectedly empty.
-        notes.append(
-            f"{off_page} characters are drawn outside the printed area of this page and have "
-            f"been left out, as they are not visible in the document."
-        )
+        notes.append(note("page_off_page", count=off_page))
     return tuple(notes)
 
 
@@ -544,7 +480,7 @@ def extract_document(
         else:
             wanted = sorted({index for index in page_indexes if 0 <= index < total})
             if not wanted:
-                notes.append("None of the requested pages exist in this document.")
+                notes.append(note("doc_pages_missing"))
 
         extracted: list[PageExtraction] = []
         for index in wanted:
@@ -555,7 +491,5 @@ def extract_document(
 
     ocr_needed = sum(1 for page in pages if page.kind is PageKind.IMAGE)
     if ocr_needed:
-        notes.append(
-            f"{ocr_needed} of {len(pages)} extracted page(s) are images with no readable text."
-        )
+        notes.append(note("doc_image_pages", count=ocr_needed, total=len(pages)))
     return DocumentExtraction(pages=pages, notes=tuple(notes))

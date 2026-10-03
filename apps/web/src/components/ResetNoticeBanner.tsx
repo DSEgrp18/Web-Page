@@ -3,10 +3,9 @@
 import { useEffect, useId, useState } from "react";
 
 import { useReader } from "@/components/ReaderProvider";
+import { formatDateTime } from "@/lib/formatDateTime";
 import type { ResetNotice } from "@/lib/types";
 import { useStrings } from "@/components/LocaleProvider";
-
-const WHEN = new Intl.DateTimeFormat("si-LK", { dateStyle: "long", timeStyle: "short" });
 
 /**
  * "Your teacher made a reset code for your account", on every screen until
@@ -61,7 +60,7 @@ export function ResetNoticeBanner() {
       <p>
         {strings.resetNoticeText(
           notice.teacher_name,
-          WHEN.format(new Date(notice.issued_at)),
+          formatDateTime(notice.issued_at, strings),
           notice.used,
         )}
       </p>

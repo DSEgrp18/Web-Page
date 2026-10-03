@@ -17,13 +17,10 @@
  * these strings and nothing else, so an awkward or wrong word is the whole
  * interface. See `apps/web/README.md`.
  *
- * A note on what is *not* here: page and book notes from the API. They are
- * English prose written by the pipeline (`file_extract.py`, `pdf_extract.py`,
- * `ocr.py`), shown as received and marked `lang="en"` so a screen reader
- * reads them with an English voice. Translating them needs stable note codes
- * from the API first (docs/ui-audit.md F07). A job's failure `detail` is an
- * English diagnostic too, so a failed book is described from its stage
- * instead (`jobFailureMessage`).
+ * A note on what is *not* here: a job's failure `detail` is an English
+ * diagnostic, so a failed book is described from its stage instead
+ * (`jobFailureMessage`). Pipeline notes arrive as codes (`note:…`) and are
+ * translated by `pipelineNote`.
  */
 
 import type { Job } from "./types";
@@ -49,6 +46,10 @@ export const si = {
   newPasswordLabel: "නව මුරපදය",
   passwordHint: (min: number) => `අවම වශයෙන් අකුරු ${min} ක්.`,
   showPassword: "මුරපදය පෙන්වන්න",
+  showPasswordForChange: "මුරපදය වෙනස් කිරීම: වත්මන් මුරපදය පෙන්වන්න",
+  showPasswordForChangeNew: "මුරපදය වෙනස් කිරීම: නව මුරපදය පෙන්වන්න",
+  showPasswordForRecovery: "නැවත ලබා ගැනීමේ කේතය: වත්මන් මුරපදය පෙන්වන්න",
+  showPasswordForDelete: "ගිණුම මකා දැමීම: වත්මන් මුරපදය පෙන්වන්න",
   displayNameLabel: "ඔබේ නම",
   displayNameHint: "ස්වර ඔබට ආමන්ත්‍රණය කරන නම.",
   recoveryCodeLabel: "ප්‍රතිසාධන කේතය",
@@ -70,6 +71,9 @@ export const si = {
   roleName: (role: string) =>
     role === "teacher" ? "ගුරු" : role === "admin" ? "පරිපාලක" : "ශිෂ්‍ය",
   currentPasswordLabel: "වත්මන් මුරපදය",
+  changePasswordCurrentLabel: "මුරපදය වෙනස් කිරීම — වත්මන් මුරපදය",
+  recoveryPasswordCurrentLabel: "නැවත ලබා ගැනීමේ කේතය — වත්මන් මුරපදය",
+  deletePasswordCurrentLabel: "ගිණුම මකා දැමීම — වත්මන් මුරපදය",
   changePasswordHeading: "මුරපදය වෙනස් කරන්න",
   changePasswordAction: "මුරපදය වෙනස් කරන්න",
   passwordChanged: "මුරපදය වෙනස් කළා. වෙනත් උපාංගවල ඔබ පිටවී ඇත.",
@@ -164,6 +168,11 @@ export const si = {
   reportSent: "ස්තූතියි. ඔබේ වාර්තාව යවන ලදී.",
   reportWhoBook: "පොතේ හිමිකරුට මෙය පෙනේ. ඔබේ නම නොපෙනේ.",
   reportWhoSite: "මෙය පද්ධතිය පවත්වාගෙන යන අයට යැවේ.",
+  reportAboutBook: "පොත:",
+  reportAboutSentence: (sentence: string) => `වාක්‍යය: ${sentence}`,
+  markReportHandled: "සටහන් කර ඇත ලෙස සලකන්න",
+  reportMarkedHandled: "වාර්තාව සටහන් කර ඇත ලෙස සලකන ලදී.",
+  reportHandled: "සටහන් කර ඇත ලෙස සලකන ලදී.",
   reportsLink: "වාර්තා කළ ගැටලු",
   reportsHeading: (title: string) => `${title} — වාර්තා කළ ගැටලු`,
   reportsNone: "තවම ගැටලු වාර්තා කර නැත.",
@@ -257,6 +266,26 @@ export const si = {
     (used ? "එම කේතයෙන් මුරපදය වෙනස් කර ඇත. " : "එය තවම භාවිත කර නැත. ") +
     "ඔබ එය ඉල්ලුවේ නැත්නම්, ඔබේ ගුරුවරයාට හෝ සේවා කණ්ඩායමට කියන්න.",
   resetNoticeSeen: "තේරුණා",
+  formatDateTime: (year: number, month: number, day: number, hour: number, minute: number) => {
+    const months = [
+      "ජනවාරි",
+      "පෙබරවාරි",
+      "මාර්තු",
+      "අප්‍රේල්",
+      "මැයි",
+      "ජූනි",
+      "ජූලි",
+      "අගෝස්තු",
+      "සැප්තැම්බර්",
+      "ඔක්තෝබර්",
+      "නොවැම්බර්",
+      "දෙසැම්බර්",
+    ] as const;
+    const h = hour % 12 || 12;
+    const ampm = hour < 12 ? "පෙ.ව." : "ප.ව.";
+    const mm = String(minute).padStart(2, "0");
+    return `${year} ${months[month] ?? month + 1} ${day}, ${h}:${mm} ${ampm}`;
+  },
   renameClassLabel: "පන්තියේ නම",
   renameClassAction: "නම සුරකින්න",
   classRenamed: "පන්තියේ නම වෙනස් කළා.",
@@ -277,6 +306,9 @@ export const si = {
   noReview: "පරීක්ෂා කළ යුතු පිටු නැත.",
   pageAccept: "පිළිගන්න",
   pageWithhold: "නවත්වන්න",
+  openFlaggedPage: (label: string) => `පිටුව ${label} බලන්න`,
+  savePageDecision: "තීරණය සුරකින්න",
+  pageDecisionSaved: "පිටුවේ තීරණය සුරැකුණා.",
   undecidedCount: (count: number) => `තවම තීරණය නොකළ පිටු ${count}ක්`,
   basisHeading: "බෙදා ගැනීමේ අයිතිය",
   basisIntro: "මෙම පොත ඔබේ පන්තිය සමඟ බෙදා ගැනීමට ඔබට අයිතිය ඇත්තේ ඇයි? ඔබේ පිළිතුර සටහන් වේ.",
@@ -338,6 +370,12 @@ export const si = {
   nextQuestion: "ඊළඟ ප්‍රශ්නය",
   finishQuiz: "අවසන් කරන්න",
   quizScore: (right: number, total: number) => `ප්‍රශ්න ${total} න් ${right}ක් නිවැරදියි.`,
+  quizResultsCaption: "ඔබේ පිළිතුරු",
+  quizResultsColQuestion: "ප්‍රශ්නය",
+  quizResultsColOutcome: "පිළිතුර",
+  quizResultRight: "නිවැරදියි",
+  quizResultWrong: "වැරදියි",
+  hearQuestion: "ප්‍රශ්නය අසන්න",
   backToQuizzes: "ප්‍රශ්න කට්ටල වෙත ආපසු",
   /** From the reader, after "hear the source": on to the next question. */
   backToQuiz: "ප්‍රශ්නවලට ආපසු යන්න",
@@ -581,9 +619,18 @@ export const si = {
   placeholderAudioHeading: "මෙය සැබෑ කථනයක් නොවේ",
   placeholderAudio:
     "මෙම ශබ්දය ආදර්ශන ස්වරයකි. සිංහල කථන ආකෘතිය තවම සම්බන්ධ කර නැති නිසා, මෙය පොතේ අන්තර්ගතය කියවන්නේ නැත.",
+  voiceWarmingHeading: "හඬ සූදානම් වෙමින්",
+  voiceWarming:
+    "සැබෑ Sinhala හඬ තවම පූරණය වෙමින් පවතී. මිනිත්තු කිහිපයක් ගත විය හැක. එය සූදානම් වන තුරු ශබ්දය ඇසෙන්නේ නැත.",
 
   // -- what the page loses ----------------------------------------------
   pageNotesHeading: "මෙම පිටුව ගැන",
+  pageCorrectionHeading: "පිටුවේ පෙළ නිවැරදි කරන්න",
+  pageCorrectionIntro:
+    "OCR හෝ extraction වැරදි නම්, මෙහි නිවැරදි Sinhala පෙළ ඇතුළත් කරන්න. සුරැකීමෙන් පසු පොතේ නව අනුවාදයක් සෑදෙන අතර, මෙම පිටුවේ හඬ නැවත හැදෙයි.",
+  pageCorrectionLabel: "පිටුවේ පෙළ",
+  savePageCorrection: "නිවැරදි පෙළ සුරකින්න",
+  pageCorrected: "පිටුවේ පෙළ සුරකින ලදී.",
   qualityNeedsReview: "මෙම පිටුවේ සමහර කොටස් නිවැරදිව කියවා ඇත්දැයි තහවුරු කර නැත.",
   qualityUndecodable: "මෙම පිටුව කියවිය නොහැකි විය. එය ශබ්දයට හරවා නැත.",
   kindImage: "මෙම පිටුව රූපයකි. එහි අකුරු තවම හඳුනාගෙන නැත.",
@@ -753,6 +800,70 @@ export const si = {
   suggestThisPage: "මෙම පිටුවේ ඇත්තේ කුමක්ද?",
   suggestExplain: "මෙය ගැන පොතේ කියන්නේ කුමක්ද?",
   conversationLabel: "ප්‍රශ්න හා පිළිතුරු",
+
+  // -- language ----------------------------------------------------------
+  /** Shown on an English page that is a draft of a Sinhala one. Never on a
+   * Sinhala page, but every key exists in both dictionaries. */
+  // Page and book notes from the API. Codes (`note:garbled_native`) are
+  // translated here; leftover English prose is shown as received.
+  pipelineNote: (code: string, params: Record<string, string>) => {
+    const n = params.name ?? "";
+    const family = params.family ?? "";
+    const count = params.count ?? "";
+    const total = params.total ?? "";
+    const withheld = params.withheld ?? "";
+    const reason = params.reason ?? "";
+    switch (code) {
+      case "garbled_native":
+        return "මෙම පිටුවේ අකුරු නිවැරදිව උපුටා ගත නොහැකි විය. එය ශබ්දයට හරවා නැත; පින්තූරයෙන් කියවීමට යයි.";
+      case "legacy_unsupported":
+        return `"${n}" යනු පරිවර්තන වගුවක් නැති පැරණි අකුරු මෝස්තරයකි. පින්තූරයෙන් කියවීම හෝ අතින් පරීක්ෂාව අවශ්‍යයි.`;
+      case "legacy_variant":
+        return `"${n}" යනු ${family} වගුව යෙදේදැයි තහවුරු නොවූ පැරණි අකුරු මෝස්තරයකි.`;
+      case "suspect_encoding":
+        return "උපුටා ගත් අකුරු සිංහල හෝ සාමාන්‍ය ඉංග්‍රීසි ලෙස නොපෙනේ. පරීක්ෂාව අවශ්‍යයි.";
+      case "other_script":
+        return "මෙය වෙනත් අකුරු පද්ධතියකින් ලියා ඇත. මෙම කියවනයට ඒ සඳහා හඬක් නැත.";
+      case "converted_legacy":
+        return `"${n}" පැරණි අකුරු මෝස්තරයෙන් පරිවර්තනය කළා. පරීක්ෂා කර නැත.`;
+      case "converted_variant":
+        return `"${n}" (${family}) පැරණි අකුරු මෝස්තරයෙන් පරිවර්තනය කළා. පරීක්ෂා කර නැත.`;
+      case "conversion_failed":
+        return `"${n}" පරිවර්තනය වැරදි සිංහලක් බිහි කළ නිසා කියවිය නොහැක.`;
+      case "mapping_missing":
+        return `"${n}" සඳහා පරිවර්තන වගුව පූරණය කළ නොහැකි විය.`;
+      case "unnamed_legacy":
+        return `"${n}" මගින් සකස් වූ සියලු අකුරු අර්ථවත් නැත. පැරණි අකුරු මෝස්තරයක් ලෙස සලකා ඇත.`;
+      case "suspect_font":
+        return `"${n}" මගින් සකස් වූ අකුරු සිංහල හෝ ඉංග්‍රීසි නොවේ.`;
+      case "page_image_only":
+        return "මෙම පිටුවේ පින්තූර පමණි. කියවිය හැකි අකුරු නැත.";
+      case "page_mixed_images":
+        return `මෙම පිටුවේ පින්තූර ${count}ක් ඇත. ඒවා විස්තර කර නැත.`;
+      case "page_blank":
+        return "මෙම පිටුව හිස්ය.";
+      case "page_columns":
+        return "මෙම පිටුව තීරු දෙකකින් සැලසුම් කර ඇති බවට සැකයක් ඇත. කියවන අනුපිළිවෙල මුද්‍රිත අනුපිළිවෙලට නොගැළපෙන්නට පුළුවන.";
+      case "page_unreadable_lines":
+        return `මෙම පිටුවේ පේළි ${total}න් ${withheld}ක් කියවිය නොහැක.`;
+      case "page_off_page":
+        return `මුද්‍රිත ප්‍රදේශයෙන් පිටත අකුරු ${count}ක් ඉවත් කර ඇත.`;
+      case "doc_pages_missing":
+        return "ඉල්ලූ පිටු මෙම ලේඛනයේ නැත.";
+      case "doc_image_pages":
+        return `පිටු ${total}න් ${count}ක් පින්තූර පමණි.`;
+      case "doc_unreadable_pages":
+        return `පිටු ${total}න් ${count}ක් කියවිය නොහැක.`;
+      case "page_teacher_corrected":
+        return "මෙම පිටුවේ පෙළ ගුරුවරයෙක් සමාලෝචනය කර නිවැරදි කළා.";
+      case "ocr_recognised":
+        return "මෙම පිටුව පින්තූරයෙන් කියවා ඇත. අකුරු වැරදි විය හැක; පුද්ගලයෙකු පරීක්ෂා කර නැත.";
+      case "ocr_failed":
+        return `පිටු ${count}ක් පින්තූරයෙන් කියවිය නොහැකි විය (${reason}). තිබූ අකුරු තබා ගන්නා ලදී.`;
+      default:
+        return n ? `${code}: ${n}` : code;
+    }
+  },
 
   // -- language ----------------------------------------------------------
   /** Shown on an English page that is a draft of a Sinhala one. Never on a

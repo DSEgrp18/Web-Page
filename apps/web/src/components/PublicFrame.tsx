@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { BrandMark } from "@/components/BrandMark";
+import { RouteFocus } from "@/components/RouteFocus";
 import { useReader } from "@/components/ReaderProvider";
 import { Settings } from "@/components/Settings";
 import { useStrings } from "@/components/LocaleProvider";
@@ -35,6 +36,29 @@ export function SiteFooter() {
   const pathname = usePathname();
   return (
     <footer className="shell-footer">
+      <div className="footer-brand">
+        {/* The mark again, quietly, beside the page's last word. Decorative:
+            the masthead link already names the site. */}
+        <img
+          className="brand-lockup brand-lockup-light"
+          src="/brand/swara-lockup.webp"
+          alt=""
+          width={528}
+          height={140}
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          className="brand-lockup brand-lockup-dark"
+          src="/brand/swara-lockup-dark.webp"
+          alt=""
+          width={528}
+          height={140}
+          loading="lazy"
+          decoding="async"
+        />
+        <p>{strings.footerNote}</p>
+      </div>
       <nav aria-label={strings.footerNavigation}>
         <ul className="footer-links">
           {footerLinks(strings).map(([href, label]) => (
@@ -46,7 +70,6 @@ export function SiteFooter() {
           ))}
         </ul>
       </nav>
-      <p>{strings.footerNote}</p>
     </footer>
   );
 }
@@ -65,6 +88,7 @@ export function PublicFrame({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <RouteFocus />
       <a className="skip-link" href="#main">
         {strings.skipToContent}
       </a>

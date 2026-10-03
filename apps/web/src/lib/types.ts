@@ -341,6 +341,8 @@ export interface QuestionView {
   question: string;
   options: string[];
   page_label: string | null;
+  page_index?: number | null;
+  segment_id?: string | null;
   /** Only for the quiz's maker, who has to review it. */
   answer: number | null;
 }
@@ -401,6 +403,7 @@ export interface ReportView {
   quiz_id: string | null;
   question_id: string | null;
   created_at: string;
+  handled_at: string | null;
 }
 
 export interface ChapterProgress {

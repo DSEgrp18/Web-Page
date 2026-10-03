@@ -67,6 +67,11 @@ OWNER_HEADER = "X-Reader-User"
 #: API refuses every request.
 AUTH_MODE_ENV = "SINHALA_READER_AUTH"
 
+#: ``development`` (default) keeps local defaults. ``production`` refuses them.
+APP_ENV = "SINHALA_READER_ENV"
+DEVELOPMENT_ENV = "development"
+PRODUCTION_ENV = "production"
+
 DEVELOPMENT_MODE = "development"
 SESSIONS_MODE = "sessions"
 MODES = (SESSIONS_MODE, DEVELOPMENT_MODE)
@@ -137,9 +142,47 @@ def session_secret() -> bytes:
 
 
 def check_configuration() -> None:
-    """Fail at start-up, not at the first sign-in, when sessions cannot work."""
+    """Fail at start-up, not at the first request, when a deployment cannot work.
+
+    Local tests and ``uvicorn --reload`` keep the old defaults (in-memory store,
+    a thread per job, no production flag). ``SINHALA_READER_ENV=production``
+    refuses that: compose already sets sessions, Postgres and Celery, but a
+    process started without those vars used to boot anyway.
+    """
     if uses_sessions():
         session_secret()
+
+    env = os.environ.get(APP_ENV, "").strip().lower() or DEVELOPMENT_ENV
+    if env not in (DEVELOPMENT_ENV, PRODUCTION_ENV):
+        raise ValueError(
+            f"{APP_ENV}={env!r} is not an environment this server knows. "
+            f"Use {DEVELOPMENT_ENV} or {PRODUCTION_ENV}."
+        )
+    if env != PRODUCTION_ENV:
+        return
+    if not uses_sessions():
+        raise ValueError(
+            f"{APP_ENV}={PRODUCTION_ENV} needs {AUTH_MODE_ENV}={SESSIONS_MODE} "
+            f"(not a trusted {OWNER_HEADER} header)."
+        )
+    session_secret()
+    from .queue import CELERY, QUEUE_ENV, broker_url, queue_mode
+    from .ratelimit import RATE_LIMIT_ENV, REDIS, rate_limit_mode
+    from .storage import DATABASE_URL_ENV
+
+    if not os.environ.get(DATABASE_URL_ENV, "").strip():
+        raise ValueError(
+            f"{APP_ENV}={PRODUCTION_ENV} needs {DATABASE_URL_ENV} "
+            "(PostgreSQL); in-memory storage is not allowed."
+        )
+    if queue_mode() != CELERY:
+        raise ValueError(f"{APP_ENV}={PRODUCTION_ENV} needs {QUEUE_ENV}={CELERY} and a broker URL.")
+    broker_url()
+    if rate_limit_mode() != REDIS:
+        raise ValueError(
+            f"{APP_ENV}={PRODUCTION_ENV} needs {RATE_LIMIT_ENV}={REDIS} "
+            "so every API process shares the same limits."
+        )
 
 
 def csrf_token(token_hash: str) -> str:

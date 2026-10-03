@@ -41,15 +41,16 @@ export const MIN_PASSWORD_LENGTH = 10;
 export function useFailure() {
   const [failure, setFailure] = useState<string | null>(null);
   const ref = useRef<HTMLParagraphElement>(null);
+  const errorId = useId();
   useEffect(() => {
     if (failure) ref.current?.focus();
   }, [failure]);
   const notice = failure ? (
-    <p ref={ref} tabIndex={-1} className="notice notice-bad">
+    <p ref={ref} id={errorId} tabIndex={-1} className="notice notice-bad">
       {failure}
     </p>
   ) : null;
-  return { failure, setFailure, notice };
+  return { failure, setFailure, notice, errorId };
 }
 
 /** What to say for a failed account request, given what each route refuses with. */
@@ -69,17 +70,29 @@ export function explain(
 function Field({
   label,
   hint,
+  invalid,
+  errorId,
   ...input
 }: {
   label: string;
   hint?: string;
+  invalid?: boolean;
+  errorId?: string;
 } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId();
   const hintId = useId();
+  const describedBy = [hint ? hintId : null, invalid && errorId ? errorId : null]
+    .filter(Boolean)
+    .join(" ");
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <input id={id} aria-describedby={hint ? hintId : undefined} {...input} />
+      <input
+        id={id}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy || undefined}
+        {...input}
+      />
       {hint ? (
         <p className="hint" id={hintId}>
           {hint}
@@ -96,6 +109,9 @@ export function PasswordField({
   value,
   onChange,
   name = "password",
+  showPasswordLabel,
+  invalid,
+  errorId,
 }: {
   label: string;
   hint?: string;
@@ -104,6 +120,9 @@ export function PasswordField({
   onChange: (value: string) => void;
   /** Distinct names when one page has several password fields. */
   name?: string;
+  showPasswordLabel?: string;
+  invalid?: boolean;
+  errorId?: string;
 }) {
   const strings = useStrings();
   const [shown, setShown] = useState(false);
@@ -119,6 +138,8 @@ export function PasswordField({
         required
         minLength={autoComplete === "new-password" ? MIN_PASSWORD_LENGTH : undefined}
         value={value}
+        invalid={invalid}
+        errorId={errorId}
         onChange={(event) => onChange(event.target.value)}
       />
       <div className="check-row">
@@ -128,9 +149,45 @@ export function PasswordField({
           checked={shown}
           onChange={(event) => setShown(event.target.checked)}
         />
-        <label htmlFor={toggleId}>{strings.showPassword}</label>
+        <label htmlFor={toggleId}>{showPasswordLabel ?? strings.showPassword}</label>
       </div>
     </>
+  );
+}
+
+/**
+ * The picture beside every account form: a student at work, the mark, and
+ * what Swara is, in one line. Decorative and duplicated elsewhere, so hidden
+ * from assistive technology; on a narrow screen it is not drawn at all and the
+ * form comes first.
+ */
+export function AuthVisual() {
+  const strings = useStrings();
+  return (
+    <div className="auth-visual" aria-hidden="true">
+      <img
+        className="auth-visual-photo"
+        src="/images/student-tablet-1000.webp"
+        srcSet="/images/student-tablet-560.webp 560w, /images/student-tablet-1000.webp 1000w"
+        sizes="(max-width: 60em) 1px, 42vw"
+        alt=""
+        width={1000}
+        height={1408}
+        decoding="async"
+      />
+      <div className="auth-visual-copy">
+        <img
+          className="auth-visual-logo"
+          src="/brand/swara-lockup-dark.webp"
+          alt=""
+          width={528}
+          height={140}
+          decoding="async"
+        />
+        <p className="auth-visual-eyebrow">{strings.homeTitle}</p>
+        <p className="auth-visual-title">{strings.appTagline}</p>
+      </div>
+    </div>
   );
 }
 
@@ -138,6 +195,7 @@ function AccountScreen({ heading, children }: { heading: string; children: React
   const headingId = useId();
   return (
     <div className="account-screen">
+      <AuthVisual />
       <section className="account-form card" aria-labelledby={headingId}>
         <h1 id={headingId}>{heading}</h1>
         {children}
@@ -417,6 +475,7 @@ export function RecoveryCode({
 
   return (
     <div className="account-screen">
+      <AuthVisual />
       <section className="account-form card" aria-labelledby={`${confirmId}-heading`}>
         <h1 id={`${confirmId}-heading`} ref={headingRef} tabIndex={-1}>
           {strings.recoveryCodeHeading}

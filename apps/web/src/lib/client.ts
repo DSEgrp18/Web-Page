@@ -341,6 +341,17 @@ export class ReaderApi {
     return this.json<Page>(`/documents/${encodeURIComponent(documentId)}/pages/${pageIndex}`);
   }
 
+  correctPage(documentId: string, pageIndex: number, text: string): Promise<Page> {
+    return this.json<Page>(
+      `/documents/${encodeURIComponent(documentId)}/pages/${pageIndex}/correction`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      },
+    );
+  }
+
   getSegment(documentId: string, segmentId: string): Promise<Segment> {
     return this.json<Segment>(
       `/documents/${encodeURIComponent(documentId)}/segments/${encodeURIComponent(segmentId)}`,
@@ -381,6 +392,14 @@ export class ReaderApi {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(history.length > 0 ? { question, history } : { question }),
+    });
+  }
+
+  summarizeDocument(documentId: string, focus = ""): Promise<StudyAnswer> {
+    return this.json<StudyAnswer>(`/documents/${encodeURIComponent(documentId)}/summary`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(focus.trim() ? { focus } : {}),
     });
   }
 
@@ -591,6 +610,13 @@ export class ReaderApi {
 
   listReports(documentId: string): Promise<ReportView[]> {
     return this.json<ReportView[]>(`/documents/${encodeURIComponent(documentId)}/reports`);
+  }
+
+  async markReportHandled(documentId: string, reportId: string): Promise<void> {
+    await this.request(
+      `/documents/${encodeURIComponent(documentId)}/reports/${encodeURIComponent(reportId)}/handled`,
+      { method: "POST" },
+    );
   }
 
   // -- track -------------------------------------------------------------

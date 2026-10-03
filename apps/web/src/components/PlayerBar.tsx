@@ -3,6 +3,7 @@
 import { useId, useRef, type RefObject } from "react";
 
 import type { usePlayer } from "@/lib/usePlayer";
+import { BrandBars } from "@/components/LoadingScreen";
 import { useStrings } from "@/components/LocaleProvider";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -33,6 +34,7 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 export function PlayerBar({
   player,
   disabled,
+  voiceWarming = false,
   position,
   total,
   bookmarkLabel,
@@ -42,6 +44,7 @@ export function PlayerBar({
 }: {
   player: ReturnType<typeof usePlayer>;
   disabled: boolean;
+  voiceWarming?: boolean;
   /** 1-based index of the sentence cued or playing; 0 when there is none. */
   position: number;
   total: number;
@@ -115,7 +118,12 @@ export function PlayerBar({
        */}
       <p className="player-position" aria-live="off">
         {busy ? (
-          <span className="hint">{strings.buffering}</span>
+          // The loading screen's bars, small and in place: buffering never
+          // covers the controls, so pause and skip work throughout.
+          <span className="player-buffering">
+            <BrandBars small />
+            <span className="hint">{strings.buffering}</span>
+          </span>
         ) : total > 0 && position > 0 ? (
           <span className="latin">{strings.playbackPosition(position, total)}</span>
         ) : null}
@@ -156,6 +164,11 @@ export function PlayerBar({
         </select>
       </div>
 
+      {voiceWarming ? (
+        <p className="player-warning">
+          <strong>{strings.voiceWarmingHeading}</strong> {strings.voiceWarming}
+        </p>
+      ) : null}
       {player.realModel === false ? (
         <p className="player-warning">
           <strong>{strings.placeholderAudioHeading}</strong>

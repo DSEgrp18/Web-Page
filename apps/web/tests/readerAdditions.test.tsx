@@ -159,6 +159,7 @@ describe("the reports on a book", () => {
         quiz_id: null,
         question_id: null,
         created_at: "2026-09-27T00:00:00Z",
+        handled_at: null,
       },
     ];
     renderApp(<BookReports documentId="doc-1" />, server);

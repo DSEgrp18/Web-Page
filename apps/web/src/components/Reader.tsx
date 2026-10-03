@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useBusy } from "@/components/LoadingScreen";
 import { useAnnouncer } from "@/components/Announcer";
 import { AssistantDrawer } from "@/components/AssistantDrawer";
 import { ContentsSheet, chapterAt } from "@/components/ContentsSheet";
@@ -10,6 +11,7 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { PdfPanel } from "@/components/PdfPanel";
 import { PlayerBar } from "@/components/PlayerBar";
 import { usePreferences } from "@/components/PreferencesProvider";
+import { PageCorrection } from "@/components/PageCorrection";
 import { ReadingPanel } from "@/components/ReadingPanel";
 import { SaveOffline } from "@/components/SaveOffline";
 import { useReader } from "@/components/ReaderProvider";
@@ -58,11 +60,14 @@ type Side = "original" | "reading";
 export function Reader({
   documentId,
   bookmarkSegmentId,
+  initialPageIndex,
   backToQuiz,
 }: {
   documentId: string;
   /** From a bookmarks link; it is cued but never played automatically. */
   bookmarkSegmentId?: string;
+  /** From `?page=` (0-based). Beats saved progress; a bookmark still wins. */
+  initialPageIndex?: number;
   /** From a quiz's "hear the source": where "back to the questions" goes. */
   backToQuiz?: string;
 }) {
@@ -82,6 +87,8 @@ export function Reader({
   /** The page index the last fetch settled on, successfully or not. */
   const [settledIndex, setSettledIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The book opening: the loading screen covers it if it is slow.
+  useBusy(book === null && error === null);
   const [saved, setSaved] = useState<Progress | null>(null);
   const [bookmarkSaving, setBookmarkSaving] = useState(false);
   const [undoBookmark, setUndoBookmark] = useState<Bookmark | null>(null);
@@ -102,6 +109,8 @@ export function Reader({
   /** Focus is moved on navigation, but never on arrival. */
   const navigated = useRef(false);
   const announcedPlaceholder = useRef(false);
+  const announcedVoiceWarm = useRef(false);
+  const [voiceWarming, setVoiceWarming] = useState(false);
   const cuedBookmark = useRef<string | null>(null);
   /** A cited sentence on a page still loading: cued when it arrives. */
   const pendingCue = useRef<string | null>(null);
@@ -125,16 +134,20 @@ export function Reader({
         const detail = await api.getDocument(documentId);
         if (cancelled) return;
         setBook(detail);
-      } catch (cause) {
-        if (!cancelled) fail(cause);
-        return;
-      }
-      try {
+        const last = Math.max(0, detail.page_count - 1);
         if (bookmarkSegmentId) {
           const segment = await api.getSegment(documentId, bookmarkSegmentId);
           if (!cancelled) {
             setPageIndex(segment.page_index);
             setPdfPageIndex(segment.page_index);
+          }
+          return;
+        }
+        if (initialPageIndex !== undefined) {
+          const index = Math.min(Math.max(initialPageIndex, 0), last);
+          if (!cancelled) {
+            setPageIndex(index);
+            setPdfPageIndex(index);
           }
           return;
         }
@@ -160,7 +173,7 @@ export function Reader({
     return () => {
       cancelled = true;
     };
-  }, [api, documentId, bookmarkSegmentId, fail]);
+  }, [api, documentId, bookmarkSegmentId, initialPageIndex, fail]);
 
   // -- the current page --------------------------------------------------
 
@@ -187,6 +200,35 @@ export function Reader({
       cancelled = true;
     };
   }, [api, documentId, pageIndex, fail]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer = 0;
+    async function poll() {
+      try {
+        const readiness = await api.readiness();
+        if (cancelled) return;
+        const warming =
+          readiness.real_model &&
+          (readiness.readiness === "loading" || readiness.readiness === "not_loaded");
+        setVoiceWarming(warming);
+        if (warming) timer = window.setTimeout(() => void poll(), 8000);
+      } catch {
+        if (!cancelled) setVoiceWarming(false);
+      }
+    }
+    void poll();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (!voiceWarming || announcedVoiceWarm.current) return;
+    announcedVoiceWarm.current = true;
+    say(strings.voiceWarming);
+  }, [voiceWarming, say, strings.voiceWarming]);
 
   useEffect(() => {
     if (!page) return;
@@ -477,6 +519,16 @@ export function Reader({
         onPlayIndex={player.playAt}
         documentNotes={book.notes}
       />
+      {page && book ? (
+        <PageCorrection
+          documentId={documentId}
+          page={page}
+          onSaved={(saved) => {
+            setPage(saved);
+            void api.getDocument(documentId).then(setBook).catch(fail);
+          }}
+        />
+      ) : null}
       <div className="reading-pager">
         <button
           type="button"
@@ -685,7 +737,8 @@ export function Reader({
 
       <PlayerBar
         player={player}
-        disabled={segments.length === 0}
+        disabled={segments.length === 0 || voiceWarming}
+        voiceWarming={voiceWarming}
         position={currentIndex + 1}
         total={segments.length}
         bookmarkLabel={bookmarkLabel}

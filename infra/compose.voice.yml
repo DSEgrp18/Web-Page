@@ -10,6 +10,10 @@
 # MODEL_DIR is the path on **your machine**. There is no default, so a missing
 # one fails immediately with a clear message instead of mounting nothing and
 # failing later at the first synthesis.
+#
+# Only the API (on-demand clips) and the voice-worker (class pre-render) load
+# the checkpoint. The PDF worker used to load it as well, which stacked an
+# 8 GB extraction peak on an 8 GB model load and OOM-killed the API (audit E1).
 
 services:
   api:
@@ -18,6 +22,7 @@ services:
     environment:
       SINHALA_READER_TTS: xtts
       SINHALA_READER_TTS_DEVICE: ${SINHALA_READER_TTS_DEVICE:-cpu}
+      SINHALA_READER_TTS_PRECISION: ${SINHALA_READER_TTS_PRECISION:-fp16}
     volumes:
       # Read-only: nothing in this system has any reason to write to a
       # checkpoint, and a read-only mount makes that true rather than intended.
@@ -33,8 +38,19 @@ services:
     build:
       dockerfile: infra/tts.Dockerfile
     environment:
+      # Extraction does not synthesise. Loading XTTS here is how the host ran
+      # out of memory while a book was prepared.
+      SINHALA_READER_TTS: development
+    volumes:
+      - ${MODEL_DIR:?set MODEL_DIR to the folder containing xtts_si_female}:/models:ro
+
+  voice-worker:
+    build:
+      dockerfile: infra/tts.Dockerfile
+    environment:
       SINHALA_READER_TTS: xtts
       SINHALA_READER_TTS_DEVICE: ${SINHALA_READER_TTS_DEVICE:-cpu}
+      SINHALA_READER_TTS_PRECISION: ${SINHALA_READER_TTS_PRECISION:-fp16}
     volumes:
       - ${MODEL_DIR:?set MODEL_DIR to the folder containing xtts_si_female}:/models:ro
 

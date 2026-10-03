@@ -37,6 +37,10 @@ export const en: Strings = {
   newPasswordLabel: "New password",
   passwordHint: (min: number) => `At least ${n(min, "character")}.`,
   showPassword: "Show password",
+  showPasswordForChange: "Change password: show current password",
+  showPasswordForChangeNew: "Change password: show new password",
+  showPasswordForRecovery: "Recovery code: show current password",
+  showPasswordForDelete: "Delete account: show current password",
   displayNameLabel: "Your name",
   displayNameHint: "The name Swara calls you by.",
   recoveryCodeLabel: "Recovery code",
@@ -57,6 +61,9 @@ export const en: Strings = {
   roleName: (role: string) =>
     role === "teacher" ? "Teacher" : role === "admin" ? "Administrator" : "Student",
   currentPasswordLabel: "Current password",
+  changePasswordCurrentLabel: "Change password — current password",
+  recoveryPasswordCurrentLabel: "Recovery code — current password",
+  deletePasswordCurrentLabel: "Delete account — current password",
   changePasswordHeading: "Change password",
   changePasswordAction: "Change password",
   passwordChanged: "Password changed. You have been signed out on your other devices.",
@@ -155,6 +162,11 @@ export const en: Strings = {
   reportSent: "Thank you. Your report has been sent.",
   reportWhoBook: "The book's owner sees this. Your name is not shown.",
   reportWhoSite: "This goes to the people who run the service.",
+  reportAboutBook: "Book:",
+  reportAboutSentence: (sentence: string) => `Sentence: ${sentence}`,
+  markReportHandled: "Mark as handled",
+  reportMarkedHandled: "Report marked as handled.",
+  reportHandled: "Marked as handled.",
   reportsLink: "Reported problems",
   reportsHeading: (title: string) => `${title} — reported problems`,
   reportsNone: "No problems have been reported yet.",
@@ -249,6 +261,26 @@ export const en: Strings = {
     (used ? "Your password has been changed with that code. " : "It has not been used yet. ") +
     "If you did not ask for it, tell your teacher or the service team.",
   resetNoticeSeen: "Understood",
+  formatDateTime: (year: number, month: number, day: number, hour: number, minute: number) => {
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ] as const;
+    const h = hour % 12 || 12;
+    const ampm = hour < 12 ? "am" : "pm";
+    const mm = String(minute).padStart(2, "0");
+    return `${months[month] ?? month + 1} ${day}, ${year}, ${h}:${mm} ${ampm}`;
+  },
   renameClassLabel: "Class name",
   renameClassAction: "Save name",
   classRenamed: "Class renamed.",
@@ -269,6 +301,9 @@ export const en: Strings = {
   noReview: "No pages need checking.",
   pageAccept: "Accept",
   pageWithhold: "Withhold",
+  openFlaggedPage: (label: string) => `Open page ${label}`,
+  savePageDecision: "Save this decision",
+  pageDecisionSaved: "The page decision was saved.",
   undecidedCount: (count: number) => `${n(count, "page")} not decided yet`,
   basisHeading: "Your right to share",
   basisIntro:
@@ -332,6 +367,12 @@ export const en: Strings = {
   nextQuestion: "Next question",
   finishQuiz: "Finish",
   quizScore: (right: number, total: number) => `${right} of ${n(total, "question")} right.`,
+  quizResultsCaption: "Your answers",
+  quizResultsColQuestion: "Question",
+  quizResultsColOutcome: "Answer",
+  quizResultRight: "Right",
+  quizResultWrong: "Not right",
+  hearQuestion: "Hear the question",
   backToQuizzes: "Back to question sets",
   backToQuiz: "Back to the questions",
   correctIs: (answer: string) => `The answer: ${answer}`,
@@ -552,9 +593,18 @@ export const en: Strings = {
   placeholderAudioHeading: "This is not real speech",
   placeholderAudio:
     "This sound is a demonstration tone. The Sinhala speech model is not connected yet, so it is not reading the book.",
+  voiceWarmingHeading: "The voice is warming up",
+  voiceWarming:
+    "The real Sinhala voice is still loading. This can take over a minute from cold. Nothing will speak until it is ready.",
 
   // -- what the page loses ----------------------------------------------
   pageNotesHeading: "About this page",
+  pageCorrectionHeading: "Correct this page's text",
+  pageCorrectionIntro:
+    "If OCR or extraction got this page wrong, enter the correct Sinhala text here. Saving creates a new version of the book and regenerates audio for this page.",
+  pageCorrectionLabel: "Page text",
+  savePageCorrection: "Save corrected text",
+  pageCorrected: "The page text was saved.",
   qualityNeedsReview: "Some parts of this page have not been confirmed as read correctly.",
   qualityUndecodable: "This page could not be read. It has not been turned into audio.",
   kindImage: "This page is an image. Its text has not been recognised yet.",
@@ -718,6 +768,65 @@ export const en: Strings = {
   suggestThisPage: "What is on this page?",
   suggestExplain: "What does the book say about this?",
   conversationLabel: "Questions and answers",
+
+  pipelineNote: (code: string, params: Record<string, string>) => {
+    const n = params.name ?? "";
+    const family = params.family ?? "";
+    const count = params.count ?? "";
+    const total = params.total ?? "";
+    const withheld = params.withheld ?? "";
+    const reason = params.reason ?? "";
+    switch (code) {
+      case "garbled_native":
+        return "The letters on this page could not be extracted correctly. They are not read aloud; the page will be read from its image.";
+      case "legacy_unsupported":
+        return `The font “${n}” has no validated conversion table. It needs optical recognition or a person to check it.`;
+      case "legacy_variant":
+        return `The font “${n}” looks like a variant of ${family}. Whether that table applies has not been checked.`;
+      case "suspect_encoding":
+        return "The extracted characters do not look like Sinhala or ordinary English. They need checking.";
+      case "other_script":
+        return "This text is in another script, which this reader has no voice for.";
+      case "converted_legacy":
+        return `Converted from the legacy font “${n}”. The text was decoded, not proofread.`;
+      case "converted_variant":
+        return `Converted from the legacy font “${n}”, a variant of ${family}. The text was decoded, not proofread.`;
+      case "conversion_failed":
+        return `Converting “${n}” produced malformed Sinhala, so it cannot be read aloud.`;
+      case "mapping_missing":
+        return `The conversion table for “${n}” could not be loaded.`;
+      case "unnamed_legacy":
+        return `All the text set in “${n}” decodes to nonsense. It is treated as legacy text.`;
+      case "suspect_font":
+        return `Text set in “${n}” is neither Sinhala nor ordinary English.`;
+      case "page_image_only":
+        return "This page contains images and no readable text.";
+      case "page_mixed_images":
+        return `This page contains ${count} image(s) alongside its text. Their content is not described.`;
+      case "page_blank":
+        return "This page is blank.";
+      case "page_columns":
+        return "This page looks like it is laid out in columns. The reading order may not match the printed order.";
+      case "page_unreadable_lines":
+        return `${withheld} of ${total} lines on this page cannot be read yet.`;
+      case "page_off_page":
+        return `${count} characters drawn outside the printed area were left out.`;
+      case "doc_pages_missing":
+        return "None of the requested pages exist in this document.";
+      case "doc_image_pages":
+        return `${count} of ${total} extracted pages are images with no readable text.`;
+      case "doc_unreadable_pages":
+        return `${count} of ${total} pages have nothing that can be read aloud.`;
+      case "page_teacher_corrected":
+        return "A teacher reviewed and corrected the text on this page.";
+      case "ocr_recognised":
+        return "This page was read from its image. Recognition can misread letters, and a person has not checked it.";
+      case "ocr_failed":
+        return `${count} page(s) could not be read from their image (${reason}) and keep their embedded text.`;
+      default:
+        return n ? `${code}: ${n}` : code;
+    }
+  },
 
   // -- language ----------------------------------------------------------
   draftTranslation:

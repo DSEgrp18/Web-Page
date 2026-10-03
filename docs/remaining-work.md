@@ -91,15 +91,15 @@ questions were poor, and they were.
 
 | # | What | Detail | Where | Owner |
 | --- | --- | --- | --- | --- |
-| 3.1 | **The API runs out of memory loading the real voice** (audit E1) | Killed and restarted about once a minute; every request in flight fails, including registration. Profile the ~8 GB peak while a book is prepared; load the checkpoint with less headroom | `services/tts`, `infra/` | — |
-| 3.2 | **Garbled PDFs are accepted and read aloud** (audit F08) | A Sinhala PDF printed from Chrome comes out as repeated clusters (`ශ්‍රීශ්‍රීශ්‍රී`) and NUL characters, and every page is marked accepted. It is then narrated, searched and quoted. Detect it, mark the pages `needs_review` or `undecodable`, and route them to OCR | `services/worker/src/sinhala_documents/pdf_extract.py` | — |
-| 3.3 | **Production must refuse unsafe defaults** | The code still *defaults* to a trusted identity header, in-memory storage and a thread per job; only compose overrides them. A production start should fail unless sessions, Postgres and Celery are configured | `services/api` | — |
-| 3.4 | **Focus is lost after navigation** (F42) | After sign-in, or after deleting a class, focus is left on `<body>`. One rule for every route, then check it with NVDA | `apps/web` | — |
-| 3.5 | **Reviewing a flagged page** (F25) | The teacher can't see the page being judged, and each arrow key in the choice saves a decision silently. Needs a `?page=` address in the reader | `ShareBook.tsx`, reader | — |
-| 3.6 | **Pipeline notes are English inside a Sinhala page** (F07) | They're marked `lang="en"` now; translating them needs note *codes* from the API, not prose | worker + web | — |
-| 3.7 | **Docker images are out of date** | The web image predates the English interface and the new icon, and the API image lacks `langgraph`. Rebuild, and pin when to rebuild in `infra/README.md` | `infra/` | — |
-| 3.8 | **Phase 7 tidy-up** | Self-host the fonts. Fix `--font-display`, which is defined in terms of itself, so Abhaya Libre never renders: fixing it restyles every heading. Reorder `infra/tts.Dockerfile` so small code changes don't trigger a multi-gigabyte rebuild | `apps/web`, `infra/` | — |
-| 3.9 | **Book illustration halo in dark mode** | `swara-book.webp`, used on the signed-out page and as the library cover, has a white halo on dark backgrounds; the old icon had the same fault | `apps/web/public/brand/` | — |
+| 3.1 | **The API runs out of memory loading the real voice** (audit E1) | Addressed: fp16 load on CPU, PDF worker no longer loads XTTS, voice-worker only. Measure RSS on the audit host after rebuild. | `services/tts`, `infra/` | this PR |
+| 3.2 | **Garbled PDFs are accepted and read aloud** (audit F08) | Addressed: NULs and repeated clusters → `undecodable` (`note:garbled_native`), OCR `broken` can replace them. | `pdf_extract.py` | this PR |
+| 3.3 | **Production must refuse unsafe defaults** | Addressed: `SINHALA_READER_ENV=production` fails closed without sessions, Postgres, Celery, Redis limits. Compose sets it on the API. | `services/api` | this PR |
+| 3.4 | **Focus is lost after navigation** (F42) | Addressed in code (`RouteFocus`). Still needs an NVDA pass on sign-in and delete-class. | `apps/web` | this PR |
+| 3.5 | **Reviewing a flagged page** (F25) | Addressed: `?page=` on the reader; radios draft; Save commits. NVDA on the share screen still needed. | `ShareBook.tsx`, reader | this PR |
+| 3.6 | **Pipeline notes are English inside a Sinhala page** (F07) | Addressed: codes from the worker, translated in both UI languages. Old English prose still falls back with `lang="en"`. | worker + web | this PR |
+| 3.7 | **Docker images are out of date** | Rebuild checklist is in `infra/README.md`. Images themselves are not rebuilt in CI from this PR; run `.\refresh` on the host. | `infra/` | this PR |
+| 3.8 | **Phase 7 tidy-up** | `--font-display-face` so Abhaya Libre applies (headings restyle). `next/font/google` already self-hosts at runtime. TTS Dockerfile installs torch before copying constraints. | `apps/web`, `infra/` | this PR |
+| 3.9 | **Book illustration halo in dark mode** | Dark theme uses `mix-blend-mode: multiply` so the white fringe of `swara-book.webp` takes the page colour. Re-export of the webp still optional. | `globals.css` | this PR |
 
 ---
 
@@ -120,16 +120,16 @@ None of these is started unless noted. They run in roughly this order.
 
 ---
 
-## 5. Planned features not yet built
+## 5. Planned features (section shipped; evaluation data still pending)
 
-| What | Notes | Owner |
-| --- | --- | --- |
-| **Dense and hybrid retrieval**, compared against lexical | CLAUDE.md requires the comparison. Only lexical (BM25) exists | — |
-| **Answer evaluation** (roadmap item 40) | Citation support, correctness and abstention. No evaluation set exists yet | — |
-| **OCR review and correction workflow** for teachers | OCR'd pages are flagged, but nobody can correct them. A correction must create a new document version | — |
-| **Quiz results screen** (F34) | Plan §8.7 asks for a results table and **Hear the question**; today there's a score heading only | — |
-| **Voice cold-start notice** | Check whether [#28](https://github.com/DSEgrp18/Web-Page/issues/28) is done; the placeholder-tone notice exists, but a "the voice is warming up" state may not | — |
-| **Summaries grounded in the document** | Listed as "later" in CLAUDE.md | — |
+| What | Status |
+| --- | --- |
+| **Dense and hybrid retrieval** vs lexical | `SINHALA_READER_RETRIEVAL` (`lexical`, `dense`, `hybrid`); `swara_eval retrieval --compare` |
+| **Answer evaluation** (roadmap 40) | `swara_eval answers` (citation, correctness, abstention); needs CSV under `evaluation/data/` |
+| **OCR teacher correction** | `POST …/pages/{n}/correction`, reader form on `needs_review` pages, version bump |
+| **Quiz results** (F34) | Results table + **Hear the question** on the practice finish screen |
+| **Voice cold-start notice** | Reader polls `/readiness`; warming banner distinct from placeholder tone |
+| **Grounded summaries** | `POST …/summary` (study mode, labelled `generated`, retrieval-backed) |
 
 ---
 
@@ -151,15 +151,15 @@ Only aggregate results are committed; `scripts/verify-repo-hygiene.sh` enforces 
 
 ## 7. Smaller fixes (from the UI audit)
 
-| ID | What | Owner |
-| --- | --- | --- |
-| F33 | The report form never says which book or sentence the report is about | — |
-| F35 | On the account page, three "current password" fields and four "show password" buttons share identical names, and a wrong password isn't tied to its field (`aria-invalid`, `aria-describedby`) | — |
-| F36 | A teacher can't mark a report as handled | — |
-| F37 | An uploaded image's book title keeps the extension (`පිටුව.png`) | — |
-| F30 | Dates fall back to English inside Sinhala sentences on browsers without Sinhala locale data | — |
-| E5 | `/readiness` says OCR is `broken` from the API process while it works in the worker. Explain it in the runbook | — |
-| — | The "can't reach the server" panel should link to saved chapters (`/offline`) | — |
+| ID | Status |
+| --- | --- |
+| F33 | Report form names the book and sentence; thanks announced once (heading focus only) |
+| F35 | Distinct password labels and show-password names; `aria-invalid` + `aria-describedby` on wrong password |
+| F36 | Owner marks a report handled (`POST …/reports/{id}/handled`) |
+| F37 | Display title strips file extensions (`titleFromFilename` / `bookTitle`) |
+| F30 | `formatDateTime` uses interface month names (no `si-LK` locale dependency) |
+| E5 | [`docs/runbook.md`](runbook.md) + readiness limitation when OCR runs in the worker |
+| — | Unavailable (offline) panel links to `/offline` |
 
 ---
 

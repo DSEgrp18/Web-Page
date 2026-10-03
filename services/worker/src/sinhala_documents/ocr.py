@@ -60,6 +60,7 @@ from .model import (
     TextLine,
     TextSpan,
 )
+from .notes import make as note
 
 #: Bump on any change to rendering, recognition settings, or how words become
 #: lines. Part of the adapter version, and so of provenance and cache identity.
@@ -67,6 +68,8 @@ OCR_VERSION = "1"
 
 #: The Tesseract executable. Overridable for a machine where it is not on PATH.
 TESSERACT_ENV = "SINHALA_READER_TESSERACT"
+#: Directory of ``*.traineddata`` files (passed as ``--tessdata-dir``).
+TESSDATA_DIR_ENV = "SINHALA_READER_TESSDATA_DIR"
 
 #: Rendering resolution. 300 dpi is what page 121 was measured at. Sinhala needs
 #: the headroom more than Latin script does: its distinguishing marks are small
@@ -87,10 +90,7 @@ TIMEOUT_SECONDS = 120
 _AL_LAKUNA = "\u0dca"
 _ZWNJ = "\u200c"
 
-NOTE = (
-    "This page was read from its image by optical character recognition. Recognition "
-    "can misread letters, and this page has not been checked by a person."
-)
+NOTE = note("ocr_recognised")
 
 
 class OcrUnavailable(RuntimeError):
@@ -247,10 +247,12 @@ class TesseractOcr(OcrAdapter):
         self,
         *,
         executable: str | None = None,
+        tessdata_dir: str | None = None,
         timeout: int = TIMEOUT_SECONDS,
         run=subprocess.run,
     ) -> None:
         self._executable = executable or os.environ.get(TESSERACT_ENV, "").strip() or "tesseract"
+        self._tessdata_dir = tessdata_dir or os.environ.get(TESSDATA_DIR_ENV, "").strip() or None
         self._timeout = timeout
         self._run = run
         self._engine: str | None = None
@@ -275,10 +277,15 @@ class TesseractOcr(OcrAdapter):
             engine = "unavailable"
         return f"tesseract/{engine}/{LANGUAGE}/psm{PAGE_SEGMENTATION}/ocr-{OCR_VERSION}"
 
+    def _prefix(self) -> list[str]:
+        if not self._tessdata_dir:
+            return []
+        return ["--tessdata-dir", self._tessdata_dir]
+
     def _invoke(self, arguments: list[str], stdin: bytes | None):
         try:
             result = self._run(
-                [self._executable, *arguments],
+                [self._executable, *self._prefix(), *arguments],
                 input=stdin,
                 capture_output=True,
                 timeout=self._timeout,
@@ -304,7 +311,21 @@ class TesseractOcr(OcrAdapter):
             ["stdin", "stdout", "-l", LANGUAGE, "--psm", str(PAGE_SEGMENTATION), "tsv"],
             image_png,
         )
-        return parse_tsv(result.stdout.decode("utf-8", "replace"))
+        raw = result.stdout.decode("utf-8", "replace")
+        words = parse_tsv(raw)
+        if words:
+            return words
+        # A tessdata-dir without configs/tsv makes Tesseract ignore the `tsv`
+        # config and emit plain text. parse_tsv then finds nothing, and image
+        # pages look empty even though recognition succeeded. Fail loudly so
+        # the deployment is fixed rather than serving zero sentences.
+        if raw.strip() and not raw.lstrip().startswith("level\t"):
+            raise OcrUnavailable(
+                "Tesseract returned plain text instead of TSV. The tessdata directory "
+                "is missing configs/tsv (symlink system configs into "
+                f"{TESSDATA_DIR_ENV} or install tesseract-ocr with its configs)."
+            )
+        return words
 
 
 def render_page(source: bytes | str | Path, page_index: int, *, dpi: int = DEFAULT_DPI) -> bytes:
@@ -472,8 +493,5 @@ def apply_ocr(
 
     notes = list(extraction.notes)
     if failed:
-        notes.append(
-            f"{len(failed)} page(s) could not be read by optical character recognition "
-            f"and keep their embedded text: {reason}"
-        )
+        notes.append(note("ocr_failed", count=len(failed), reason=reason))
     return replace(extraction, pages=tuple(pages), notes=tuple(notes))

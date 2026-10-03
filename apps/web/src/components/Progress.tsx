@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { explain, useFailure } from "@/components/AccountForms";
+import { useBusy } from "@/components/LoadingScreen";
 import { useReader } from "@/components/ReaderProvider";
 import type { BookProgress, ChapterProgress, ProgressReport } from "@/lib/types";
 import { useStrings } from "@/components/LocaleProvider";
@@ -19,8 +20,9 @@ import type { Strings } from "@/lib/strings";
 export function Progress() {
   const strings = useStrings();
   const { api } = useReader();
-  const { setFailure, notice } = useFailure();
+  const { failure, setFailure, notice } = useFailure();
   const [report, setReport] = useState<ProgressReport | null>(null);
+  useBusy(report === null && failure === null);
 
   useEffect(() => {
     let cancelled = false;

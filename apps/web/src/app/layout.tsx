@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Abhaya_Libre, Noto_Sans_Sinhala, Roboto } from "next/font/google";
+import { Noto_Sans_Sinhala, Plus_Jakarta_Sans, Yaldevi } from "next/font/google";
 
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { getLocale, getStrings } from "@/lib/i18n.server";
@@ -9,27 +9,38 @@ import { getTheme } from "@/lib/theme.server";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const abhayaLibre = Abhaya_Libre({
+/*
+ * Three faces, each with one job:
+ *   Yaldevi            headings and the large display lines. Geometric and
+ *                      rounded like the logo's lettering, with Sinhala and Latin.
+ *   Noto Sans Sinhala  everything a reader reads and every control. The most
+ *                      legible Sinhala on screen, at every size.
+ *   Plus Jakarta Sans  Latin in the interface: English, numbers, page counts.
+ *
+ * Each `variable` is a *face*; globals.css builds the stack from it. A custom
+ * property defined in terms of itself is invalid, which is how a face once
+ * went unused.
+ */
+const yaldevi = Yaldevi({
   subsets: ["sinhala", "latin"],
-  weight: ["400", "700"],
-  variable: "--font-display",
+  weight: ["600", "700"],
+  variable: "--font-display-face",
   display: "swap",
 });
 
 const notoSansSinhala = Noto_Sans_Sinhala({
   subsets: ["sinhala", "latin"],
+  // Only the weights the stylesheet sets. A weight nothing uses is a download
+  // for every reader, and one more file Google may have to generate on the fly
+  // (a `kit` URL, which next/font's dev bundler cannot resolve).
   weight: ["400", "600", "700"],
   variable: "--font-ui",
   display: "swap",
 });
 
-const roboto = Roboto({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  // Roboto ships 100/300/400/500/700/900; 600 is not one of them and
-  // next/font fails the build rather than rounding to the nearest.
-  weight: ["400", "500", "700"],
-  // Not `--font-latin`: globals.css builds that stack from this, and a
-  // property defined in terms of itself is invalid, so the face went unused.
+  weight: ["400", "600", "700", "800"],
   variable: "--font-latin-face",
   display: "swap",
 });
@@ -70,9 +81,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang={locale}
       data-theme={theme === "system" ? undefined : theme}
-      className={`${abhayaLibre.variable} ${notoSansSinhala.variable} ${roboto.variable}`}
+      className={`${yaldevi.variable} ${notoSansSinhala.variable} ${plusJakarta.variable}`}
     >
       <body>
+        {/* Without script nothing would ever lift the loading screen, so it
+            is never drawn at all. */}
+        <noscript>
+          <style>{".loading-screen{display:none}"}</style>
+        </noscript>
         <LocaleProvider locale={locale}>
           <Providers>{children}</Providers>
         </LocaleProvider>

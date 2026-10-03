@@ -14,6 +14,7 @@ import type {
   RightsBasis,
   TaughtClass,
 } from "@/lib/types";
+import { formatPipelineNote } from "@/lib/pipelineNotes";
 import { useStrings } from "@/components/LocaleProvider";
 
 const BASES: RightsBasis[] = [
@@ -46,6 +47,7 @@ export function ShareBook({ documentId }: { documentId: string }) {
   const [basis, setBasis] = useState<RightsBasis | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [drafts, setDrafts] = useState<Record<number, "accepted" | "withheld" | null>>({});
   const noteId = useId();
   const noteHintId = useId();
 
@@ -62,6 +64,9 @@ export function ShareBook({ documentId }: { documentId: string }) {
         if (cancelled) return;
         setBook(detail);
         setReview(flagged);
+        setDrafts(
+          Object.fromEntries(flagged.pages.map((page) => [page.page_index, page.decision])),
+        );
         setPublication(shared);
         setClasses(mine.teaching);
       } catch (error) {
@@ -98,7 +103,10 @@ export function ShareBook({ documentId }: { documentId: string }) {
 
   async function decide(pageIndex: number, decision: "accepted" | "withheld") {
     try {
-      setReview(await api.decidePage(documentId, pageIndex, decision));
+      const next = await api.decidePage(documentId, pageIndex, decision);
+      setReview(next);
+      setDrafts(Object.fromEntries(next.pages.map((page) => [page.page_index, page.decision])));
+      say(strings.pageDecisionSaved);
     } catch (error) {
       setFailure(explain(error, {}, strings));
     }
@@ -189,26 +197,50 @@ export function ShareBook({ documentId }: { documentId: string }) {
               <p className="hint">{strings.undecidedCount(review.undecided)}</p>
               {review.pages.map((page) => {
                 const label = page.page_label ?? String(page.page_index + 1);
+                const draft = drafts[page.page_index] ?? page.decision;
                 return (
                   <fieldset key={page.page_index} className="decision">
                     <legend>{`${strings.pageWord} ${label}`}</legend>
-                    {page.notes.map((line) => (
-                      // English, from the pipeline: see ReadingPanel.
-                      <p key={line} className="hint" lang="en">
-                        {line}
-                      </p>
-                    ))}
+                    <p>
+                      <Link
+                        href={`/library/${encodeURIComponent(documentId)}?page=${page.page_index + 1}`}
+                      >
+                        {strings.openFlaggedPage(label)}
+                      </Link>
+                    </p>
+                    {page.notes.map((line) => {
+                      const shown = formatPipelineNote(line, strings);
+                      return (
+                        <p key={line} className="hint" lang={shown.coded ? undefined : "en"}>
+                          {shown.text}
+                        </p>
+                      );
+                    })}
                     {(["accepted", "withheld"] as const).map((decision) => (
                       <label key={decision} className="check-row">
                         <input
                           type="radio"
                           name={`page-${page.page_index}`}
-                          checked={page.decision === decision}
-                          onChange={() => void decide(page.page_index, decision)}
+                          checked={draft === decision}
+                          onChange={() =>
+                            setDrafts((current) => ({ ...current, [page.page_index]: decision }))
+                          }
                         />
                         {decision === "accepted" ? strings.pageAccept : strings.pageWithhold}
                       </label>
                     ))}
+                    <button
+                      className="btn btn-quiet"
+                      type="button"
+                      disabled={draft === null || draft === page.decision}
+                      onClick={() => {
+                        if (draft === "accepted" || draft === "withheld") {
+                          void decide(page.page_index, draft);
+                        }
+                      }}
+                    >
+                      {strings.savePageDecision}
+                    </button>
                   </fieldset>
                 );
               })}

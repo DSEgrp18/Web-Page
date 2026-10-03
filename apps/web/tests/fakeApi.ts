@@ -307,6 +307,14 @@ export class FakeServer {
     }
     const bookReports = /^\/documents\/([^/]+)\/reports$/.exec(path);
     if (method === "GET" && bookReports) return this.json(this.bookReports);
+    const markHandled = /^\/documents\/([^/]+)\/reports\/([^/]+)\/handled$/.exec(path);
+    if (method === "POST" && markHandled) {
+      const [, , reportId] = markHandled;
+      const row = this.bookReports.find((r) => r.report_id === reportId);
+      if (!row) return this.notFound();
+      row.handled_at = new Date().toISOString();
+      return new Response(null, { status: 204 });
+    }
     const heard = /^\/documents\/([^/]+)\/heard$/.exec(path);
     if (method === "POST" && heard) {
       const body = JSON.parse(String(init.body)) as { segment_ids: string[] };
@@ -824,6 +832,8 @@ export class FakeServer {
           question: "ශ්‍රී ලංකාවේ අගනුවර _____ වේ.",
           options: ["කොළඹ", "කෝට්ටේ", "ගාල්ල", "මහනුවර"],
           page_label: "1",
+          page_index: 0,
+          segment_id: "0000-s0",
           answer: 1,
         },
         {
@@ -831,6 +841,8 @@ export class FakeServer {
           question: "_____ ප්‍රධාන වරාය නගරයයි.",
           options: ["යාපනය", "ත්‍රිකුණාමලය", "කොළඹ", "මාතර"],
           page_label: "1",
+          page_index: 0,
+          segment_id: "0000-s1",
           answer: 2,
         },
       ],

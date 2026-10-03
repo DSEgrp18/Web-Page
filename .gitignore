@@ -22,6 +22,11 @@ secrets/
 /models/
 /checkpoints/
 
+# OCR bake-off inputs may be private textbook pages; keep them local.
+/evaluation/ocr/pages/
+/evaluation/ocr/transcripts/
+/evaluation/ocr/bakeoff-results.md
+
 # ---------------------------------------------------------------------------
 # Private and runtime data. data/legacy_fonts stays tracked.
 # ---------------------------------------------------------------------------

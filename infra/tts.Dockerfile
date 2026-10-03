@@ -30,20 +30,16 @@ RUN apt-get update \
  && apt-get install --no-install-recommends -y libsndfile1 \
  && rm -rf /var/lib/apt/lists/*
 
-# Every package below is pinned by this file, which is the pip freeze of a
-# known-good build of this image. The version ranges in the install lines say
-# what the code needs; the constraints decide what is actually installed, so two
-# builds of the same commit produce the same image. See the file's header.
-COPY infra/constraints/python.txt /tmp/constraints.txt
-
-# torch FIRST and separately, from the CPU index.
+# torch FIRST and separately, from the CPU index, **before** the constraints
+# file is copied. Pinning langgraph (or any other app package) used to copy
+# python.txt first and bust this multi-gigabyte layer on every small change.
 #
-# Both halves of that are load-bearing, and both are recorded in
-# docs/model-inference-manifest.md as things that were learned the hard way.
-# coqui-tts declares neither torch nor torchaudio, so installing it alongside
-# them appears to succeed and then fails at model load. And the default index
-# serves CUDA builds: several gigabytes of GPU runtime for an image that has no
-# GPU.
+# Both halves of "torch first, CPU index" are load-bearing, and both are
+# recorded in docs/model-inference-manifest.md as things that were learned
+# the hard way. coqui-tts declares neither torch nor torchaudio, so installing
+# it alongside them appears to succeed and then fails at model load. And the
+# default index serves CUDA builds: several gigabytes of GPU runtime for an
+# image that has no GPU.
 #
 # Pinned exactly, and below 2.9 on purpose. coqui-tts refuses to import at all
 # when torch is 2.9 or newer and torchcodec is absent
@@ -53,9 +49,15 @@ COPY infra/constraints/python.txt /tmp/constraints.txt
 # either, which the manifest records as a deliberate decision. This used to say
 # `torch>=2.5`: a rebuild on 23 September 2026 resolved it to 2.9, and the voice
 # stopped loading - the same commit, a different and broken image.
-RUN pip install --no-cache-dir -c /tmp/constraints.txt \
+RUN pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cpu \
       "torch==2.8.0" "torchaudio==2.8.0"
+
+# Every remaining package is pinned by this file, which is the pip freeze of a
+# known-good build of this image. The version ranges in the install lines say
+# what the code needs; the constraints decide what is actually installed, so two
+# builds of the same commit produce the same image. See the file's header.
+COPY infra/constraints/python.txt /tmp/constraints.txt
 
 # coqui-tts is pinned to the version the Modal deployment uses, so the same
 # voice runs on the same library wherever it is served. transformers is pinned

@@ -451,5 +451,8 @@ def test_without_an_engine_the_book_is_still_prepared_and_says_what_is_unread() 
     document = prepare_document(pdf, ocr=ocr, ocr_mode=OcrMode.BROKEN)
 
     assert [page.has_audio for page in document.pages] == [True, False]
-    assert any("could not be read by optical character recognition" in n for n in document.notes)
-    assert any("not installed" in n for n in document.notes)
+    from sinhala_documents.notes import parse
+
+    parsed = [parse(n) for n in document.notes]
+    assert any(item and item[0] == "ocr_failed" for item in parsed)
+    assert any(item and "not installed" in item[1].get("reason", "") for item in parsed)

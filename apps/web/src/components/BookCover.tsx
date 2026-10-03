@@ -31,7 +31,26 @@ const COVER_WIDTH = 320;
  * same reason: the card's heading already says which book this is, and a
  * screen reader announcing "image" before every title is noise.
  */
-export function BookCover({ documentId, ready }: { documentId: string; ready: boolean }) {
+/** How many cover colourways there are; each book keeps the same one. */
+const TONES = 6;
+
+/** A stable colourway for a book: the same book is the same colour everywhere. */
+function toneOf(documentId: string): number {
+  let hash = 0;
+  for (const char of documentId) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return Math.abs(hash) % TONES;
+}
+
+export function BookCover({
+  documentId,
+  ready,
+  title,
+}: {
+  documentId: string;
+  ready: boolean;
+  /** Drawn on the cover when the book's first page cannot be. */
+  title?: string;
+}) {
   const strings = useStrings();
   const { signedIn } = useReader();
   const holder = useRef<HTMLDivElement>(null);
@@ -99,19 +118,23 @@ export function BookCover({ documentId, ready }: { documentId: string; ready: bo
 
   return (
     <div className="book-cover" ref={holder} data-state={state}>
-      {state === "unavailable" ? (
-        <img
-          className="book-cover-fallback"
-          src="/brand/swara-book.webp"
-          alt=""
-          width={700}
-          height={450}
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <canvas ref={canvas} aria-hidden="true" />
+      {/* A cover of our own, from the first moment: the placeholder while the
+          book's first page draws, and the cover itself when it cannot (a
+          Word file, pasted text, or a PDF still being prepared). The title is
+          the card's heading already, so this is decoration. */}
+      {state === "drawn" ? null : (
+        <div className="cover-art" data-tone={toneOf(documentId)} aria-hidden="true">
+          <svg className="cover-art-mark" viewBox="0 0 48 32" focusable="false">
+            <path d="M4 22 24 4l20 18" />
+            <path d="M12 24c4-3 8-3 12 0 4-3 8-3 12 0" />
+          </svg>
+          {title ? <span className="cover-art-title">{title}</span> : null}
+          <span className="cover-art-brand" lang="si">
+            ස්වර
+          </span>
+        </div>
       )}
+      {state === "unavailable" ? null : <canvas ref={canvas} aria-hidden="true" />}
       {state === "drawing" ? <span className="visually-hidden">{strings.coverLoading}</span> : null}
     </div>
   );

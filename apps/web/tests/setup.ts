@@ -10,6 +10,7 @@
 
 import { cleanup } from "@testing-library/react";
 import { resetPreferences } from "../src/lib/preferences";
+import { resetRouteFocusForTests } from "../src/components/RouteFocus";
 import { createElement, type AnchorHTMLAttributes, type ReactNode } from "react";
 import { afterEach, vi } from "vitest";
 
@@ -62,9 +63,9 @@ vi.mock("next/headers", () => ({
 vi.mock("next/font/google", () => {
   const face = (variable: string) => () => ({ className: "", variable, style: {} });
   return {
-    Abhaya_Libre: face("--font-display"),
+    Yaldevi: face("--font-display-face"),
     Noto_Sans_Sinhala: face("--font-ui"),
-    Roboto: face("--font-latin-face"),
+    Plus_Jakarta_Sans: face("--font-latin-face"),
   };
 });
 
@@ -270,4 +271,5 @@ afterEach(() => {
   // which outlives every test. Clearing storage alone would leave the next
   // test reading what this one saved.
   resetPreferences();
+  resetRouteFocusForTests();
 });

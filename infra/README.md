@@ -50,6 +50,34 @@ GitHub, switch to `main` (`git switch main`) before running it.
 
 Afterwards, reload the browser with `Ctrl+Shift+R`.
 
+## When to rebuild which image
+
+A container runs the code copied into its image. Restarting is not enough.
+`.\refresh` rebuilds web, api and worker; use `-Only` when you know which
+layer changed.
+
+| What changed | Rebuild |
+| --- | --- |
+| `apps/web/**`, brand icons, strings, fonts | `.\refresh -Only web` |
+| `services/api/**`, `services/worker/**`, `infra/api.Dockerfile`, quiz/langgraph | `.\refresh -Only api,worker` |
+| `infra/constraints/python.txt` (except torch pins) | `api` + `worker` — the voice image's torch layer stays cached |
+| `infra/tts.Dockerfile` or torch/coqui pins | api + worker **with** `compose.voice.yml` |
+| Only compose env (`SINHALA_READER_QUIZ=graph`) | Recreate containers; the image must already contain the package |
+
+The web image must include the English interface and the icons in
+`apps/web/public/brand/`. The API/worker image must import `langgraph` when
+quiz generation is set to `graph`. After a backend rebuild:
+
+```powershell
+docker compose -f infra/docker-compose.yml exec api python -c "import langgraph; print('langgraph ok')"
+```
+
+
+## Operations notes
+
+See [`docs/runbook.md`](../docs/runbook.md) for readiness quirks (for example OCR
+reported on the API process while recognition runs in the worker).
+
 ## Why this exists, beyond convenience
 
 Run by hand, the API defaults to in-memory storage and a thread per job, and
@@ -142,7 +170,7 @@ which.
 On by default here, for broken pages only. Some PDFs carry embedded text that is
 not what is printed: legacy fonts the converter cannot decode, or a hidden
 second copy of the page that extraction reads as well. Those pages are rendered
-and read by **Tesseract, inside the container**. Nothing is sent anywhere.
+and read **inside the container**. Nothing is sent anywhere.
 
 | `SINHALA_READER_OCR` | Pages read from their image |
 | --- | --- |
@@ -150,10 +178,35 @@ and read by **Tesseract, inside the container**. Nothing is sent anywhere.
 | `all` | Every page |
 | `off` (default outside compose) | None; broken pages stay unread |
 
+| `SINHALA_READER_OCR_ENGINE` | Recogniser |
+| --- | --- |
+| `tesseract` (default) | Tesseract Sinhala, layout and text |
+| `trocr` | Tesseract for line boxes, TrOCR for Sinhala text |
+
 Recognised text can misread letters, so those pages are marked as not checked,
-and the document version changes with the mode, which regenerates their audio.
-Measured on the 168-page Grade 11 history textbook: 19 pages were recognised,
-and preparation took about 89 seconds instead of 19.
+and the document version changes with the mode and engine, which regenerates
+their audio. Measured on the 168-page Grade 11 history textbook with Tesseract:
+19 pages were recognised, and preparation took about 89 seconds instead of 19.
+
+### Optional TrOCR overlay
+
+TrOCR needs torch and a downloaded Hub checkpoint (~1.3 GB). Use the overlay,
+the same way the real voice uses `compose.voice.yml`:
+
+```bash
+export TROCR_MODEL_DIR="/path/to/models/trocr_sinhala_eshangj"
+docker compose -f infra/docker-compose.yml -f infra/compose.trocr.yml up --build
+```
+
+Checkpoint aliases: `eshangj` (default in the overlay) or `ransaka`. Download
+commands and the bake-off checklist are in
+[`docs/trocr-sinhala-ocr.md`](../docs/trocr-sinhala-ocr.md). Do **not** switch
+the base compose default to Trocr until that bake-off picks a winner.
+
+CI builds the Trocr image (`WITH_TROCR=1`) and runs
+`scripts/ci_trocr_docker.sh` on every pull request: it downloads the pinned
+eshangj checkpoint (cached between runs), mounts it, and checks that a
+synthetic Sinhala line is recognised with a low character-error rate.
 
 ## Changing a Python dependency
 
