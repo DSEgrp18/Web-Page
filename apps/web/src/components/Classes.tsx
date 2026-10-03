@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 
 import { explain, useFailure } from "@/components/AccountForms";
+import { useBusy } from "@/components/LoadingScreen";
 import { useAnnouncer } from "@/components/Announcer";
 import { useReader } from "@/components/ReaderProvider";
 import type { JoinedClass, MyClasses, TaughtClass } from "@/lib/types";
@@ -24,7 +25,8 @@ export function Classes({ joinCode }: { joinCode?: string } = {}) {
   const strings = useStrings();
   const { api, account } = useReader();
   const [classes, setClasses] = useState<MyClasses | null>(null);
-  const { setFailure, notice } = useFailure();
+  const { failure, setFailure, notice } = useFailure();
+  useBusy(classes === null && failure === null);
 
   const load = useCallback(async () => {
     try {
