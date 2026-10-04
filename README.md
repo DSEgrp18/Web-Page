@@ -109,6 +109,24 @@ step works with a keyboard and a screen reader, in Sinhala first.
   <sub>On a phone: the front door, and the reader with the player pinned in reach of a thumb.</sub>
 </p>
 
+### In English too
+
+Sinhala is the default interface. English is an optional second language that a
+reader chooses in Settings. It changes every control, message and page, but
+**never the book**: the book's own words stay Sinhala, marked as Sinhala, so a
+screen reader keeps reading them in a Sinhala voice.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/landing-en.webp" alt="The front door in English: Hear, understand and study Sinhala books"><br><sub><b>The front door</b>, in English.</sub></td>
+    <td width="50%"><img src="docs/screenshots/reader-en.webp" alt="The reader in English: English controls around a Sinhala textbook page"><br><sub><b>The reader</b>: English controls, the Sinhala book unchanged.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/library-en.webp" alt="The library in English"><br><sub><b>The library</b>, in English.</sub></td>
+    <td><img src="docs/screenshots/sign-in-en.webp" alt="Sign in, in English"><br><sub><b>Sign in</b>, in English.</sub></td>
+  </tr>
+</table>
+
 <sub>Screenshots use invented books and accounts.</sub>
 
 ## Built for accessibility
@@ -204,6 +222,7 @@ as capabilities land, never written ahead of them.
 | Staging deployment | **Live** at [swara.dpdns.org](https://swara.dpdns.org): Azure, HTTPS, automatic deploys with rollback. Database backups, quotas on voice generation, and observability are **not in place yet** |
 | Screen reader testing (NVDA, TalkBack) | **Not done.** A release blocker |
 | Sinhala interface text | Awaiting native-speaker review |
+| English interface (optional) | A **draft translation**; the English privacy notice, terms and accessibility statement are marked for review, and the Sinhala text is the text of record |
 | Evaluation and user study | The kit is in `evaluation/`; nothing has been measured yet, and the study needs ethics approval first |
 
 ## Run it
