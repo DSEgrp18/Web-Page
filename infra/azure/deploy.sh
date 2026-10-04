@@ -13,7 +13,8 @@
 #      of memory beside a loaded voice): the GPU voice on Modal when
 #      ~/deploy.env sets SINHALA_READER_TTS=modal, otherwise the local voice when
 #      the model bundle is in ~/models, otherwise the labelled placeholder tone;
-#   3. starts them, and smoke-tests the API, the voice's readiness and the web
+#   3. starts the database and queue, waits for them, replaces the app's
+#      containers, and smoke-tests the API, the voice's readiness and the web
 #      app from the VM itself;
 #   4. records what is running in ~/deployments.log: commit, voice, image IDs
 #      and the model's checksum;
@@ -70,7 +71,24 @@ release() {
     echo "== building $service at ${commit:0:7}"
     compose build --quiet "$service"
   done
-  compose up -d --remove-orphans
+  # The database and the queue first, healthy, before anything that needs them.
+  compose up -d --wait postgres redis
+  # Fresh containers, not the ones already there. After the VM boots, the API
+  # can have spent the build failing to reach a database that had not started,
+  # and Compose read the health of that crash loop, "unhealthy", and gave up on
+  # the new commit and on the rollback alike.
+  compose up -d --remove-orphans --force-recreate api worker voice-worker web
+}
+
+# What a failed deploy leaves behind, in the workflow's log: the containers'
+# states, then the API's and the web app's last lines, which hold the error.
+diagnose() {
+  echo "== containers" >&2
+  compose ps -a >&2 || true
+  for service in api web; do
+    echo "== last lines of $service" >&2
+    compose logs --no-color --tail 30 "$service" >&2 || true
+  done
 }
 
 # The API answers /health at once; the voice may take minutes to load and is
@@ -117,11 +135,13 @@ if release "$SHA" && smoke; then
 fi
 
 echo "== ${SHA:0:7} failed its smoke test; restoring ${PREVIOUS:0:7}" >&2
+diagnose
 record failed
 if release "$PREVIOUS" && smoke; then
   record restored
   echo "ROLLED BACK to $PREVIOUS" >&2
 else
+  diagnose
   record restore-failed
   echo "ROLLBACK FAILED: the VM needs a person" >&2
 fi
