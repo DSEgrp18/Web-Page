@@ -59,8 +59,8 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # The VM shuts down every night to save credit. Start it for the deploy,
-      # and put it back the way it was afterwards.
+      # The VM shuts down every night to save credit. Start it for the deploy;
+      # the last step decides whether it stays on.
       - name: Start the VM if it is off
         id: power
         run: |
@@ -83,6 +83,19 @@ jobs:
           # script's own last word is the verdict.
           echo "$result" | grep -q "DEPLOYED $SHA"
 
-      - name: Put the VM back as it was
+      # The VM keeps service hours, 06:00 to 23:00 Sri Lanka time (see
+      # azure-vm-hours.yml). One this deploy found off stays on within them,
+      # because the site should be up then, and goes back off outside them.
+      # Turning it off whenever it had been off left the site down after every
+      # deploy that followed a night's shutdown.
+      - name: Turn the VM off again outside service hours
         if: always() && steps.power.outputs.was != '' && steps.power.outputs.was != 'PowerState/running'
-        run: az vm deallocate -g "$RG" -n "$VM" --no-wait
+        run: |
+          # Sri Lanka is UTC+05:30 all year, with no daylight saving. Computed
+          # from UTC, so a runner without zone data cannot quietly use UTC.
+          hour=$((10#$(date -u -d '+5 hours 30 minutes' +%H)))
+          if [ "$hour" -ge 6 ] && [ "$hour" -lt 23 ]; then
+            echo "It is $hour:00 in Sri Lanka, within service hours: the VM stays on."
+          else
+            az vm deallocate -g "$RG" -n "$VM" --no-wait
+          fi

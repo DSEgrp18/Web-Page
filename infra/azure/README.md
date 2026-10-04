@@ -11,9 +11,9 @@ requires.
 
 | | |
 | --- | --- |
-| Address | `https://swara-reader-9259.centralindia.cloudapp.azure.com` |
+| Address | `https://swara.dpdns.org`. The Azure name, `swara-reader-9259.centralindia.cloudapp.azure.com`, redirects there |
 | Size | Standard_E4s_v5: 4 vCPU, 32 GB, 128 GB SSD. A free-trial subscription allows 4 vCPUs and no GPU |
-| Power | Shuts down every night at 23:00 Sri Lanka time to save credit. Start it with `az vm start -g rg-swara -n swara-vm` |
+| Power | Service hours, 06:00 to 23:00 Sri Lanka time, to make the credit last: $0.26 an hour, so about $133 a month rather than $187 for all day, before the disk. Azure's schedule shuts it down at 23:00; [`azure-vm-hours.yml`](../../.github/workflows/azure-vm-hours.yml) starts it at 06:00 and checks the site answers. Every container restarts unless stopped, so the stack comes back with the VM. Start it out of hours with `az vm start -g rg-swara -n swara-vm` |
 | Checkout | `~/swara`, detached at the commit last deployed |
 | Secrets | `~/swara/.env` (`SINHALA_READER_SECRET`), made on the VM, never committed |
 | Settings | `~/deploy.env`, read by `deploy.sh`: `SINHALA_READER_TTS_PRECISION=fp32`, because a half-precision model on CPU fails to compute its speaker conditioning |
@@ -34,11 +34,14 @@ from the Actions tab, on `main` only.
    environment, and only `main` may deploy to that environment.
 2. It starts the VM if the nightly shutdown stopped it.
 3. Through `az vm run-command` it runs [`deploy.sh`](deploy.sh) *from the
-   commit being deployed*. That script checks out the commit, builds and starts
-   the images, and smoke-tests the API, readiness and the web app from inside
-   the VM. If anything fails it redeploys the previous commit.
-4. It succeeds only if the script's last word is `DEPLOYED <sha>`, then turns
-   the VM back off if it found it off.
+   commit being deployed*. That script checks out the commit and builds the
+   images. It starts the database and queue and waits for them, replaces the
+   app's containers, and smoke-tests the API, readiness and the web app from
+   inside the VM. If anything fails it prints the containers' states and the
+   API's and web app's last log lines, then redeploys the previous commit.
+4. It succeeds only if the script's last word is `DEPLOYED <sha>`. If it found
+   the VM off, it leaves it on within service hours and turns it off outside
+   them.
 
 Deploys never overlap. A deploy that starts while one is running waits for it.
 
@@ -60,5 +63,6 @@ lists them.
 - There is no production environment, and so no approval gate. A production
   deploy must use a protected environment with a required reviewer, as
   CLAUDE.md requires.
-- The smoke test runs inside the VM; nothing yet checks the public address
-  from outside.
+- The deploy's smoke test runs inside the VM. The public address is checked
+  from outside only once a day, by the morning start, and nothing alerts
+  anyone during the day if the site goes down.
