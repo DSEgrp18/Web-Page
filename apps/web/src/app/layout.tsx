@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Abhaya_Libre, Noto_Sans_Sinhala, Roboto } from "next/font/google";
+import localFont from "next/font/local";
 
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { getLocale, getStrings } from "@/lib/i18n.server";
@@ -9,30 +9,38 @@ import { getTheme } from "@/lib/theme.server";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const abhayaLibre = Abhaya_Libre({
-  subsets: ["sinhala", "latin"],
-  weight: ["400", "700"],
-  // Same trick as Roboto: `--font-display` in CSS is a stack built from this
-  // face. A property defined as `var(--font-display)` is invalid, so Abhaya
-  // Libre never applied.
+/*
+ * Three faces, each with one job:
+ *   Yaldevi            headings and the large display lines. Geometric and
+ *                      rounded like the logo's lettering, with Sinhala and Latin.
+ *   Noto Sans Sinhala  everything a reader reads and every control. The most
+ *                      legible Sinhala on screen, at every size.
+ *   Plus Jakarta Sans  Latin in the interface: English, numbers, page counts.
+ *
+ * Each `variable` is a *face*; globals.css builds the stack from it. A custom
+ * property defined in terms of itself is invalid, which is how a face once
+ * went unused.
+ */
+// Self-hosted, not fetched from Google at build time: see fonts/README.md.
+// Each is a variable font, so one file carries every weight the stylesheet
+// sets, and `weight` is the range it covers.
+const yaldevi = localFont({
+  src: "./fonts/Yaldevi.woff2",
+  weight: "200 700",
   variable: "--font-display-face",
   display: "swap",
 });
 
-const notoSansSinhala = Noto_Sans_Sinhala({
-  subsets: ["sinhala", "latin"],
-  weight: ["400", "600", "700"],
+const notoSansSinhala = localFont({
+  src: "./fonts/NotoSansSinhala.woff2",
+  weight: "100 900",
   variable: "--font-ui",
   display: "swap",
 });
 
-const roboto = Roboto({
-  subsets: ["latin"],
-  // Roboto ships 100/300/400/500/700/900; 600 is not one of them and
-  // next/font fails the build rather than rounding to the nearest.
-  weight: ["400", "500", "700"],
-  // Not `--font-latin`: globals.css builds that stack from this, and a
-  // property defined in terms of itself is invalid, so the face went unused.
+const plusJakarta = localFont({
+  src: "./fonts/PlusJakartaSans.woff2",
+  weight: "200 800",
   variable: "--font-latin-face",
   display: "swap",
 });
@@ -73,9 +81,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang={locale}
       data-theme={theme === "system" ? undefined : theme}
-      className={`${abhayaLibre.variable} ${notoSansSinhala.variable} ${roboto.variable}`}
+      className={`${yaldevi.variable} ${notoSansSinhala.variable} ${plusJakarta.variable}`}
     >
       <body>
+        {/* Without script nothing would ever lift the loading screen, so it
+            is never drawn at all. */}
+        <noscript>
+          <style>{".loading-screen{display:none}"}</style>
+        </noscript>
         <LocaleProvider locale={locale}>
           <Providers>{children}</Providers>
         </LocaleProvider>

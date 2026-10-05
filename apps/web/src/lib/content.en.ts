@@ -265,6 +265,8 @@ export const enContent: Content = {
       "Students and readers who use a screen reader (NVDA, TalkBack) or magnification.",
       "Teachers who want to prepare a book once for a whole class.",
     ],
+    audienceStudents: "For students and readers",
+    heroSample: "All living things are made of cells.",
   },
   howItWorks,
   forTeachers,

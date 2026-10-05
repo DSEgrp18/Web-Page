@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useBusy } from "@/components/LoadingScreen";
 import { useAnnouncer } from "@/components/Announcer";
 import { AssistantDrawer } from "@/components/AssistantDrawer";
 import { ContentsSheet, chapterAt } from "@/components/ContentsSheet";
@@ -86,6 +87,8 @@ export function Reader({
   /** The page index the last fetch settled on, successfully or not. */
   const [settledIndex, setSettledIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The book opening: the loading screen covers it if it is slow.
+  useBusy(book === null && error === null);
   const [saved, setSaved] = useState<Progress | null>(null);
   const [bookmarkSaving, setBookmarkSaving] = useState(false);
   const [undoBookmark, setUndoBookmark] = useState<Bookmark | null>(null);

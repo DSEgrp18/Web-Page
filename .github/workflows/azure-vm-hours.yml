@@ -1,0 +1,67 @@
+# Start the Azure VM every morning, and check that the site answers.
+#
+# The VM keeps service hours, 06:00 to 23:00 Sri Lanka time. Azure's own
+# schedule shuts it down at 23:00 but has nothing to start it again, so the
+# site stayed down until the next deploy. This starts it at 06:00 (00:30 UTC;
+# GitHub may run a scheduled job some minutes late). The stack comes back by
+# itself, since every container restarts unless stopped.
+#
+# Why hours at all: the Standard_E4s_v5 costs $0.26 an hour in Central India
+# (Linux, pay as you go, October 2026). Seventeen hours a day is about $133 a
+# month; all day would be about $187, before the disk, against $200 of credit.
+#
+# Security, as in deploy-azure.yml: GitHub's short-lived OIDC token for the
+# `swara-github-deploy` identity, through the azure-staging environment, which
+# only main can use. No stored secret, and no SSH.
+#
+# To keep the VM off for a while, disable this workflow in the Actions tab.
+name: Azure VM service hours
+
+on:
+  schedule:
+    - cron: "30 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+concurrency:
+  group: azure-vm-hours
+  cancel-in-progress: false
+
+jobs:
+  start:
+    name: Start the VM and check the site
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: azure-staging
+    env:
+      RG: rg-swara
+      VM: swara-vm
+      SITE: https://swara.dpdns.org
+    steps:
+      - name: Sign in to Azure (OIDC, no stored secret)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Start the VM
+        run: az vm start -g "$RG" -n "$VM"
+
+      # From outside, the way a reader reaches it: DNS, Caddy, the web app and
+      # its pass-through to the API.
+      - name: Check that the site answers
+        run: |
+          for _ in $(seq 1 40); do
+            if curl -fsS --max-time 10 "$SITE/api/readiness" | grep -q '"alive":true'; then
+              echo "$SITE is up."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "$SITE did not answer within 10 minutes of the VM starting." >&2
+          exit 1

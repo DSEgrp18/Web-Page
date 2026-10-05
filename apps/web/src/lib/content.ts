@@ -43,6 +43,10 @@ export interface Landing {
   notYet: string;
   forHeading: string;
   forBody: readonly string[];
+  /** The heading over the first "who it is for" line. */
+  audienceStudents: string;
+  /** One sentence of a textbook, shown in the front door's picture of the player. */
+  heroSample: string;
 }
 
 export interface Content {
@@ -91,6 +95,8 @@ export const landing: Landing = {
     "තිර කියවනයක් (NVDA, TalkBack) හෝ විශාලනය භාවිත කරන සිසුන් සහ පාඨකයන්.",
     "පන්තියක් සඳහා පොතක් එක් වරක් සකසා දීමට කැමති ගුරුවරුන්.",
   ],
+  audienceStudents: "සිසුන් සහ පාඨකයන් සඳහා",
+  heroSample: "සියලු ජීවීන් සෛල වලින් සෑදී ඇත.",
 };
 
 export const howItWorks: ProsePage = {

@@ -37,7 +37,7 @@
 param(
     [switch]$NoPull,
     [switch]$NoVoice,
-    [ValidateSet("web", "api", "worker")]
+    [ValidateSet("web", "api", "worker", "voice-worker")]
     [string[]]$Only
 )
 
@@ -107,7 +107,9 @@ Write-Host "    Quizzes: $quiz"
 
 # -- Build ---------------------------------------------------------------------
 
-$services = if ($Only) { $Only } else { @("web", "api", "worker") }
+# voice-worker too: it voices class books ahead of time, and left out it kept
+# whatever image it was first built with, placeholder tone included.
+$services = if ($Only) { $Only } else { @("web", "api", "worker", "voice-worker") }
 foreach ($service in $services) {
     Step "Building $service"
     docker compose @files build $service

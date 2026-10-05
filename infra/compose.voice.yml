@@ -44,6 +44,10 @@ services:
     volumes:
       - ${MODEL_DIR:?set MODEL_DIR to the folder containing xtts_si_female}:/models:ro
 
+  # Named here, not inherited. The base file's `extends: worker` resolves
+  # against the base file's worker, before this overlay is merged, so without
+  # this block the worker that pre-renders class books kept the placeholder
+  # tone and had no model mounted.
   voice-worker:
     build:
       dockerfile: infra/tts.Dockerfile

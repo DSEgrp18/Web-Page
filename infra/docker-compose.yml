@@ -16,6 +16,10 @@ name: sinhala-reader
 services:
   postgres:
     image: postgres:16-alpine
+    # Back after a reboot, with everything else. Without it a restarted machine
+    # brought back only the API and the workers, which then failed to find the
+    # database, over and over, until somebody deployed.
+    restart: unless-stopped
     environment:
       POSTGRES_USER: reader
       POSTGRES_PASSWORD: dev
@@ -37,6 +41,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "56379:6379"
     healthcheck:
@@ -180,6 +185,7 @@ services:
     build:
       context: ..
       dockerfile: infra/web.Dockerfile
+    restart: unless-stopped
     environment:
       # The same-origin pass-through at /api forwards here, from the server,
       # read at run time: a compose service name works, since no browser sees it.

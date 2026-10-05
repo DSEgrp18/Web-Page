@@ -40,6 +40,7 @@ import wave
 from typing import Any
 
 import modal
+from fastapi import Header, HTTPException
 
 # --- what the container is -------------------------------------------------
 
@@ -64,6 +65,18 @@ GPU = os.environ.get("SINHALA_TTS_MODAL_GPU", "A10G")
 #: This is the dial that trades money against the 5-second target, and it
 #: should be set from measured usage rather than guessed.
 SCALEDOWN_WINDOW = int(os.environ.get("SINHALA_TTS_MODAL_SCALEDOWN", "300"))
+
+#: Full precision by default. Half precision fails while computing the speaker
+#: conditioning ("Input type (float) and bias type (c10::Half) should be the
+#: same"): coqui-tts builds its mel spectrogram in float32 and feeds it to a
+#: half-precision layer. It failed on the first GPU run here exactly as on CPU.
+#: An A10G holds the fp32 model with room to spare.
+PRECISION = os.environ.get("SINHALA_TTS_MODAL_PRECISION", "fp32")
+
+#: The key the reader's API presents. It lives in a Modal secret, so the server
+#: that calls this holds a key to this one endpoint, never the Modal account:
+#:     modal secret create swara-tts-key SWARA_TTS_KEY=<long random string>
+KEY_SECRET = "swara-tts-key"
 
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
@@ -105,6 +118,8 @@ image = (
         "transformers>=4.57,<5",
         "numpy>=1.26",
         "soundfile>=0.12",
+        # The HTTPS endpoint the reader's API calls.
+        "fastapi[standard]>=0.115",
     )
     # Fail the image build rather than the first `modal run`. These are exactly
     # the imports the adapter makes when it loads the voice, and the torchcodec
@@ -137,6 +152,7 @@ app = modal.App(APP_NAME)
     # faster. The bound exists so a burst cannot open an unbounded number of
     # GPUs; CLAUDE.md asks for concurrency to be bounded and queued.
     max_containers=int(os.environ.get("SINHALA_TTS_MODAL_MAX_CONTAINERS", "4")),
+    secrets=[modal.Secret.from_name(KEY_SECRET)],
 )
 class Voice:
     """One container, one loaded checkpoint, one generation at a time.
@@ -151,7 +167,7 @@ class Voice:
         from sinhala_tts.adapter import XttsAdapter
 
         started = time.perf_counter()
-        self.adapter = XttsAdapter(MODEL_DIR, device="cuda", max_concurrent=1)
+        self.adapter = XttsAdapter(MODEL_DIR, device="cuda", precision=PRECISION, max_concurrent=1)
 
         # Generate once here rather than leaving it to the first reader. The
         # speaker conditioning and any lazy CUDA initialisation happen on this
@@ -168,8 +184,14 @@ class Voice:
         voice_id: str = "si-female",
         settings: dict[str, Any] | None = None,
         document_version: str | None = None,
+        prepared: list[str] | None = None,
     ) -> dict[str, Any]:
         """Speak one segment. Returns WAV bytes and the metadata that made them.
+
+        ``prepared`` is the (spoken, model input) pair the document pipeline
+        wrote. Passed through, so a heading's "1.1" is read as the pipeline
+        decided, not re-derived here, and so the cache key the caller computed
+        matches the audio that comes back.
 
         The audio crosses as a WAV rather than as a numpy array, so neither
         side's numpy version can affect the other's and the caller can put the
@@ -184,7 +206,13 @@ class Voice:
         chosen = SynthesisSettings(**settings) if settings else SynthesisSettings()
 
         started = time.perf_counter()
-        result = self.adapter.synthesize(text, voice_id, chosen, document_version=document_version)
+        result = self.adapter.synthesize(
+            text,
+            voice_id,
+            chosen,
+            document_version=document_version,
+            prepared=(prepared[0], prepared[1]) if prepared else None,
+        )
         elapsed = time.perf_counter() - started
 
         meta = result.metadata
@@ -208,6 +236,47 @@ class Voice:
             "generate_seconds": elapsed,
         }
 
+    @modal.fastapi_endpoint(method="POST", label="swara-tts", docs=False)
+    def endpoint(
+        self, body: dict[str, Any], authorization: str | None = Header(default=None)
+    ) -> dict[str, Any]:
+        """The reader's API calls this over HTTPS: speak a segment, or report.
+
+        ``{"status": true}`` answers readiness. Otherwise the body carries
+        ``text`` and optionally ``voice_id``, ``settings``, ``document_version``
+        and ``prepared``, as :meth:`synthesize` takes them, and the WAV comes
+        back base64-encoded. Every call must present the shared key.
+        """
+        import base64
+        import hmac
+
+        from sinhala_tts.adapter import TextNotSpeakableError, TextTooLongError
+
+        expected = f"Bearer {os.environ['SWARA_TTS_KEY']}"
+        if not hmac.compare_digest(expected.encode(), (authorization or "").encode()):
+            raise HTTPException(status_code=401, detail="missing or wrong key")
+
+        if body.get("status"):
+            return self.readiness.local()
+        text = body.get("text")
+        if not isinstance(text, str) or not text:
+            raise HTTPException(status_code=422, detail="no text to speak")
+        try:
+            out = self.synthesize.local(
+                text,
+                body.get("voice_id") or "si-female",
+                body.get("settings"),
+                body.get("document_version"),
+                body.get("prepared"),
+            )
+        except (TextNotSpeakableError, TextTooLongError) as error:
+            # The caller's guards should have caught these; say which one.
+            raise HTTPException(
+                status_code=422, detail=f"{type(error).__name__}: {error}"
+            ) from error
+        out["wav"] = base64.b64encode(out["wav"]).decode("ascii")
+        return out
+
     @modal.method()
     def readiness(self) -> dict[str, Any]:
         """Is this container actually serving, and what is it serving?
@@ -216,11 +285,16 @@ class Voice:
         CLAUDE.md requires them answered separately. A container that is up but
         whose checkpoint failed to load is not ready.
         """
+        from sinhala_tts.normalize import NORMALIZER_VERSION
+
         return {
             "readiness": self.adapter.readiness.value,
             "model_version": self.adapter.model_version,
             "is_real_model": self.adapter.is_real_model,
             "gpu": GPU,
+            "precision": PRECISION,
+            "device": f"cuda ({GPU}, {PRECISION})",
+            "normalizer_version": NORMALIZER_VERSION,
             "load_seconds": getattr(self, "load_seconds", None),
         }
 

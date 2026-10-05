@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 
 import { AnnouncerProvider } from "@/components/Announcer";
+import { LoadingProvider } from "@/components/LoadingScreen";
 import { PreferencesProvider } from "@/components/PreferencesProvider";
 import { ReaderProvider } from "@/components/ReaderProvider";
 
@@ -22,7 +23,11 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <PreferencesProvider>
       <AnnouncerProvider>
-        <ReaderProvider>{children}</ReaderProvider>
+        <ReaderProvider>
+          {/* Inside the reader's provider, so the session check can say it is
+              still loading; it owns the loading screen. */}
+          <LoadingProvider>{children}</LoadingProvider>
+        </ReaderProvider>
       </AnnouncerProvider>
     </PreferencesProvider>
   );

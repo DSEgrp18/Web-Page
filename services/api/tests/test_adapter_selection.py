@@ -17,12 +17,15 @@ import pytest
 from conftest import READER, as_reader
 from fastapi.testclient import TestClient
 from sinhala_tts.adapter import DevelopmentAdapter, ReadinessState, XttsAdapter
+from sinhala_tts.remote import RemoteVoiceAdapter
 
 from sinhala_reader import Deps, create_app
 from sinhala_reader.adapters import (
     ADAPTER_ENV,
     DEVICE_ENV,
     PRECISION_ENV,
+    REMOTE_KEY_ENV,
+    REMOTE_URL_ENV,
     adapter_mode,
     build_adapter,
     loaded_model_version,
@@ -76,6 +79,25 @@ class TestChoosing:
         monkeypatch.setenv(ADAPTER_ENV, "xtts")
         monkeypatch.setenv(PRECISION_ENV, "int8")
         with pytest.raises(ValueError, match="int8"):
+            build_adapter()
+
+    def test_the_gpu_voice_on_modal_can_be_asked_for(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(ADAPTER_ENV, "modal")
+        monkeypatch.setenv(REMOTE_URL_ENV, "https://voice.example.modal.run")
+        monkeypatch.setenv(REMOTE_KEY_ENV, "secret")
+        adapter = build_adapter()
+        assert isinstance(adapter, RemoteVoiceAdapter)
+        assert adapter.is_real_model
+        # Nothing is fetched until the warm-up asks.
+        assert adapter.readiness is ReadinessState.NOT_LOADED
+
+    def test_the_modal_voice_without_its_address_or_key_stops_the_process(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(ADAPTER_ENV, "modal")
+        monkeypatch.delenv(REMOTE_URL_ENV, raising=False)
+        monkeypatch.setenv(REMOTE_KEY_ENV, "secret")
+        with pytest.raises(ValueError, match=REMOTE_URL_ENV):
             build_adapter()
 
     def test_an_unknown_voice_stops_the_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
