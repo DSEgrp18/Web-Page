@@ -27,7 +27,7 @@ where they enter.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -48,7 +48,7 @@ from .model import (
     worst,
 )
 from .notes import make as note
-from .ocr import OcrAdapter, OcrMode, apply_ocr
+from .ocr import OcrAdapter, OcrMode, OcrPageResult, apply_ocr
 from .pdf_extract import extract_document
 from .structure import BlockRole, is_narrated, number_style_for
 from .structuring import DeterministicStructure, StructureAdapter, structure_page
@@ -316,6 +316,8 @@ def prepare_document(
     structure: StructureAdapter | None = None,
     ocr: OcrAdapter | None = None,
     ocr_mode: OcrMode = OcrMode.OFF,
+    ocr_cache_get: Callable[[int, str], OcrPageResult | None] | None = None,
+    ocr_cache_put: Callable[[int, str, OcrPageResult], None] | None = None,
     progress: Progress | None = None,
 ) -> ReadableDocument:
     """Extract, decode, and segment a PDF into playable units.
@@ -355,7 +357,15 @@ def prepare_document(
         )
     if recognising and media_type == "application/pdf":
         assert ocr is not None
-        extraction = apply_ocr(extraction, source, ocr, ocr_mode, progress=progress)
+        extraction = apply_ocr(
+            extraction,
+            source,
+            ocr,
+            ocr_mode,
+            progress=progress,
+            cache_get=ocr_cache_get,
+            cache_put=ocr_cache_put,
+        )
     from_a_provider = structure is not None and not isinstance(structure, DeterministicStructure)
     version = _document_version(
         _digest(source),

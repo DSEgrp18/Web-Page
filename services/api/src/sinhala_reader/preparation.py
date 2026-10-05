@@ -27,6 +27,8 @@ a failure message is a log line that also reaches a screen.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import threading
 import time
@@ -36,7 +38,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from sinhala_documents import DocumentRejected
-from sinhala_documents.ocr import OcrAdapter, OcrMode
+from sinhala_documents.ocr import OcrAdapter, OcrMode, OcrPageResult, OcrWord
 from sinhala_documents.pipeline import ReadableDocument, prepare_document
 from sinhala_documents.serialise import UnreadableFormat, from_json, to_json
 from sinhala_documents.structuring import StructureAdapter
@@ -66,6 +68,45 @@ _PREPARED_LOCK = threading.RLock()
 MAX_CACHED = 8
 
 log = logging.getLogger(__name__)
+
+
+def _cached_ocr_result(payload: str | None) -> OcrPageResult | None:
+    if payload is None:
+        return None
+    try:
+        value = json.loads(payload)
+        words = tuple(OcrWord(**word) for word in value["words"])
+        dpi = int(value["dpi"])
+        if dpi <= 0:
+            return None
+        return OcrPageResult(words=words, dpi=dpi)
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        # A corrupt derived cache is a miss, never a failed private document.
+        return None
+
+
+def _ocr_payload(result: OcrPageResult) -> str:
+    return json.dumps(
+        {
+            "dpi": result.dpi,
+            "words": [
+                {
+                    "text": word.text,
+                    "left": word.left,
+                    "top": word.top,
+                    "width": word.width,
+                    "height": word.height,
+                    "block": word.block,
+                    "paragraph": word.paragraph,
+                    "line": word.line,
+                    "confidence": word.confidence,
+                }
+                for word in result.words
+            ],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 #: How long a running job's process promises to stay alive without renewing.
 #: Renewed every :data:`HEARTBEAT_SECONDS`, so a job is failed only after four
@@ -362,12 +403,37 @@ class PreparationService:
 
         try:
             with _heartbeat(self._store, job.job_id):
+                source_digest = hashlib.sha256(source).hexdigest()
+
+                def cache_get(page_index: int, adapter_version: str) -> OcrPageResult | None:
+                    return _cached_ocr_result(
+                        self._store.get_ocr_page(
+                            document_id,
+                            source_digest,
+                            page_index,
+                            adapter_version,
+                        )
+                    )
+
+                def cache_put(
+                    page_index: int, adapter_version: str, result: OcrPageResult
+                ) -> None:
+                    self._store.put_ocr_page(
+                        document_id,
+                        source_digest,
+                        page_index,
+                        adapter_version,
+                        _ocr_payload(result),
+                    )
+
                 prepared = prepare_document(
                     source,
                     filename=document.filename,
                     structure=self._structure,
                     ocr=self._ocr,
                     ocr_mode=self._ocr_mode,
+                    ocr_cache_get=cache_get,
+                    ocr_cache_put=cache_put,
                     progress=_ProgressReport(self._store, job.job_id),
                 )
         except DocumentRejected as error:

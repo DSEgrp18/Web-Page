@@ -9,17 +9,25 @@ contributor's machine often does not have, and it adds seconds per page to
 preparation. The container images install Tesseract and compose turns recognition
 on for broken pages.
 
-Nothing here leaves the machine: Tesseract and TrOCR both run locally. What a
-deployment still needs to know is that recognised text can be misread, which the
-limitations say.
+Tesseract and TrOCR run locally. Google Vision is an explicit external mode;
+readiness discloses that pages leave the machine and that Tesseract is its
+bounded fallback.
 """
 
 from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 
-from sinhala_documents.ocr import TESSERACT_ENV, OcrAdapter, OcrMode, TesseractOcr
+from sinhala_documents.google_vision_ocr import GoogleVisionOcr
+from sinhala_documents.ocr import (
+    TESSDATA_DIR_ENV,
+    TESSERACT_ENV,
+    OcrAdapter,
+    OcrMode,
+    TesseractOcr,
+)
 from sinhala_documents.trocr_ocr import (
     CHECKPOINT_ENV,
     CHECKPOINTS,
@@ -32,10 +40,10 @@ from sinhala_documents.trocr_ocr import (
 
 #: Which pages to recognise: ``off``, ``broken`` or ``all``. See :class:`OcrMode`.
 OCR_ENV = "SINHALA_READER_OCR"
-#: Which recogniser to use when recognition is on: ``tesseract`` or ``trocr``.
+#: Which recogniser to use when recognition is on.
 ENGINE_ENV = "SINHALA_READER_OCR_ENGINE"
 
-ENGINES = frozenset({"tesseract", "trocr"})
+ENGINES = frozenset({"google-vision", "tesseract", "trocr"})
 
 
 def ocr_mode() -> OcrMode:
@@ -55,7 +63,7 @@ def ocr_mode() -> OcrMode:
 
 
 def ocr_engine() -> str:
-    """``tesseract`` or ``trocr``.
+    """``google-vision``, ``tesseract`` or ``trocr``.
 
     Raises:
         ValueError: if the value is not an engine. Deliberately fatal.
@@ -81,6 +89,8 @@ def build_ocr() -> OcrAdapter | None:
     engine = ocr_engine()
     if engine == "tesseract":
         return TesseractOcr()
+    if engine == "google-vision":
+        return GoogleVisionOcr()
     # Validate device early so a typo fails at start-up, not on the first page.
     resolve_device()
     return TrocrSinhalaOcr(checkpoint=trocr_checkpoint_alias())
@@ -91,12 +101,44 @@ def _tesseract_installed() -> bool:
     return shutil.which(executable) is not None
 
 
+def _tesseract_has_sinhala() -> bool:
+    """Whether the selected executable can actually load the Sinhala model."""
+    executable = os.environ.get(TESSERACT_ENV, "").strip() or "tesseract"
+    if shutil.which(executable) is None:
+        return False
+    tessdata_dir = os.environ.get(TESSDATA_DIR_ENV, "").strip()
+    prefix = ["--tessdata-dir", tessdata_dir] if tessdata_dir else []
+    try:
+        result = subprocess.run(
+            [executable, *prefix, "--list-langs"],
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    languages = result.stdout.decode("utf-8", "replace").splitlines()
+    return result.returncode == 0 and "sin" in {item.strip() for item in languages}
+
+
 def _trocr_deps_installed() -> bool:
     try:
         import torch  # noqa: F401
         import transformers  # noqa: F401
         from PIL import Image  # noqa: F401
     except ImportError:
+        return False
+    return True
+
+
+def _google_vision_ready() -> bool:
+    """Whether the client and ADC credentials can be resolved without a request."""
+    try:
+        import google.auth
+        from google.cloud import vision_v1  # noqa: F401
+
+        google.auth.default(scopes=("https://www.googleapis.com/auth/cloud-platform",))
+    except Exception:  # noqa: BLE001 - readiness reports every dependency/ADC failure alike
         return False
     return True
 
@@ -130,6 +172,35 @@ def ocr_limitations() -> list[str]:
                 "Tesseract is not installed, so no page can be recognised and those pages "
                 "keep their embedded text."
             )
+        elif not _tesseract_has_sinhala():
+            notes.append(
+                "Tesseract is installed but its Sinhala language data (`sin`) is missing, "
+                "so no Sinhala page can be recognised. Install tesseract-ocr-sin or set "
+                "SINHALA_READER_TESSDATA_DIR to a complete tessdata directory."
+            )
+        return notes
+
+    if engine == "google-vision":
+        notes = [
+            f"{scope} by Google Cloud Vision, so selected document pages are sent to "
+            "Google for external processing. Provider failures fall back once to local "
+            "Sinhala and English Tesseract. Recognised text can misread letters and is "
+            "marked as not checked; no generative model rewrites document words.",
+        ]
+        if not _google_vision_ready():
+            notes.append(
+                "Google Vision or its Application Default Credentials are unavailable, so "
+                "recognition currently uses the local Tesseract fallback."
+            )
+        if not _tesseract_installed():
+            notes.append(
+                "Tesseract is not installed, so Google Vision failures cannot fall back locally."
+            )
+        elif not _tesseract_has_sinhala():
+            notes.append(
+                "Tesseract's Sinhala language data (`sin`) is missing, so Google Vision "
+                "failures cannot recognise Sinhala locally."
+            )
         return notes
 
     checkpoint = resolve_checkpoint()
@@ -145,6 +216,11 @@ def ocr_limitations() -> list[str]:
         notes.append(
             "Tesseract is not installed, so TrOCR has no line layout and those pages "
             "keep their embedded text."
+        )
+    elif not _tesseract_has_sinhala():
+        notes.append(
+            "Tesseract's Sinhala language data (`sin`) is missing, so TrOCR cannot find "
+            "line layout. Install tesseract-ocr-sin or configure a complete tessdata directory."
         )
     if uses_celery():
         notes.append(

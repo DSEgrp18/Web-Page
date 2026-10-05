@@ -579,6 +579,26 @@ class Store(ABC):
     def get_prepared(self, document_id: str) -> str | None: ...
 
     @abstractmethod
+    def put_ocr_page(
+        self,
+        document_id: str,
+        source_digest: str,
+        page_index: int,
+        adapter_version: str,
+        payload: str,
+    ) -> None:
+        """Cache one document-owned OCR result for retry and restart reuse."""
+
+    @abstractmethod
+    def get_ocr_page(
+        self,
+        document_id: str,
+        source_digest: str,
+        page_index: int,
+        adapter_version: str,
+    ) -> str | None: ...
+
+    @abstractmethod
     def put_job(self, job: Job) -> Job: ...
 
     @abstractmethod
@@ -1042,6 +1062,7 @@ class InMemoryStore(Store):
         self._publications: dict[str, Publication] = {}
         self._class_books: set[tuple[str, str]] = set()
         self._prepared_versions: dict[tuple[str, str], str] = {}
+        self._ocr_pages: dict[tuple[str, str, int, str], str] = {}
         self._page_reviews: dict[tuple[str, str, int], PageDecision] = {}
         self._sessions: dict[str, Session] = {}
 
@@ -1091,6 +1112,8 @@ class InMemoryStore(Store):
             ]:
                 self._drop_quiz(quiz_id)
             self._prepared.pop(document_id, None)
+            for key in [key for key in self._ocr_pages if key[0] == document_id]:
+                del self._ocr_pages[key]
             self._progress.pop(self._progress_key(document_id, owner), None)
             for key in [k for k in self._heard if k[0] == document_id]:
                 del self._heard[key]
@@ -1106,6 +1129,8 @@ class InMemoryStore(Store):
             for key, record in list(self._audio.items()):
                 if record.document_id == document_id:
                     del self._audio[key]
+            for key in [key for key in self._ocr_pages if key[0] == document_id]:
+                del self._ocr_pages[key]
             return True
 
     def put_source(self, document_id: str, data: bytes) -> None:
@@ -1123,6 +1148,29 @@ class InMemoryStore(Store):
     def get_prepared(self, document_id: str) -> str | None:
         with self._lock:
             return self._prepared.get(document_id)
+
+    def put_ocr_page(
+        self,
+        document_id: str,
+        source_digest: str,
+        page_index: int,
+        adapter_version: str,
+        payload: str,
+    ) -> None:
+        with self._lock:
+            self._ocr_pages[(document_id, source_digest, page_index, adapter_version)] = payload
+
+    def get_ocr_page(
+        self,
+        document_id: str,
+        source_digest: str,
+        page_index: int,
+        adapter_version: str,
+    ) -> str | None:
+        with self._lock:
+            return self._ocr_pages.get(
+                (document_id, source_digest, page_index, adapter_version)
+            )
 
     # -- jobs --------------------------------------------------------------
 

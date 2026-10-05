@@ -474,6 +474,7 @@ export const si = {
   processingOcr: "ස්කෑන් කළ පිටු කියවීම",
   processingHere: "ස්වර සේවාදායකය තුළම; පිටතට නොයයි",
   processingGoogle: "Google Gemini වෙත යවනු ලැබේ",
+  processingGoogleVision: "Google Cloud Vision වෙත යවනු ලැබේ",
   processingOff: "ක්‍රියාත්මක නැත",
   mobileNavigation: "ජංගම සංචාලනය",
   bookmarksHeading: "පිටු සලකුණු",

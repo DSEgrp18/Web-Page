@@ -44,7 +44,7 @@ import subprocess
 import unicodedata
 from abc import ABC, abstractmethod
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
@@ -117,6 +117,14 @@ class OcrWord:
     confidence: float
     """Tesseract's own score. Not a probability of being right; never used to
     decide whether text is narrated."""
+
+
+@dataclass(frozen=True)
+class OcrPageResult:
+    """Recognised words and the coordinate resolution they use."""
+
+    words: tuple[OcrWord, ...]
+    dpi: int
 
 
 def normalise(text: str) -> str:
@@ -239,6 +247,26 @@ class OcrAdapter(ABC):
             OcrUnavailable: if no answer could be obtained.
         """
 
+    def recognise_document(
+        self,
+        source: bytes | str | Path,
+        pages: Iterable[PageExtraction],
+        *,
+        dpi: int,
+        render: Callable[..., bytes],
+    ) -> dict[int, OcrPageResult]:
+        """Recognise selected pages, with a per-page default for local engines.
+
+        Cloud adapters override this to batch pages without weakening the small
+        image-level interface used by tests and single-image uploads.
+        """
+        return {
+            page.page_index: OcrPageResult(
+                self.recognise(render(source, page.page_index, dpi=dpi)), dpi
+            )
+            for page in pages
+        }
+
 
 class TesseractOcr(OcrAdapter):
     """Tesseract with its Sinhala model, run as a subprocess."""
@@ -249,11 +277,13 @@ class TesseractOcr(OcrAdapter):
         executable: str | None = None,
         tessdata_dir: str | None = None,
         timeout: int = TIMEOUT_SECONDS,
+        language: str = LANGUAGE,
         run=subprocess.run,
     ) -> None:
         self._executable = executable or os.environ.get(TESSERACT_ENV, "").strip() or "tesseract"
         self._tessdata_dir = tessdata_dir or os.environ.get(TESSDATA_DIR_ENV, "").strip() or None
         self._timeout = timeout
+        self._language = language
         self._run = run
         self._engine: str | None = None
 
@@ -275,7 +305,7 @@ class TesseractOcr(OcrAdapter):
             engine = self._engine_version()
         except OcrUnavailable:
             engine = "unavailable"
-        return f"tesseract/{engine}/{LANGUAGE}/psm{PAGE_SEGMENTATION}/ocr-{OCR_VERSION}"
+        return f"tesseract/{engine}/{self._language}/psm{PAGE_SEGMENTATION}/ocr-{OCR_VERSION}"
 
     def _prefix(self) -> list[str]:
         if not self._tessdata_dir:
@@ -308,7 +338,15 @@ class TesseractOcr(OcrAdapter):
         # "stdin" and "stdout" are Tesseract's own names for the pipes, so no
         # image or text is ever written to disk.
         result = self._invoke(
-            ["stdin", "stdout", "-l", LANGUAGE, "--psm", str(PAGE_SEGMENTATION), "tsv"],
+            [
+                "stdin",
+                "stdout",
+                "-l",
+                self._language,
+                "--psm",
+                str(PAGE_SEGMENTATION),
+                "tsv",
+            ],
             image_png,
         )
         raw = result.stdout.decode("utf-8", "replace")
@@ -457,6 +495,8 @@ def apply_ocr(
     dpi: int = DEFAULT_DPI,
     render: Callable[..., bytes] = render_page,
     progress: Progress | None = None,
+    cache_get: Callable[[int, str], OcrPageResult | None] | None = None,
+    cache_put: Callable[[int, str, OcrPageResult], None] | None = None,
 ) -> DocumentExtraction:
     """The document with the chosen pages read from their images.
 
@@ -472,21 +512,60 @@ def apply_ocr(
         for page in extraction.pages
         if mode is not OcrMode.BROKEN or text_layer_failed(page)
     }
-    pages: list[PageExtraction] = []
+    selected = [page for page in extraction.pages if page.page_index in chosen]
+    results: dict[int, OcrPageResult] = {}
+    missing: list[PageExtraction] = []
+    for page in selected:
+        cached = cache_get(page.page_index, adapter.version) if cache_get else None
+        if cached is None:
+            missing.append(page)
+        else:
+            results[page.page_index] = cached
+
     failed: list[int] = []
     reason = ""
+    if missing:
+        try:
+            obtained = adapter.recognise_document(
+                source,
+                missing,
+                dpi=dpi,
+                render=render,
+            )
+            for page_index, result in obtained.items():
+                results[page_index] = result
+                if cache_put is not None:
+                    cache_put(page_index, adapter.version, result)
+        except OcrUnavailable as error:
+            reason = str(error)
+
+    pages: list[PageExtraction] = []
     done = 0
     for page in extraction.pages:
         if page.page_index not in chosen:
             pages.append(page)
             continue
-        try:
-            image = render(source, page.page_index, dpi=dpi)
-            pages.append(recognise_page(page, image, adapter, dpi=dpi))
-        except OcrUnavailable as error:
+        result = results.get(page.page_index)
+        if result is None:
             pages.append(page)
             failed.append(page.page_index)
-            reason = str(error)
+            if not reason:
+                reason = "the recognition provider returned no page"
+        else:
+            words = result.words
+
+            class _ResultAdapter(OcrAdapter):
+                def __init__(self, recognised: tuple[OcrWord, ...]) -> None:
+                    self._recognised = recognised
+
+                @property
+                def version(self) -> str:
+                    return adapter.version
+
+                def recognise(self, _image_png: bytes) -> tuple[OcrWord, ...]:
+                    return self._recognised
+
+            pages.append(recognise_page(page, b"", _ResultAdapter(words), dpi=result.dpi))
         done += 1
         if progress is not None:
             progress("recognising", done, len(chosen))

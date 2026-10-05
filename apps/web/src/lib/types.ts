@@ -491,8 +491,10 @@ export interface Readiness {
   model_version: string | null;
   /** Who finds headings and paragraphs: "deterministic", or "gemini" (Google). */
   structure: string;
-  /** Scanned pages read from their image: "off", "broken" or "all". Always local. */
+  /** Scanned pages read from their image: "off", "broken" or "all". */
   ocr: string;
+  /** OCR provider, including google-vision when pages are externally processed. */
+  ocr_engine: string;
   /** Who writes answers: "extractive" (the book's words), or "gemini" (Google). */
   answers: string;
   auth_mode: string;

@@ -37,6 +37,7 @@ trocr = [
   "transformers>=4.40,<5",
   "Pillow>=10",
 ]
+google-vision = ["google-cloud-vision>=3.16,<4"]
 
 [dependency-groups]
 dev = ["pytest>=8"]

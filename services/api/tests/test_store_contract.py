@@ -720,6 +720,7 @@ class TestBookmarks:
         document = a_document(owner=ALICE)
         store.put_document(document)
         bookmark, _ = store.put_bookmark(a_bookmark(document))
+        store.put_ocr_page(document.document_id, "sha256", 0, "vision/1", "ocr-json")
 
         assert store.get_bookmark(bookmark.bookmark_id, BOB) is None
         assert store.delete_bookmark(bookmark.bookmark_id, BOB) is False
@@ -789,6 +790,17 @@ class TestDeletion:
         assert store.get_progress(document.document_id, ALICE) is None
         assert store.get_bookmark(bookmark.bookmark_id, ALICE) is None
         assert store.list_bookmarks(document.document_id, ALICE) == []
+        assert store.get_ocr_page(document.document_id, "sha256", 0, "vision/1") is None
+
+    def test_ocr_cache_keys_include_source_page_and_adapter(self, store: Store) -> None:
+        document = a_document()
+        store.put_document(document)
+        store.put_ocr_page(document.document_id, "digest-a", 2, "vision/1", "first")
+        store.put_ocr_page(document.document_id, "digest-a", 2, "vision/2", "second")
+
+        assert store.get_ocr_page(document.document_id, "digest-a", 2, "vision/1") == "first"
+        assert store.get_ocr_page(document.document_id, "digest-a", 2, "vision/2") == "second"
+        assert store.get_ocr_page(document.document_id, "digest-b", 2, "vision/1") is None
 
     def test_another_owner_cannot_delete(self, store: Store) -> None:
         document = a_document(owner=ALICE)

@@ -468,6 +468,7 @@ export const en: Strings = {
   processingOcr: "Reading scanned pages",
   processingHere: "On the Swara server itself; nothing leaves it",
   processingGoogle: "Sent to Google Gemini",
+  processingGoogleVision: "Sent to Google Cloud Vision",
   processingOff: "Not in use",
   mobileNavigation: "Mobile navigation",
   bookmarksHeading: "Bookmarks",

@@ -100,14 +100,34 @@ def test_empty_layout_yields_no_words() -> None:
     assert adapter.recognise(b"png") == ()
 
 
-def test_blank_trocr_lines_are_dropped() -> None:
+def test_blank_trocr_lines_fall_back_to_layout_text() -> None:
     layout = FixedLayout((OcrWord("x", 10, 10, 50, 20, 1, 1, 1, 50.0),))
     adapter = TrocrSinhalaOcr(
         layout=layout,
         recognise_line=lambda _crop: "   ",
         open_image=lambda _png: FakePage(),
     )
-    assert adapter.recognise(b"png") == ()
+    words = adapter.recognise(b"png")
+    assert [word.text for word in words] == ["x"]
+
+
+def test_blank_trocr_fallback_preserves_a_whole_tesseract_line() -> None:
+    layout = FixedLayout(
+        (
+            OcrWord("2026", 10, 10, 40, 20, 1, 1, 1, 90.0),
+            OcrWord("PDF", 60, 10, 40, 20, 1, 1, 1, 90.0),
+        )
+    )
+    adapter = TrocrSinhalaOcr(
+        layout=layout,
+        recognise_line=lambda _crop: "",
+        open_image=lambda _png: FakePage(),
+    )
+
+    [word] = adapter.recognise(b"png")
+
+    assert word.text == "2026 PDF"
+    assert (word.left, word.top, word.width, word.height) == (10, 10, 90, 20)
 
 
 def test_missing_torch_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -145,12 +145,28 @@ describe("what this server sends out", () => {
           structure: "deterministic",
           answers: "extractive",
           ocr: "broken",
+          ocr_engine: "tesseract",
         })}
       />,
     );
 
     await waitFor(() => expect(screen.getAllByText(strings.processingHere)).toHaveLength(3));
     expect(screen.queryByText(strings.processingGoogle)).toBeNull();
+  });
+
+  it("discloses when OCR sends scanned pages to Google Vision", async () => {
+    render(
+      <ProcessingNow
+        fetchImpl={readinessFetch({
+          structure: "deterministic",
+          answers: "extractive",
+          ocr: "broken",
+          ocr_engine: "google-vision",
+        })}
+      />,
+    );
+
+    expect(await screen.findByText(strings.processingGoogleVision)).toBeTruthy();
   });
 
   it("says when Google receives page text or passages", async () => {

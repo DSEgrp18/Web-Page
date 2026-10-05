@@ -501,6 +501,24 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
         ALTER TABLE problem_reports ADD COLUMN handled_at text;
         """,
     ),
+    (
+        "0018_document_ocr_page_cache",
+        """
+        -- A provider result belongs to one private document.  Keeping the
+        -- source digest and adapter version in the key makes retries safe when
+        -- either the upload bytes or recognition settings change.  The
+        -- document foreign key makes deletion remove every derived word.
+        CREATE TABLE ocr_page_cache (
+            document_id    text NOT NULL
+                REFERENCES documents (document_id) ON DELETE CASCADE,
+            source_digest  text NOT NULL,
+            page_index     integer NOT NULL,
+            adapter_version text NOT NULL,
+            payload        text NOT NULL,
+            PRIMARY KEY (document_id, source_digest, page_index, adapter_version)
+        );
+        """,
+    ),
 )
 
 
@@ -669,6 +687,44 @@ class PostgresStore(Store):
         with self._pool.connection() as connection:
             row = connection.execute(
                 "SELECT payload FROM prepared WHERE document_id = %s", (document_id,)
+            ).fetchone()
+        return row["payload"] if row else None
+
+    def put_ocr_page(
+        self,
+        document_id: str,
+        source_digest: str,
+        page_index: int,
+        adapter_version: str,
+        payload: str,
+    ) -> None:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO ocr_page_cache
+                    (document_id, source_digest, page_index, adapter_version, payload)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (document_id, source_digest, page_index, adapter_version)
+                DO UPDATE SET payload = EXCLUDED.payload
+                """,
+                (document_id, source_digest, page_index, adapter_version, payload),
+            )
+
+    def get_ocr_page(
+        self,
+        document_id: str,
+        source_digest: str,
+        page_index: int,
+        adapter_version: str,
+    ) -> str | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT payload FROM ocr_page_cache
+                WHERE document_id = %s AND source_digest = %s
+                  AND page_index = %s AND adapter_version = %s
+                """,
+                (document_id, source_digest, page_index, adapter_version),
             ).fetchone()
         return row["payload"] if row else None
 
