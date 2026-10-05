@@ -515,3 +515,33 @@ def test_a_virama_stays_before_the_space_that_follows_it() -> None:
     """A zero-width mark shares its x with the next space; drawing order wins."""
     page = pages(Page(blocks=(shaped((("ක්", None), ("ෙ\u25ccා", "ො"), (" අප", None))),)))[0]
     assert page.readable_text == "ක්ො අප"
+
+
+def test_misordered_native_sinhala_is_flagged_not_trusted() -> None:
+    """A vowel sign leading a word: the producer's glyph map is wrong here."""
+    page = pages(Page(blocks=(Text("ෙපාත කියවීම"),)))[0]
+    assert page.quality is QualityState.NEEDS_REVIEW
+    assert page.readable_text == "ෙපාත කියවීම"  # still read, never rewritten
+
+
+def test_a_vowel_sign_after_a_font_change_is_not_malformed() -> None:
+    """Consonant in one face, its sign in the next: one syllable, two spans."""
+    page = pages(
+        Page(blocks=(Text("ප", font="FreeSerif", x=72), Text("ොත", font="NotoSansSinhala", x=79.2)))
+    )[0]
+    assert page.readable_text == "පොත"
+    assert page.quality is QualityState.ACCEPTED
+
+
+def test_a_font_change_after_a_vowel_sign_is_not_malformed() -> None:
+    """ "හැ" then "ඟෙන්නේ" in another face: the sign before is not this span's."""
+    page = pages(
+        Page(
+            blocks=(
+                Text("හැ", font="FreeSerif", x=72),
+                Text("ඟෙන්නේ", font="NotoSansSinhala", x=86.4),
+            )
+        )
+    )[0]
+    assert page.readable_text == "හැඟෙන්නේ"
+    assert page.quality is QualityState.ACCEPTED

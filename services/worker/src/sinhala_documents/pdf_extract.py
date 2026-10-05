@@ -39,6 +39,7 @@ from pdfminer.utils import decode_text
 from pdfplumber.page import PDFPageAggregatorWithMarkedContent
 
 from .fonts import (
+    contains_sinhala,
     font_encoding_looks_wrong,
     identify_legacy_font,
     is_unreadable_script,
@@ -46,7 +47,7 @@ from .fonts import (
     looks_like_legacy_text,
 )
 from .layout import suspects_multiple_columns
-from .legacy_fm_abhaya import MappingUnavailable, convert_with_report
+from .legacy_fm_abhaya import MappingUnavailable, convert_with_report, count_invalid_sequences
 from .model import (
     BoundingBox,
     DocumentExtraction,
@@ -78,6 +79,10 @@ _WORD_GAP_RATIO = 0.25
 #: handful is ordinary rounding at the margin; hundreds mean the producer left
 #: something on the pasteboard.
 _OFF_PAGE_NOTE_THRESHOLD = 20
+
+#: U+25CC, the placeholder a shaping engine draws for a mark with nothing to
+#: attach to. It never belongs in extracted text.
+_DOTTED_CIRCLE = "◌"
 
 
 def _box(item: dict) -> BoundingBox:
@@ -135,8 +140,13 @@ def _convert_legacy(text: str, name: str, variant_of: str | None = None) -> Verd
     return ExtractionMethod.LEGACY, QualityState.ACCEPTED, (coded,), report.text
 
 
-def _classify_span(text: str, raw_font: str) -> Verdict:
-    """Decide how a run of text was encoded and whether it can be narrated."""
+def _classify_span(text: str, raw_font: str, before: str = "") -> Verdict:
+    """Decide how a run of text was encoded and whether it can be narrated.
+
+    ``before`` is the character preceding this run on its line. A producer may
+    switch font mid-syllable, setting a consonant in one face and its vowel
+    sign in another, and the sign is only malformed if nothing precedes it.
+    """
     legacy = identify_legacy_font(raw_font)
     if legacy is not None:
         if legacy.convertible:
@@ -158,6 +168,17 @@ def _classify_span(text: str, raw_font: str) -> Verdict:
         # repeated cluster). Must not be narrated; OCR can replace it.
         cleaned = text.replace("\x00", "")
         return ExtractionMethod.NATIVE, QualityState.UNDECODABLE, (note("garbled_native"),), cleaned
+
+    if contains_sinhala(text) and (
+        count_invalid_sequences(before[-1:] + text) > count_invalid_sequences(before[-1:])
+        or _DOTTED_CIRCLE in text
+    ):
+        # Real Sinhala code points in an order no writer produces: a vowel sign
+        # with no consonant, or the dotted circle a shaper draws for one. The
+        # producer's glyph-to-Unicode map is wrong for this run. Not withheld —
+        # most of it is usually right, and every other line reads perfectly —
+        # but no longer passed off as checked text.
+        return ExtractionMethod.NATIVE, QualityState.NEEDS_REVIEW, (note("malformed_native"),), text
 
     if looks_like_legacy_text(text):
         # The font name did not give it away. This is a weak, uncalibrated
@@ -219,7 +240,8 @@ def _spans(chars: Sequence[dict]) -> tuple[TextSpan, ...]:
             return
         text = "".join(char["text"] for char in run)
         raw_font = str(run[0].get("fontname") or "")
-        method, quality, notes, decoded = _classify_span(text, raw_font)
+        before = spans[-1].text if spans else ""
+        method, quality, notes, decoded = _classify_span(text, raw_font, before)
         legacy = identify_legacy_font(raw_font)
         spans.append(
             TextSpan(

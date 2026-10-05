@@ -786,6 +786,8 @@ export const en: Strings = {
         return `The font “${n}” looks like a variant of ${family}. Whether that table applies has not been checked.`;
       case "suspect_encoding":
         return "The extracted characters do not look like Sinhala or ordinary English. They need checking.";
+      case "malformed_native":
+        return "Some letters here are in an impossible order. They are read aloud, but need checking.";
       case "other_script":
         return "This text is in another script, which this reader has no voice for.";
       case "converted_legacy":
