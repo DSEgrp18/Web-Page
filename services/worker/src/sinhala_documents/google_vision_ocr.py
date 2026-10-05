@@ -18,11 +18,13 @@ from typing import Any
 
 from .model import PageExtraction
 from .ocr import (
+    RENDER_LOCK,
     OcrAdapter,
     OcrPageResult,
     OcrUnavailable,
     OcrWord,
     TesseractOcr,
+    map_pages,
     normalise,
 )
 
@@ -195,7 +197,10 @@ class GoogleVisionOcr(OcrAdapter):
     ) -> None:
         self._client = client
         self._vision: Any | None = None
-        self._fallback = fallback or TesseractOcr(language="sin+eng")
+        # Sinhala alone. Measured on a Google Docs page rendered as a scan:
+        # sin+eng read worse (CER 0.20 against 0.17) and took 3.7 times as long,
+        # its English model turning damaged Sinhala into Latin words.
+        self._fallback = fallback or TesseractOcr()
         self._location = (
             location if location is not None else os.environ.get(LOCATION_ENV, "").strip()
         ) or DEFAULT_LOCATION
@@ -250,9 +255,7 @@ class GoogleVisionOcr(OcrAdapter):
     def _image_request(self, vision: Any, content: bytes) -> Any:
         return vision.AnnotateImageRequest(
             image=vision.Image(content=content),
-            features=[
-                vision.Feature(type_=vision.Feature.Type.DOCUMENT_TEXT_DETECTION)
-            ],
+            features=[vision.Feature(type_=vision.Feature.Type.DOCUMENT_TEXT_DETECTION)],
             image_context=vision.ImageContext(language_hints=list(LANGUAGE_HINTS)),
         )
 
@@ -289,9 +292,7 @@ class GoogleVisionOcr(OcrAdapter):
         client, vision = self._api()
         request = vision.AnnotateFileRequest(
             input_config=vision.InputConfig(content=source, mime_type="application/pdf"),
-            features=[
-                vision.Feature(type_=vision.Feature.Type.DOCUMENT_TEXT_DETECTION)
-            ],
+            features=[vision.Feature(type_=vision.Feature.Type.DOCUMENT_TEXT_DETECTION)],
             image_context=vision.ImageContext(language_hints=list(LANGUAGE_HINTS)),
             pages=[page.page_index + 1 for page in pages],
         )
@@ -373,19 +374,23 @@ class GoogleVisionOcr(OcrAdapter):
             # The loop below contains the failure per page.
             pass
 
-        fallback_count = 0
-        for page in selected:
-            if page.page_index in results:
-                continue
+        def fallback(page: PageExtraction) -> OcrPageResult | None:
             content = rendered.get(page.page_index)
             if content is None:
-                content = render(source, page.page_index, dpi=RENDER_DPI)
+                with RENDER_LOCK:
+                    content = render(source, page.page_index, dpi=RENDER_DPI)
             try:
-                words = self._fallback.recognise(content)
+                return OcrPageResult(self._fallback.recognise(content), RENDER_DPI)
             except OcrUnavailable:
-                continue
-            results[page.page_index] = OcrPageResult(words, RENDER_DPI)
-            fallback_count += 1
+                return None
+
+        pending = [page for page in selected if page.page_index not in results]
+        recovered = map_pages(fallback, pending, self._fallback.parallel_pages)
+        fallback_count = 0
+        for page, result in zip(pending, recovered, strict=True):
+            if result is not None:
+                results[page.page_index] = result
+                fallback_count += 1
 
         log.info(
             "OCR pages=%d cloud=%d fallback=%d duration_seconds=%.3f",

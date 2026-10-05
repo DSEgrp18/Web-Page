@@ -456,3 +456,57 @@ def test_without_an_engine_the_book_is_still_prepared_and_says_what_is_unread() 
     parsed = [parse(n) for n in document.notes]
     assert any(item and item[0] == "ocr_failed" for item in parsed)
     assert any(item and "not installed" in item[1].get("reason", "") for item in parsed)
+
+
+def test_pages_recognised_side_by_side_keep_their_order() -> None:
+    """Later pages may finish first; the document must not be reordered."""
+    import threading
+    import time
+
+    from sinhala_documents.model import PageExtraction, PageKind
+
+    active = 0
+    peak = 0
+    lock = threading.Lock()
+
+    class _Slow(OcrAdapter):
+        parallel_pages = 3
+
+        @property
+        def version(self) -> str:
+            return "slow/1"
+
+        def recognise(self, image_png: bytes) -> tuple[OcrWord, ...]:
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            # Page 0 is slowest, so it finishes last.
+            time.sleep(0.05 * (3 - int(image_png.decode())))
+            with lock:
+                active -= 1
+            return (OcrWord(image_png.decode(), 0, 0, 10, 10, 1, 1, 1, 90.0),)
+
+    pages = [
+        PageExtraction(
+            page_index=index, page_label=None, width=10, height=10, kind=PageKind.IMAGE, lines=()
+        )
+        for index in range(3)
+    ]
+    results = _Slow().recognise_document(
+        b"", pages, dpi=300, render=lambda _s, index, *, dpi: str(index).encode()
+    )
+    assert list(results) == [0, 1, 2]
+    assert [results[index].words[0].text for index in range(3)] == ["0", "1", "2"]
+    assert peak > 1
+
+
+def test_tesseract_is_held_to_one_thread_per_page() -> None:
+    seen: dict[str, str] = {}
+
+    def run(arguments, **kwargs):
+        seen.update(kwargs.get("env") or {})
+        return subprocess.CompletedProcess(arguments, 0, (HEADER + "\n").encode(), b"")
+
+    TesseractOcr(run=run).recognise(b"png")
+    assert seen.get("OMP_THREAD_LIMIT") == "1"

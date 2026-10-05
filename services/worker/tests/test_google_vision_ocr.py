@@ -32,9 +32,7 @@ def _annotation(*words: NS, width: int = 1000, height: int = 1400) -> NS:
     return NS(pages=[NS(width=width, height=height, blocks=[NS(paragraphs=[paragraph])])])
 
 
-def _word(
-    text: str, *, top: int = 100, confidence: float = 90, line: int = 1
-) -> OcrWord:
+def _word(text: str, *, top: int = 100, confidence: float = 90, line: int = 1) -> OcrWord:
     return OcrWord(text, 20, top, 50, 20, 1, 1, line, confidence)
 
 
@@ -135,3 +133,8 @@ def test_only_failed_pages_use_local_fallback_and_order_is_stable() -> None:
     assert [results[index].words[0].text for index in (1, 2)] == ["fallback", "fallback"]
     assert rendered == [1, 2]
     assert fallback.calls == [b"page-1", b"page-2"]
+
+
+def test_the_local_fallback_reads_sinhala_alone() -> None:
+    """sin+eng measured worse and slower: English words invented from Sinhala."""
+    assert "/sin/" in GoogleVisionOcr().version.split("fallback-", 1)[1]

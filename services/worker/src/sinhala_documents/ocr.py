@@ -41,10 +41,12 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
 import unicodedata
 from abc import ABC, abstractmethod
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
@@ -86,6 +88,13 @@ PAGE_SEGMENTATION = 3
 #: How long one page may take. A 300 dpi page takes seconds; a minute means
 #: something is wrong with the page, not that it needs longer.
 TIMEOUT_SECONDS = 120
+
+#: Pages recognised at once by a local engine. Tesseract is a subprocess, so
+#: threads are enough, and each process is held to one OpenMP thread so that
+#: four pages do not fight over the same cores. Measured on a two-page Sinhala
+#: document: OpenMP threads inside one page gain little, pages side by side
+#: gain nearly linearly. Bounded because a worker shares its machine.
+PARALLEL_PAGES = max(1, min(4, os.cpu_count() or 1))
 
 _AL_LAKUNA = "\u0dca"
 _ZWNJ = "\u200c"
@@ -231,8 +240,30 @@ def lines_from_words(words: tuple[OcrWord, ...], *, dpi: int, version: str) -> t
     return tuple(lines)
 
 
+#: PDFium is not thread-safe, not even across separate documents, so pages are
+#: rendered one at a time while recognition runs alongside.
+RENDER_LOCK = threading.Lock()
+
+
+def map_pages[T, R](function: Callable[[T], R], items: Sequence[T], workers: int) -> list[R]:
+    """``function`` over ``items`` in order, ``workers`` at a time.
+
+    Results keep the input order, so page order never depends on which page
+    finished first; the first failure is raised, as a plain loop would.
+    """
+    if workers <= 1 or len(items) <= 1:
+        return [function(item) for item in items]
+    with ThreadPoolExecutor(max_workers=min(workers, len(items))) as pool:
+        return list(pool.map(function, items))
+
+
 class OcrAdapter(ABC):
     """Recognise the words in a rendered page."""
+
+    #: How many pages :meth:`recognise_document` may recognise at once. One
+    #: unless the engine is safe to call concurrently: a subprocess is, a model
+    #: shared in this process may not be.
+    parallel_pages: int = 1
 
     @property
     @abstractmethod
@@ -260,16 +291,21 @@ class OcrAdapter(ABC):
         Cloud adapters override this to batch pages without weakening the small
         image-level interface used by tests and single-image uploads.
         """
-        return {
-            page.page_index: OcrPageResult(
-                self.recognise(render(source, page.page_index, dpi=dpi)), dpi
-            )
-            for page in pages
-        }
+        selected = list(pages)
+
+        def one(page: PageExtraction) -> OcrPageResult:
+            with RENDER_LOCK:
+                image = render(source, page.page_index, dpi=dpi)
+            return OcrPageResult(self.recognise(image), dpi)
+
+        results = map_pages(one, selected, self.parallel_pages)
+        return {page.page_index: result for page, result in zip(selected, results, strict=True)}
 
 
 class TesseractOcr(OcrAdapter):
     """Tesseract with its Sinhala model, run as a subprocess."""
+
+    parallel_pages = PARALLEL_PAGES
 
     def __init__(
         self,
@@ -320,6 +356,7 @@ class TesseractOcr(OcrAdapter):
                 capture_output=True,
                 timeout=self._timeout,
                 check=False,
+                env={**os.environ, "OMP_THREAD_LIMIT": "1"},
             )
         except FileNotFoundError as error:
             raise OcrUnavailable(
