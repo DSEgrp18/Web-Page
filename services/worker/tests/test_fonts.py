@@ -104,6 +104,11 @@ def test_the_ratio_ignores_whitespace() -> None:
     assert non_ascii_ratio("ñb") == 0.5
 
 
+def test_a_zero_width_joiner_is_not_evidence_of_another_encoding() -> None:
+    """Google Docs sets ZWJ in its Latin fallback font beside the punctuation."""
+    assert non_ascii_ratio(", . \u200d , .") == 0.0
+
+
 # --------------------------------------------------------------------------
 # What a real book turned up
 #

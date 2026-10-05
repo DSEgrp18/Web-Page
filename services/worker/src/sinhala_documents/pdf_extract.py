@@ -29,8 +29,14 @@ from dataclasses import replace
 from pathlib import Path
 
 import pdfplumber
+from pdfminer.layout import LTChar
 from pdfminer.pdfdocument import PDFPasswordIncorrect
+from pdfminer.pdfinterp import PDFPageInterpreter, PDFStackT
 from pdfminer.pdfparser import PDFSyntaxError
+from pdfminer.pdftypes import resolve1
+from pdfminer.psparser import PSLiteral
+from pdfminer.utils import decode_text
+from pdfplumber.page import PDFPageAggregatorWithMarkedContent
 
 from .fonts import (
     font_encoding_looks_wrong,
@@ -238,6 +244,98 @@ def _spans(chars: Sequence[dict]) -> tuple[TextSpan, ...]:
     return tuple(spans)
 
 
+class _ActualTextAggregator(PDFPageAggregatorWithMarkedContent):
+    """pdfplumber's layout device, also honouring marked-content ``ActualText``.
+
+    Complex-script producers cannot always map a shaped glyph back to Unicode
+    one-to-one: a Sinhala kombuva drawn left of its consonant, a repaya, or a
+    ligature has no single code point. Google Docs (Skia) and others solve this
+    by wrapping the glyphs in ``/Span <</ActualText (...)>> BDC ... EMC`` with
+    the real text, which is what PDF 32000 §14.9.4 says a reader should use.
+    pdfminer ignores it and returns the per-glyph ToUnicode instead — dotted
+    circles, NULs, split vowels — and one such page was sent to OCR as
+    "garbled" when its correct text was sitting in the file.
+
+    This is the document's own text, not a reconstruction, so it is narrated
+    as native text. At ``EMC`` the glyphs drawn inside the group collapse into
+    one character carrying the ActualText and the union of their boxes, so
+    geometry, highlighting, and word-gap detection keep working.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        # One entry per open marked-content sequence: the ActualText (or None)
+        # and where the current container's objects stood when it opened.
+        self._marks: list[tuple[str | None, object, int]] = []
+        self.groups = 0
+
+    def begin_tag(self, tag: PSLiteral, props: PDFStackT | None = None) -> None:
+        super().begin_tag(tag, props)
+        actual: str | None = None
+        if isinstance(props, dict) and "ActualText" in props:
+            value = resolve1(props["ActualText"])
+            if isinstance(value, bytes):
+                actual = decode_text(value)
+            elif isinstance(value, str):
+                actual = value
+        self._marks.append((actual, self.cur_item, len(self.cur_item._objs)))
+
+    def end_tag(self) -> None:
+        super().end_tag()
+        if not self._marks:
+            return
+        actual, container, start = self._marks.pop()
+        # A group that straddles a form XObject boundary is left as drawn:
+        # collapsing across containers would move glyphs between them.
+        if actual is None or container is not self.cur_item:
+            return
+        objs = self.cur_item._objs
+        glyphs = [obj for obj in objs[start:] if isinstance(obj, LTChar)]
+        if not glyphs:
+            return
+        others = [obj for obj in objs[start:] if not isinstance(obj, LTChar)]
+        del objs[start:]
+        self.groups += 1
+        actual = actual.replace("\x00", "")
+        if actual:
+            # An empty ActualText means "these glyphs say nothing" (a
+            # hyphenation mark, an ornament); the glyphs are dropped.
+            head = glyphs[0]
+            head._text = actual  # noqa: SLF001 - LTChar keeps its text here
+            head.set_bbox(
+                (
+                    min(glyph.x0 for glyph in glyphs),
+                    min(glyph.y0 for glyph in glyphs),
+                    max(glyph.x1 for glyph in glyphs),
+                    max(glyph.y1 for glyph in glyphs),
+                )
+            )
+            objs.append(head)
+        objs.extend(others)
+
+
+def honour_actual_text(page: pdfplumber.page.Page) -> int:
+    """Lay ``page`` out with ActualText applied, before anything reads its chars.
+
+    pdfplumber caches the layout on the page, so seeding that cache here makes
+    every later use — cropping, chars, text lines — see the corrected text
+    without changing how the rest of this module reads pages. Returns how many
+    ActualText groups were applied.
+    """
+    if hasattr(page, "_layout"):
+        return 0
+    device = _ActualTextAggregator(
+        page.pdf.rsrcmgr, pageno=page.page_number, laparams=page.pdf.laparams
+    )
+    interpreter = PDFPageInterpreter(page.pdf.rsrcmgr, device)
+    try:
+        interpreter.process_page(page.page_obj)
+    except Exception:  # noqa: BLE001 - fall back to pdfplumber's own layout
+        return 0
+    page._layout = device.get_result()  # noqa: SLF001 - pdfplumber's layout cache
+    return device.groups
+
+
 def visible(page: pdfplumber.page.Page) -> pdfplumber.page.Page:
     """The page clipped to the area that is actually printed.
 
@@ -257,17 +355,39 @@ def visible(page: pdfplumber.page.Page) -> pdfplumber.page.Page:
         return page
 
 
-def _lines(page: pdfplumber.page.Page) -> tuple[TextLine, ...]:
+def _distinct(chars: Sequence[dict]) -> list[dict]:
+    """A line's characters with each character object listed once.
+
+    pdfplumber's text map lists a character once per code point it carries, so
+    an ActualText cluster such as ``වේ`` comes back as the same object twice —
+    and joining their text would say it twice.
+    """
+    out: list[dict] = []
+    for char in chars:
+        if not out or out[-1] is not char:
+            out.append(char)
+    return out
+
+
+def _lines(page: pdfplumber.page.Page, text_flow: bool = False) -> tuple[TextLine, ...]:
     try:
         # keep_blank_chars keeps the space characters that are genuinely in the
         # file; _with_word_gaps supplies the ones that are not.
-        raw_lines = page.extract_text_lines(strip=True, return_chars=True, keep_blank_chars=True)
+        #
+        # text_flow keeps drawing order within a line. A producer that writes
+        # ActualText is shaping complex script, and its zero-width marks (ු, ්)
+        # share an x position with the following space: sorted by x they land
+        # after it ("යන ු"). Elsewhere visual order stays the default, because
+        # some producers draw a line out of order.
+        raw_lines = page.extract_text_lines(
+            strip=True, return_chars=True, keep_blank_chars=True, use_text_flow=text_flow
+        )
     except Exception:  # noqa: BLE001 - one unreadable page must not lose the book
         return ()
 
     lines: list[TextLine] = []
     for raw in raw_lines:
-        spans = _spans(_with_word_gaps(raw.get("chars") or []))
+        spans = _spans(_with_word_gaps(_distinct(raw.get("chars") or [])))
         if not spans:
             continue
         box = BoundingBox.around(span.box for span in spans) or _box(raw)
@@ -387,9 +507,10 @@ def _page_notes(
 
 def extract_page(page: pdfplumber.page.Page, index: int, label: str | None) -> PageExtraction:
     """Everything one page yields, with the notes needed to explain it."""
+    shaped = honour_actual_text(page) > 0
     printed = visible(page)
     image_count = len(printed.images)
-    lines = _reclassify_by_font(_lines(printed))
+    lines = _reclassify_by_font(_lines(printed, text_flow=shaped))
     has_text = any(line.text.strip() for line in lines)
     kind = _page_kind(has_text, image_count)
     columns = has_text and suspects_multiple_columns(printed.chars, float(page.width))

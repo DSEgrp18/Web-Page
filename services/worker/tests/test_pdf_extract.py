@@ -16,6 +16,7 @@ from pdf_fixtures import (
     Text,
     build_pdf,
     legacy_page,
+    shaped,
     sinhala_page,
     two_column_page,
 )
@@ -459,3 +460,58 @@ def test_ordinary_sinhala_with_sri_is_not_garbled() -> None:
     assert not looks_garbled_native(prose)
     page = pages(Page(blocks=(Text(prose, y=700),)))[0]
     assert page.quality is QualityState.ACCEPTED
+
+
+# --------------------------------------------------------------------------
+# ActualText: the producer's own Unicode for shaped clusters
+# --------------------------------------------------------------------------
+
+#: How Google Docs (Skia) draws "ඒ නොවේ." in a Sinhala face: the consonant as
+#: a plain glyph, then each split-vowel cluster as glyphs whose ToUnicode is
+#: nonsense (kombuva, dotted circle, NUL) inside an ActualText span saying what
+#: they mean. Taken from a real export that was sent to OCR as "garbled".
+SKIA_NOWE = (
+    ("ඒ න", None),
+    ("ෙ\u25ccා", "ො"),
+    ("ෙ\x00ව", "වේ"),
+    (".", None),
+)
+
+
+def test_actual_text_replaces_the_glyph_mapping() -> None:
+    page = pages(Page(blocks=(shaped(SKIA_NOWE),)))[0]
+    assert page.readable_text == "ඒ නොවේ."
+    assert page.quality is QualityState.ACCEPTED
+
+
+def test_a_shaped_page_is_not_sent_to_ocr() -> None:
+    from sinhala_documents.ocr import text_layer_failed
+
+    page = pages(Page(blocks=(shaped(SKIA_NOWE), shaped(SKIA_NOWE, y=680))))[0]
+    assert not text_layer_failed(page)
+    assert "\x00" not in page.text and "\u25cc" not in page.text
+
+
+def test_a_multi_letter_cluster_is_said_once() -> None:
+    """pdfplumber lists a character once per code point; "වේ" is two."""
+    page = pages(Page(blocks=(shaped(SKIA_NOWE),)))[0]
+    assert page.readable_text.count("වේ") == 1
+
+
+def test_a_cluster_keeps_the_geometry_of_its_glyphs() -> None:
+    page = pages(Page(blocks=(shaped(SKIA_NOWE),)))[0]
+    line = page.lines[0]
+    assert line.box.x0 == pytest.approx(72.0)
+    # Seven glyphs drawn at the fixture font's 600-unit width, 12 pt.
+    assert line.box.x1 == pytest.approx(72.0 + 10 * 7.2, abs=0.5)
+
+
+def test_empty_actual_text_silences_its_glyphs() -> None:
+    page = pages(Page(blocks=(shaped((("සහ", None), ("-", ""), (" එය", None))),)))[0]
+    assert page.readable_text == "සහ එය"
+
+
+def test_a_virama_stays_before_the_space_that_follows_it() -> None:
+    """A zero-width mark shares its x with the next space; drawing order wins."""
+    page = pages(Page(blocks=(shaped((("ක්", None), ("ෙ\u25ccා", "ො"), (" අප", None))),)))[0]
+    assert page.readable_text == "ක්ො අප"

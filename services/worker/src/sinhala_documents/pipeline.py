@@ -54,8 +54,13 @@ from .structure import BlockRole, is_narrated, number_style_for
 from .structuring import DeterministicStructure, StructureAdapter, structure_page
 from .validation import media_type_for
 
-#: Bumped when this module changes how pages become segments.
-PIPELINE_VERSION = "1"
+#: Bumped when this module changes how pages become segments, or extraction
+#: changes the text they are made from.
+#:
+#: 2: native extraction honours ActualText and drawing order for shaped
+#:    script, and zero-width joiners no longer condemn a font. Text from
+#:    Google Docs exports changes from OCR output to the file's own words.
+PIPELINE_VERSION = "2"
 
 
 @dataclass(frozen=True)
