@@ -606,6 +606,7 @@ export const en: Strings = {
   pageCorrectionLabel: "Page text",
   savePageCorrection: "Save corrected text",
   pageCorrected: "The page text was saved.",
+  pageCorrectionUnchanged: "The text has not been changed. Correct it before saving.",
   qualityNeedsReview: "Some parts of this page have not been confirmed as read correctly.",
   qualityUndecodable: "This page could not be read. It has not been turned into audio.",
   kindImage: "This page is an image. Its text has not been recognised yet.",
@@ -820,8 +821,10 @@ export const en: Strings = {
         return `${count} of ${total} extracted pages are images with no readable text.`;
       case "doc_unreadable_pages":
         return `${count} of ${total} pages have nothing that can be read aloud.`;
+      // Older notes said "a teacher"; nothing checked that, so both read alike.
+      case "page_corrected":
       case "page_teacher_corrected":
-        return "A teacher reviewed and corrected the text on this page.";
+        return "The text on this page was corrected by hand.";
       case "ocr_recognised":
         return "This page was read from its image. Recognition can misread letters, and a person has not checked it.";
       case "ocr_failed":

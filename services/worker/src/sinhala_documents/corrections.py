@@ -1,7 +1,11 @@
-"""Teacher corrections to OCR or extraction on one page.
+"""Hand corrections to OCR or extraction on one page.
 
 A correction replaces what is read on that page, bumps the document version,
 and invalidates audio built from the old text (CLAUDE.md).
+
+The corrected text is the page's new *display* text. Numbers are written out
+only in the spoken text, as everywhere else: an earlier version expanded the
+whole correction first, so "2,5" was shown to the reader as "දෙක,පහ".
 """
 
 from __future__ import annotations
@@ -9,12 +13,24 @@ from __future__ import annotations
 import hashlib
 from dataclasses import replace
 
-from sinhala_tts.normalize import MODEL_INPUT_CHAR_LIMIT, to_speech_text
+from sinhala_tts.normalize import MODEL_INPUT_CHAR_LIMIT
 from sinhala_tts.segmentation import segment_text
 
 from .model import PageKind, QualityState
 from .pipeline import ReadableDocument, ReadablePage, ReadableSegment
 from .structure import BlockRole
+
+
+class UnchangedCorrection(ValueError):
+    """The submitted text is the page's current text.
+
+    Saving it would mark unreviewed OCR as corrected and accepted: a claim
+    about the text that nobody made.
+    """
+
+
+def _same_text(a: str, b: str) -> bool:
+    return " ".join(a.split()) == " ".join(b.split())
 
 
 def _new_version(previous: str, page_index: int, text: str) -> str:
@@ -30,9 +46,12 @@ def apply_page_correction(
     if page is None:
         raise ValueError(f"Page {page_index} is not in this document.")
 
-    spoken_base = to_speech_text(display_text)
+    current = " ".join(segment.display_text for segment in page.segments)
+    if _same_text(current, display_text):
+        raise UnchangedCorrection(f"Page {page_index} already reads this way.")
+
     segments: list[ReadableSegment] = []
-    for piece in segment_text(spoken_base, limit=MODEL_INPUT_CHAR_LIMIT):
+    for piece in segment_text(display_text, limit=MODEL_INPUT_CHAR_LIMIT):
         if not piece.is_speakable:
             continue
         segment_id = f"{page_index:04d}-corr-{len(segments)}"
@@ -51,7 +70,9 @@ def apply_page_correction(
         )
 
     notes = tuple(n for n in page.notes if not n.startswith("note:ocr_recognised"))
-    notes = notes + ("note:page_teacher_corrected",)
+    # The route checks ownership, not who reviewed the text, so the note says
+    # only what is known: a person replaced it.
+    notes = notes + ("note:page_corrected",)
 
     new_page = replace(
         page,

@@ -632,6 +632,7 @@ export const si = {
   pageCorrectionLabel: "පිටුවේ පෙළ",
   savePageCorrection: "නිවැරදි පෙළ සුරකින්න",
   pageCorrected: "පිටුවේ පෙළ සුරකින ලදී.",
+  pageCorrectionUnchanged: "පෙළ වෙනස් කර නැත. සුරැකීමට පෙර වැරදි නිවැරදි කරන්න.",
   qualityNeedsReview: "මෙම පිටුවේ සමහර කොටස් නිවැරදිව කියවා ඇත්දැයි තහවුරු කර නැත.",
   qualityUndecodable: "මෙම පිටුව කියවිය නොහැකි විය. එය ශබ්දයට හරවා නැත.",
   kindImage: "මෙම පිටුව රූපයකි. එහි අකුරු තවම හඳුනාගෙන නැත.",
@@ -857,8 +858,10 @@ export const si = {
         return `පිටු ${total}න් ${count}ක් පින්තූර පමණි.`;
       case "doc_unreadable_pages":
         return `පිටු ${total}න් ${count}ක් කියවිය නොහැක.`;
+      // Older notes said "a teacher"; nothing checked that, so both read alike.
+      case "page_corrected":
       case "page_teacher_corrected":
-        return "මෙම පිටුවේ පෙළ ගුරුවරයෙක් සමාලෝචනය කර නිවැරදි කළා.";
+        return "මෙම පිටුවේ පෙළ අතින් නිවැරදි කර ඇත.";
       case "ocr_recognised":
         return "මෙම පිටුව පින්තූරයෙන් කියවා ඇත. අකුරු වැරදි විය හැක; පුද්ගලයෙකු පරීක්ෂා කර නැත.";
       case "ocr_failed":
