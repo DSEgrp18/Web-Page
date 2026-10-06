@@ -1168,9 +1168,7 @@ class InMemoryStore(Store):
         adapter_version: str,
     ) -> str | None:
         with self._lock:
-            return self._ocr_pages.get(
-                (document_id, source_digest, page_index, adapter_version)
-            )
+            return self._ocr_pages.get((document_id, source_digest, page_index, adapter_version))
 
     # -- jobs --------------------------------------------------------------
 

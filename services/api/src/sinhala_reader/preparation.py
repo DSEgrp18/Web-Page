@@ -108,6 +108,7 @@ def _ocr_payload(result: OcrPageResult) -> str:
         separators=(",", ":"),
     )
 
+
 #: How long a running job's process promises to stay alive without renewing.
 #: Renewed every :data:`HEARTBEAT_SECONDS`, so a job is failed only after four
 #: missed heartbeats, never over one slow database write.
@@ -415,9 +416,7 @@ class PreparationService:
                         )
                     )
 
-                def cache_put(
-                    page_index: int, adapter_version: str, result: OcrPageResult
-                ) -> None:
+                def cache_put(page_index: int, adapter_version: str, result: OcrPageResult) -> None:
                     self._store.put_ocr_page(
                         document_id,
                         source_digest,
