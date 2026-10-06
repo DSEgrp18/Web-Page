@@ -46,7 +46,7 @@ def test_trocr_is_selected_by_engine_and_checkpoint(monkeypatch: pytest.MonkeyPa
     assert "trocr/ransaka@" in adapter.version
 
 
-def test_google_vision_is_selected_with_mixed_language_fallback(
+def test_google_vision_is_selected_with_sinhala_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(OCR_ENV, "all")
@@ -56,7 +56,8 @@ def test_google_vision_is_selected_with_mixed_language_fallback(
 
     assert isinstance(adapter, GoogleVisionOcr)
     assert "si+en" in adapter.version
-    assert "sin+eng" in adapter.version
+    # Sinhala-only fallback: sin+eng measured less accurate and 3.7x slower.
+    assert "/sin/" in adapter.version and "sin+eng" not in adapter.version
 
 
 def test_google_vision_readiness_discloses_external_processing(
