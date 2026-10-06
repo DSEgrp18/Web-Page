@@ -48,6 +48,22 @@ class Text:
     size: float = 12.0
     x: float = 72.0
     y: float = 700.0
+    pieces: tuple[tuple[str, str | None], ...] = ()
+    """Optional ``(drawn glyphs, ActualText)`` runs making up ``text``.
+
+    A run with ActualText is wrapped in ``/Span <</ActualText ...>> BDC ... EMC``,
+    the way a shaping producer (Google Docs' Skia) writes a cluster whose glyphs
+    have no one-to-one Unicode mapping. ``None`` draws the run unwrapped.
+    """
+
+
+def shaped(pieces: tuple[tuple[str, str | None], ...], **kwargs: object) -> Text:
+    """A line drawn as glyph runs, some carrying ActualText."""
+    return Text("".join(drawn for drawn, _ in pieces), pieces=pieces, **kwargs)  # type: ignore[arg-type]
+
+
+def _actual_text(value: str) -> str:
+    return "<FEFF" + value.encode("utf-16-be").hex().upper() + ">"
 
 
 @dataclass(frozen=True)
@@ -177,10 +193,16 @@ def build_pdf(
         operations: list[str] = []
         for block in page.blocks:
             codes = fonts[block.font][1]
-            glyphs = "".join(f"{codes[character]:04X}" for character in block.text)
+            runs = []
+            for drawn, actual in block.pieces or ((block.text, None),):
+                glyphs = "".join(f"{codes[character]:04X}" for character in drawn)
+                shown = f"<{glyphs}> Tj"
+                if actual is not None:
+                    shown = f"/Span << /ActualText {_actual_text(actual)} >> BDC {shown} EMC"
+                runs.append(shown)
             operations.append(
                 f"BT /F{list(used).index(block.font)} {block.size} Tf "
-                f"{block.x} {block.y} Td <{glyphs}> Tj ET"
+                f"{block.x} {block.y} Td {' '.join(runs)} ET"
             )
         for index in range(page.images):
             operations.append(f"q 80 0 0 60 {72 + index * 100} 100 cm /Im0 Do Q")

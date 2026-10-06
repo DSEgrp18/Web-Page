@@ -1,0 +1,31 @@
+# Google Cloud Vision OCR overlay. The credential stays outside the repository
+# and image; Compose mounts it read-only for ADC.
+#
+#   GOOGLE_APPLICATION_CREDENTIALS_HOST=/absolute/path/service-account.json \
+#     docker compose -f infra/docker-compose.yml \
+#       -f infra/compose.google-vision.yml up --build
+
+services:
+  api:
+    # A downloaded key is normally mode 0600. Run as its local owner so the
+    # read-only bind stays private instead of weakening the file permissions.
+    user: ${GOOGLE_APPLICATION_CREDENTIALS_UID:-1000}:${GOOGLE_APPLICATION_CREDENTIALS_GID:-1000}
+    environment:
+      SINHALA_READER_OCR_ENGINE: google-vision
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-application-credentials.json
+      SINHALA_READER_VISION_LOCATION: ${SINHALA_READER_VISION_LOCATION:-global}
+      SINHALA_READER_CLOUD_OCR_MAX_PAGES: ${SINHALA_READER_CLOUD_OCR_MAX_PAGES:-500}
+      SINHALA_READER_VISION_TIMEOUT_SECONDS: ${SINHALA_READER_VISION_TIMEOUT_SECONDS:-12}
+    volumes:
+      - ${GOOGLE_APPLICATION_CREDENTIALS_HOST:?set GOOGLE_APPLICATION_CREDENTIALS_HOST to the service-account JSON}:/run/secrets/google-application-credentials.json:ro
+
+  worker:
+    user: ${GOOGLE_APPLICATION_CREDENTIALS_UID:-1000}:${GOOGLE_APPLICATION_CREDENTIALS_GID:-1000}
+    environment:
+      SINHALA_READER_OCR_ENGINE: google-vision
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-application-credentials.json
+      SINHALA_READER_VISION_LOCATION: ${SINHALA_READER_VISION_LOCATION:-global}
+      SINHALA_READER_CLOUD_OCR_MAX_PAGES: ${SINHALA_READER_CLOUD_OCR_MAX_PAGES:-500}
+      SINHALA_READER_VISION_TIMEOUT_SECONDS: ${SINHALA_READER_VISION_TIMEOUT_SECONDS:-12}
+    volumes:
+      - ${GOOGLE_APPLICATION_CREDENTIALS_HOST:?set GOOGLE_APPLICATION_CREDENTIALS_HOST to the service-account JSON}:/run/secrets/google-application-credentials.json:ro

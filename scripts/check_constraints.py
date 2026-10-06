@@ -44,11 +44,15 @@ def _pins(path: Path) -> dict[str, str]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
+    if len(argv) < 3:
         print(__doc__)
         return 2
     installed = _pins(Path(argv[1]))
-    constraints = _pins(Path(argv[2]))
+    # The image installs with several -c files (the base set, then optional
+    # extras such as google-vision.txt); together they are the pins.
+    constraints: dict[str, str] = {}
+    for path in argv[2:]:
+        constraints.update(_pins(Path(path)))
 
     unpinned = sorted(name for name in installed if name not in constraints)
     mismatched = sorted(
@@ -68,7 +72,9 @@ def main(argv: list[str]) -> int:
             "from this image's pip freeze (see its header)."
         )
         return 1
-    print(f"all {len(installed)} installed packages are pinned by {argv[2]}")
+    print(
+        f"all {len(installed)} installed packages are pinned by {', '.join(argv[2:])}"
+    )
     return 0
 
 

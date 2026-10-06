@@ -291,9 +291,18 @@ def looks_garbled_native(text: str) -> bool:
     return best >= _GARBLED_REPEAT_RATIO
 
 
+#: Zero-width joiners and their kin. They are glue inside Sinhala conjuncts
+#: (ප්‍ර), and a producer may set them in a Latin fallback font beside the
+#: punctuation; counted as non-ASCII they made that font look like a legacy
+#: encoding and withheld every space on the page.
+_ZERO_WIDTH = frozenset("​‌‍⁠﻿")
+
+
 def non_ascii_ratio(text: str) -> float:
-    """Fraction of non-whitespace characters outside ASCII."""
-    body = [character for character in text if not character.isspace()]
+    """Fraction of visible non-whitespace characters outside ASCII."""
+    body = [
+        character for character in text if not character.isspace() and character not in _ZERO_WIDTH
+    ]
     if not body:
         return 0.0
     return sum(1 for character in body if _NON_ASCII_LETTER.match(character)) / len(body)

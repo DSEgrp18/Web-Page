@@ -170,7 +170,8 @@ which.
 On by default here, for broken pages only. Some PDFs carry embedded text that is
 not what is printed: legacy fonts the converter cannot decode, or a hidden
 second copy of the page that extraction reads as well. Those pages are rendered
-and read **inside the container**. Nothing is sent anywhere.
+and read inside the container by default. Google Vision is an explicit external
+mode and is disclosed by readiness and the processing screen.
 
 | `SINHALA_READER_OCR` | Pages read from their image |
 | --- | --- |
@@ -181,12 +182,27 @@ and read **inside the container**. Nothing is sent anywhere.
 | `SINHALA_READER_OCR_ENGINE` | Recogniser |
 | --- | --- |
 | `tesseract` (default) | Tesseract Sinhala, layout and text |
+| `google-vision` | Google DOCUMENT_TEXT_DETECTION (`si`, `en`), with local `sin+eng` Tesseract fallback |
 | `trocr` | Tesseract for line boxes, TrOCR for Sinhala text |
 
 Recognised text can misread letters, so those pages are marked as not checked,
 and the document version changes with the mode and engine, which regenerates
 their audio. Measured on the 168-page Grade 11 history textbook with Tesseract:
 19 pages were recognised, and preparation took about 89 seconds instead of 19.
+
+### Google Vision overlay
+
+Keep the service-account JSON outside Git and mount it read-only as ADC:
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS_HOST=/absolute/path/service-account.json
+docker compose -f infra/docker-compose.yml -f infra/compose.google-vision.yml up --build
+```
+
+The overlay uses a 12-second provider deadline, sends a PDF inline when it has
+at most five pages and is under the safe payload limit, and otherwise batches
+rendered pages. Production should attach a service account/workload identity
+instead of using a downloaded key.
 
 ### Optional TrOCR overlay
 

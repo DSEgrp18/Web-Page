@@ -75,4 +75,4 @@ jobs:
       - name: Record what was actually installed
         run: docker run --rm image-check python -m pip freeze | tee installed.txt
       - name: Every installed package is pinned by the constraints file
-        run: python3 scripts/check_constraints.py installed.txt infra/constraints/python.txt
+        run: python3 scripts/check_constraints.py installed.txt infra/constraints/python.txt infra/constraints/google-vision.txt

@@ -43,7 +43,7 @@ CROP_PADDING = 4
 NUM_BEAMS = 3
 
 #: Bump when crop margins, beams, or how lines are rebuilt change.
-TROCR_ADAPTER_VERSION = "1"
+TROCR_ADAPTER_VERSION = "2"
 
 
 @dataclass(frozen=True)
@@ -279,6 +279,16 @@ class TrocrSinhalaOcr(OcrAdapter):
                 continue
             crop = page.crop(crop_box)
             text = self._read_line(crop)
+            if not text:
+                # Tesseract is already our layout detector, and its words are
+                # better than deleting a printed line when TrOCR emits only
+                # whitespace. Real documents contain page numbers, short
+                # headings, Latin names and punctuation-only rows that a
+                # Sinhala line checkpoint may legitimately return blank for.
+                # Keeping the detector text makes the hybrid adapter
+                # loss-tolerant without inventing an alignment between the
+                # TrOCR string and Tesseract's individual word boxes.
+                text = " ".join(member.text for member in members).strip()
             if not text:
                 continue
             # One word spanning the line box: TrOCR returns a line string, and

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from pydantic import BaseModel, Field
-from sinhala_documents.corrections import apply_page_correction
+from sinhala_documents.corrections import UnchangedCorrection, apply_page_correction
 from sinhala_tts.adapter import TextNotSpeakableError
 
 from ..audio import extension_for
@@ -67,7 +67,7 @@ def register(app: FastAPI, deps: Deps) -> None:
         body: PageCorrectionBody,
         owner: str = Depends(require_owner),
     ) -> PageDetail:
-        """Replace one page's text after teacher review; bumps the document version."""
+        """Replace one page's text after review; bumps the document version."""
         reading = readable(document_id, owner)
         document = reading.document
         prepared = get_prepared(deps.store, document_id)
@@ -75,6 +75,10 @@ def register(app: FastAPI, deps: Deps) -> None:
             raise HTTPException(status.HTTP_409_CONFLICT, "This document is not ready yet.")
         try:
             updated = apply_page_correction(prepared, page_index, body.text.strip())
+        except UnchangedCorrection as error:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "The page text was not changed."
+            ) from error
         except ValueError as error:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such page.") from error
         store_prepared(deps.store, document_id, updated)

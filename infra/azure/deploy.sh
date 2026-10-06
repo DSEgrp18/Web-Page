@@ -52,6 +52,19 @@ PREVIOUS="$(git rev-parse HEAD)"
 
 FILES=(-f infra/docker-compose.yml)
 VOICE=placeholder
+# Google Vision is deliberately an opt-in deployment overlay.  The service
+# account stays in the VM's protected home directory; its path, never its
+# content, lives in ~/deploy.env.  Do not make this a GitHub workflow input:
+# Azure run-command arguments can be retained in control-plane logs.
+if [ -n "${GOOGLE_APPLICATION_CREDENTIALS_HOST:-}" ]; then
+  if [ ! -r "$GOOGLE_APPLICATION_CREDENTIALS_HOST" ]; then
+    echo "Google Vision credential is not readable: $GOOGLE_APPLICATION_CREDENTIALS_HOST" >&2
+    exit 1
+  fi
+  export GOOGLE_APPLICATION_CREDENTIALS_UID="${GOOGLE_APPLICATION_CREDENTIALS_UID:-$(id -u)}"
+  export GOOGLE_APPLICATION_CREDENTIALS_GID="${GOOGLE_APPLICATION_CREDENTIALS_GID:-$(id -g)}"
+  FILES+=(-f infra/compose.google-vision.yml)
+fi
 if [ "${SINHALA_READER_TTS:-}" = modal ]; then
   # The voice runs on Modal's GPU; this VM holds no model and needs neither
   # torch nor the 5.6 GB checkpoint in memory. ~/swara/.env carries the

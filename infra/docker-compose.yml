@@ -81,7 +81,7 @@ services:
       SINHALA_READER_STRUCTURE: ${SINHALA_READER_STRUCTURE:-deterministic}
       # Pages whose embedded text failed are read from their image by Tesseract,
       # locally. off | broken | all. See services/worker/src/sinhala_documents/ocr.py.
-      # Engine stays tesseract here; use compose.trocr.yml for local TrOCR.
+      # Engine stays tesseract here; use an explicit TrOCR or Google Vision overlay.
       SINHALA_READER_OCR: ${SINHALA_READER_OCR:-broken}
       SINHALA_READER_OCR_ENGINE: ${SINHALA_READER_OCR_ENGINE:-tesseract}
       # extractive returns the book's own sentences; gemini writes a Sinhala
@@ -146,7 +146,7 @@ services:
       SINHALA_READER_STRUCTURE: ${SINHALA_READER_STRUCTURE:-deterministic}
       # Pages whose embedded text failed are read from their image by Tesseract,
       # locally. off | broken | all. See services/worker/src/sinhala_documents/ocr.py.
-      # Engine stays tesseract here; use compose.trocr.yml for local TrOCR.
+      # Engine stays tesseract here; use an explicit TrOCR or Google Vision overlay.
       SINHALA_READER_OCR: ${SINHALA_READER_OCR:-broken}
       SINHALA_READER_OCR_ENGINE: ${SINHALA_READER_OCR_ENGINE:-tesseract}
       # extractive returns the book's own sentences; gemini writes a Sinhala

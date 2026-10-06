@@ -47,6 +47,13 @@ RUN pip install --no-cache-dir -c /tmp/constraints.txt \
       "redis>=5" \
       "langgraph>=1.2"
 
+# Optional in the Python package, installed in the service image because the
+# Google Vision overlay selects it at runtime. Its small supplemental lock is
+# separate so adding the provider does not invalidate the known-good base layer.
+COPY infra/constraints/google-vision.txt /tmp/google-vision-constraints.txt
+RUN pip install --no-cache-dir -c /tmp/constraints.txt \
+      -c /tmp/google-vision-constraints.txt "google-cloud-vision>=3.16,<4"
+
 # Optional TrOCR stack. Built only when compose.trocr.yml / CI smoke sets
 # WITH_TROCR=1. torch from the CPU index first, then transformers and Pillow —
 # pinned by the same constraints file so a rebuild cannot drift. The checkpoint
@@ -62,8 +69,8 @@ RUN if [ "$WITH_TROCR" = "1" ]; then \
 
 # Tesseract and its Sinhala model, for pages whose embedded text does not match
 # what is printed. See services/worker/src/sinhala_documents/ocr.py. It reads
-# page images locally: nothing is sent anywhere. TrOCR still needs it for line
-# layout when SINHALA_READER_OCR_ENGINE=trocr.
+# page images locally. Google Vision uses it as the bounded mixed-language
+# fallback; TrOCR still needs it for line layout.
 RUN apt-get update \
  && apt-get install --no-install-recommends -y tesseract-ocr tesseract-ocr-sin \
  && rm -rf /var/lib/apt/lists/*

@@ -474,6 +474,7 @@ export const si = {
   processingOcr: "ස්කෑන් කළ පිටු කියවීම",
   processingHere: "ස්වර සේවාදායකය තුළම; පිටතට නොයයි",
   processingGoogle: "Google Gemini වෙත යවනු ලැබේ",
+  processingGoogleVision: "Google Cloud Vision වෙත යවනු ලැබේ",
   processingOff: "ක්‍රියාත්මක නැත",
   mobileNavigation: "ජංගම සංචාලනය",
   bookmarksHeading: "පිටු සලකුණු",
@@ -631,6 +632,7 @@ export const si = {
   pageCorrectionLabel: "පිටුවේ පෙළ",
   savePageCorrection: "නිවැරදි පෙළ සුරකින්න",
   pageCorrected: "පිටුවේ පෙළ සුරකින ලදී.",
+  pageCorrectionUnchanged: "පෙළ වෙනස් කර නැත. සුරැකීමට පෙර වැරදි නිවැරදි කරන්න.",
   qualityNeedsReview: "මෙම පිටුවේ සමහර කොටස් නිවැරදිව කියවා ඇත්දැයි තහවුරු කර නැත.",
   qualityUndecodable: "මෙම පිටුව කියවිය නොහැකි විය. එය ශබ්දයට හරවා නැත.",
   kindImage: "මෙම පිටුව රූපයකි. එහි අකුරු තවම හඳුනාගෙන නැත.",
@@ -822,6 +824,8 @@ export const si = {
         return `"${n}" යනු ${family} වගුව යෙදේදැයි තහවුරු නොවූ පැරණි අකුරු මෝස්තරයකි.`;
       case "suspect_encoding":
         return "උපුටා ගත් අකුරු සිංහල හෝ සාමාන්‍ය ඉංග්‍රීසි ලෙස නොපෙනේ. පරීක්ෂාව අවශ්‍යයි.";
+      case "malformed_native":
+        return "මෙහි සමහර අකුරු පිළිවෙළ වැරදියි. කියවනු ලැබේ, නමුත් පරීක්ෂාව අවශ්‍යයි.";
       case "other_script":
         return "මෙය වෙනත් අකුරු පද්ධතියකින් ලියා ඇත. මෙම කියවනයට ඒ සඳහා හඬක් නැත.";
       case "converted_legacy":
@@ -854,8 +858,10 @@ export const si = {
         return `පිටු ${total}න් ${count}ක් පින්තූර පමණි.`;
       case "doc_unreadable_pages":
         return `පිටු ${total}න් ${count}ක් කියවිය නොහැක.`;
+      // Older notes said "a teacher"; nothing checked that, so both read alike.
+      case "page_corrected":
       case "page_teacher_corrected":
-        return "මෙම පිටුවේ පෙළ ගුරුවරයෙක් සමාලෝචනය කර නිවැරදි කළා.";
+        return "මෙම පිටුවේ පෙළ අතින් නිවැරදි කර ඇත.";
       case "ocr_recognised":
         return "මෙම පිටුව පින්තූරයෙන් කියවා ඇත. අකුරු වැරදි විය හැක; පුද්ගලයෙකු පරීක්ෂා කර නැත.";
       case "ocr_failed":

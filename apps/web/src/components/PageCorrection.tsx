@@ -29,9 +29,16 @@ export function PageCorrection({
 
   if (page.quality !== "needs_review") return null;
 
+  // Saving the text as it stands would label unreviewed OCR as corrected.
+  const unchanged = text.trim().split(/\s+/).join(" ") === initial.trim().split(/\s+/).join(" ");
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
+    if (unchanged) {
+      setFailure(strings.pageCorrectionUnchanged);
+      return;
+    }
     setBusy(true);
     try {
       const saved = await api.correctPage(documentId, page.page_index, text.trim());
@@ -64,7 +71,7 @@ export function PageCorrection({
         className="btn btn-primary"
         type="submit"
         disabled={busy}
-        aria-disabled={busy || undefined}
+        aria-disabled={busy || unchanged || undefined}
       >
         {strings.savePageCorrection}
       </button>

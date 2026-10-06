@@ -51,7 +51,13 @@ export function ProcessingNow({ fetchImpl }: { fetchImpl?: typeof fetch } = {}) 
           <dt>{strings.processingAnswers}</dt>
           <dd>{state.answers === "gemini" ? strings.processingGoogle : strings.processingHere}</dd>
           <dt>{strings.processingOcr}</dt>
-          <dd>{state.ocr === "off" ? strings.processingOff : strings.processingHere}</dd>
+          <dd>
+            {state.ocr === "off"
+              ? strings.processingOff
+              : state.ocr_engine === "google-vision"
+                ? strings.processingGoogleVision
+                : strings.processingHere}
+          </dd>
         </dl>
       )}
     </section>

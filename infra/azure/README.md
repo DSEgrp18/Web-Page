@@ -15,7 +15,7 @@ requires.
 | Size | Standard_E4s_v5: 4 vCPU, 32 GB, 128 GB SSD. A free-trial subscription allows 4 vCPUs and no GPU |
 | Power | Service hours, 06:00 to 23:00 Sri Lanka time, to make the credit last: $0.26 an hour, so about $133 a month rather than $187 for all day, before the disk. Azure's schedule shuts it down at 23:00; [`azure-vm-hours.yml`](../../.github/workflows/azure-vm-hours.yml) starts it at 06:00 and checks the site answers. Every container restarts unless stopped, so the stack comes back with the VM. Start it out of hours with `az vm start -g rg-swara -n swara-vm` |
 | Checkout | `~/swara`, detached at the commit last deployed |
-| Secrets | `~/swara/.env` (`SINHALA_READER_SECRET`), made on the VM, never committed |
+| Secrets | `~/swara/.env` (`SINHALA_READER_SECRET`) and VM-owned files under `~/.secrets/`, never committed |
 | Settings | `~/deploy.env`, read by `deploy.sh`: `SINHALA_READER_TTS_PRECISION=fp32`, because a half-precision model on CPU fails to compute its speaker conditioning |
 | Voice | The GPU voice on Modal (`SINHALA_READER_TTS=modal` in `~/deploy.env`; endpoint and key in `~/swara/.env`). The VM itself holds no model in memory. `~/models/xtts_si_female/` still has the five files, so removing that line from `~/deploy.env` and redeploying switches back to the local CPU voice |
 | TLS | Caddy, a separate container, with a Let's Encrypt certificate. Port 80 is open to all for certificate renewal and redirects to HTTPS |
@@ -44,6 +44,29 @@ from the Actions tab, on `main` only.
    them.
 
 Deploys never overlap. A deploy that starts while one is running waits for it.
+
+## Google Vision OCR credentials
+
+The service-account JSON must remain outside both Git and Docker images. Put it
+on the VM through the team's approved secure administration channel, owned by
+`azureuser`, at `~/.secrets/google-application-credentials.json` with mode
+`0600`. Then add only its path and the explicitly approved OCR settings to
+`~/deploy.env`:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS_HOST=/home/azureuser/.secrets/google-application-credentials.json
+SINHALA_READER_OCR=broken
+SINHALA_READER_OCR_ENGINE=google-vision
+SINHALA_READER_VISION_LOCATION=global
+SINHALA_READER_VISION_TIMEOUT_SECONDS=12
+```
+
+`deploy.sh` detects that path and adds `compose.google-vision.yml`, mounting the
+file read-only into API and worker containers. Do not pass JSON through a GitHub
+Actions workflow, command-line arguments, repository variables, or logs. The
+GitHub `azure-staging` environment holds a recovery copy named
+`GOOGLE_APPLICATION_CREDENTIALS_JSON`; it is not read by the deploy workflow
+because Azure run-command would expose it outside the VM secret boundary.
 
 ## By hand
 
