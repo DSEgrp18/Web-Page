@@ -77,6 +77,7 @@ export default async function LandingPage() {
             </Link>
           </div>
           <nav className="lp-path" aria-label={landing.stepsHeading}>
+            <div className="lp-path-rail" aria-hidden="true" />
             <ol>
               {landing.steps.map((step, index) => {
                 const Icon = STEP_ICONS[index]!;

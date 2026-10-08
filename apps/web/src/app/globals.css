@@ -4039,13 +4039,25 @@ textarea:focus {
 
 /* The four steps as one path: a ruled line through four stops, not four chips. */
 .lp-path {
+  --stop: 3.25rem;
+  position: relative;
   inline-size: 100%;
   max-inline-size: 34rem;
 }
 
+.lp-path-rail {
+  position: absolute;
+  z-index: 0;
+  inset-block-start: calc(0.2rem + var(--stop) / 2 - 1px);
+  inset-inline: 12.5%;
+  block-size: 2px;
+  background-color: var(--edge);
+  pointer-events: none;
+}
+
 .lp-path ol {
-  --stop: 3.25rem;
   position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
@@ -4055,16 +4067,6 @@ textarea:focus {
 
 .lp-path li {
   min-inline-size: 0;
-}
-
-.lp-path ol::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  inset-block-start: calc(0.2rem + var(--stop) / 2 - 1px);
-  inset-inline: 12.5%;
-  block-size: 2px;
-  background-color: var(--edge);
 }
 
 .lp-path a {
@@ -4640,7 +4642,7 @@ textarea:focus {
     gap: 0.15rem;
   }
 
-  .lp-path ol::before {
+  .lp-path-rail {
     inset-block: calc(0.35rem + var(--stop) / 2);
     inset-inline-start: calc(0.15rem + var(--stop) / 2 - 1px);
     inset-inline-end: auto;
