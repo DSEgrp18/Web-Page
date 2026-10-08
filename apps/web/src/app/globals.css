@@ -4111,6 +4111,8 @@ textarea:focus {
 }
 
 .lp-path-name {
+  padding-inline: 0.2rem;
+  background-color: var(--paper);
   font-size: var(--text-sm);
   line-height: var(--leading-tight);
   overflow-wrap: anywhere;
@@ -4405,10 +4407,9 @@ textarea:focus {
   grid-area: number;
   justify-self: end;
   align-self: center;
-  font-size: clamp(2.15rem, 2.6vw, 2.85rem);
+  font-size: clamp(2.15rem, 2.35rem, 2.85rem);
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  line-height: var(--leading-tight);
   /* Large, decorative type still has to clear 3:1 on each card wash. */
   color: var(--edge);
 }
