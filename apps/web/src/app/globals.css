@@ -36,6 +36,12 @@
   --brand: #2f53aa; /* the logo's blue. Actions, links, focus. 7.2:1 on white */
   --brand-deep: #1d3a82; /* pressed controls, headings on washes */
   --brand-wash: #e8eefc; /* the current sentence, selected rows */
+  /* Fills that must stay the logo's blue in both themes. In dark mode
+     `--brand` lightens so it can be read as text, which would turn every
+     button pale. These do not. */
+  --brand-solid: #2f53aa;
+  --brand-solid-deep: #1d3a82;
+  --ink-on-solid: #ffffff;
   --accent: #fd9520; /* the logo's orange. Fills only, never text on light */
   --accent-deep: #9a4d00; /* orange that can carry a word: 5.4:1 or more */
   --accent-wash: #fff2e2; /* badges and warm callouts */
@@ -161,9 +167,9 @@
     --accent-deep: #ffc27a;
     --accent-wash: #3a2812;
 
-    --paper: #0a1124;
-    --panel: #111a33;
-    --panel-sunken: #0d152c;
+    --paper: #070c18;
+    --panel: #162238;
+    --panel-sunken: #0e1830;
     --navy: #050a18;
 
     --ink: #e9eeff;
@@ -172,7 +178,7 @@
     --ink-on-accent: #0a1124;
     --ink-on-navy: #ffffff;
 
-    --hair: #24304f;
+    --hair: #31456a;
     --edge: #7684aa;
 
     --ok-ink: #84d8a6;
@@ -198,16 +204,16 @@
   --accent: #ffa94d;
   --accent-deep: #ffc27a;
   --accent-wash: #3a2812;
-  --paper: #0a1124;
-  --panel: #111a33;
-  --panel-sunken: #0d152c;
+  --paper: #070c18;
+  --panel: #162238;
+  --panel-sunken: #0e1830;
   --navy: #050a18;
   --ink: #e9eeff;
   --ink-muted: #a7b3d4;
   --ink-on-brand: #0a1124;
   --ink-on-accent: #0a1124;
   --ink-on-navy: #ffffff;
-  --hair: #24304f;
+  --hair: #31456a;
   --edge: #7684aa;
   --ok-ink: #84d8a6;
   --ok-wash: #11301f;
@@ -692,23 +698,20 @@ summary {
 
 .shell-footer {
   border-top: 1px solid var(--hair);
-  padding: var(--s5);
-  text-align: center;
+  background-color: var(--panel);
   font-size: var(--text-sm);
   color: var(--ink-muted);
+  text-align: start;
 }
 
 .footer-links {
   list-style: none;
-  margin: 0 0 var(--s2);
+  margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--s1) var(--s5);
+  display: grid;
+  justify-items: start;
 }
 
-/* Small text, but a full-size target. */
 /* -- the public pages ----------------------------------------------------- */
 
 /* A measure short enough to read, at any text size. */
@@ -745,12 +748,26 @@ summary {
   color: var(--ink);
 }
 
+/* The two ways to report a barrier, filled so they are the action on the page. */
+.prose-reports {
+  display: grid;
+  justify-items: start;
+  gap: var(--s3);
+}
+
+.prose-reports .btn {
+  min-inline-size: min(100%, 28rem);
+  padding-inline: var(--s6);
+  font-weight: 700;
+}
+
 .processing-now {
   padding: var(--s5);
   display: grid;
   gap: var(--s3);
 }
 
+/* Small text, but a full-size target. */
 .footer-links a {
   display: inline-flex;
   align-items: center;
@@ -3314,46 +3331,98 @@ textarea:focus {
   padding: 0;
 }
 
-/* -- the footer ----------------------------------------------------------- */
+/* -- the footer -----------------------------------------------------------
+   A band across the page: the name, the way around the site, and the
+   statements a reader can need from any page. */
 
-.shell-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s4) var(--s6);
+.footer-inner {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1.5fr) minmax(0, 0.8fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 4rem);
   max-width: var(--shell-max);
-  width: calc(100% - clamp(2rem, 6vw, 6rem));
-  margin: 0 auto;
-  padding: var(--s6) 0 var(--s7);
-  border-top: 1px solid var(--hair);
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  text-align: start;
+  margin-inline: auto;
+  padding: clamp(2rem, 4vw, 3.25rem) var(--s5) var(--s5);
 }
 
 .footer-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--s4);
-  flex-wrap: wrap;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--s3);
+  max-inline-size: 26rem;
 }
 
 .footer-brand .brand-lockup {
-  block-size: 2rem;
+  block-size: 2.15rem;
 }
 
-.footer-brand p {
+.footer-note {
   margin: 0;
+  line-height: var(--leading-normal);
 }
 
-.footer-links {
+.footer-col {
+  display: grid;
+  align-content: start;
+  gap: var(--s2);
+}
+
+.footer-label {
   margin: 0;
-  justify-content: flex-end;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .footer-links a {
   color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: var(--brand);
+  text-decoration: underline;
+}
+
+.footer-links a[aria-current="page"] {
+  color: var(--brand-deep);
+  text-decoration: underline;
+}
+
+.footer-base {
+  border-top: 1px solid var(--hair);
+}
+
+.footer-base p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: var(--s4) var(--s5);
+}
+
+.footer-base .latin::before {
+  content: "·";
+  margin-inline-end: 0.75rem;
+}
+
+@media (max-width: 52em) {
+  .footer-inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .footer-brand {
+    grid-column: 1 / -1;
+    max-inline-size: 36rem;
+  }
+}
+
+@media (max-width: 36em) {
+  .footer-inner {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* -- the library ---------------------------------------------------------- */
@@ -3672,11 +3741,40 @@ textarea:focus {
 }
 
 .book-card-actions {
-  gap: 0.4rem;
+  display: grid;
+  gap: 0.45rem;
 }
 
-.book-card-actions .btn-primary {
-  flex: 1 1 100%;
+.book-card-actions .btn {
+  inline-size: 100%;
+}
+
+/* Quiet actions are text-only elsewhere. On a card they need a boundary,
+   or they read as sentences under the blue button. */
+.book-card-actions .btn-quiet {
+  border-color: var(--edge);
+  background-color: var(--panel);
+  box-shadow: var(--shadow-1);
+  color: var(--ink);
+}
+
+.book-card-actions .btn-quiet:hover:not(:disabled) {
+  border-color: var(--brand);
+  background-color: var(--brand-wash);
+  color: var(--brand-deep);
+}
+
+.book-card-actions .btn-danger {
+  border-color: var(--bad-ink);
+  background-color: var(--bad-wash);
+  color: var(--bad-ink);
+  box-shadow: none;
+}
+
+.book-card-actions .btn-danger:hover:not(:disabled) {
+  border-color: var(--bad-ink);
+  background-color: var(--bad-wash);
+  color: var(--bad-ink);
 }
 
 /* A cover drawn for a book whose first page cannot be. Each book keeps its
@@ -3899,26 +3997,21 @@ textarea:focus {
 }
 
 .lp-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
+  display: grid;
+  justify-items: start;
+  gap: 0.55rem;
   margin: 0;
-  padding: 0.45rem 1rem 0.45rem 0.7rem;
-  border: 1px solid var(--hair);
-  border-radius: var(--r-pill);
-  background-color: var(--panel);
-  box-shadow: var(--shadow-1);
-  color: var(--ink);
+  color: var(--accent-deep);
   font-size: var(--text-sm);
   font-weight: 700;
 }
 
-.lp-eyebrow-dot {
-  inline-size: 0.6rem;
-  block-size: 0.6rem;
-  border-radius: 50%;
+.lp-eyebrow::after {
+  content: "";
+  inline-size: 2.25rem;
+  block-size: 3px;
+  border-radius: var(--r-pill);
   background-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-wash);
 }
 
 .lp-title {
@@ -3944,49 +4037,83 @@ textarea:focus {
   gap: var(--s3);
 }
 
-/* The four steps, as a row of in-page links under the call to action. */
-.lp-loop {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
+/* The four steps as one path: a ruled line through four stops, not four chips. */
+.lp-path {
+  inline-size: 100%;
+  max-inline-size: 34rem;
+}
+
+.lp-path ol {
+  --stop: 3.25rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.lp-loop a {
-  display: inline-flex;
+.lp-path li {
+  min-inline-size: 0;
+}
+
+.lp-path ol::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset-block-start: calc(0.2rem + var(--stop) / 2 - 1px);
+  inset-inline: 12.5%;
+  block-size: 2px;
+  background-color: var(--edge);
+}
+
+.lp-path a {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 0.55rem;
   min-block-size: var(--tap);
-  padding-inline: 1rem;
-  border: 1px solid var(--hair);
-  border-radius: var(--r-pill);
-  background-color: var(--panel);
+  padding: 0.2rem 0.2rem 0.35rem;
+  border-radius: var(--r);
   color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
+  text-align: center;
   text-decoration: none;
+}
+
+.lp-path a:hover .lp-path-stop,
+.lp-path a:focus-visible .lp-path-stop {
+  background-color: var(--brand);
+  border-color: var(--brand);
+  color: var(--ink-on-brand);
+}
+
+.lp-path a:focus-visible {
+  outline-offset: 3px;
+}
+
+.lp-path-stop {
+  display: grid;
+  place-items: center;
+  inline-size: var(--stop);
+  block-size: var(--stop);
+  border: 1.5px solid var(--edge);
+  border-radius: 50%;
+  background-color: var(--panel);
+  color: var(--brand);
+  box-shadow: var(--shadow-1);
   transition:
+    background-color var(--fast) var(--ease),
     border-color var(--fast) var(--ease),
     color var(--fast) var(--ease);
 }
 
-.lp-loop a:hover {
-  border-color: var(--brand);
-  color: var(--brand);
-}
-
-.lp-loop a::before {
-  content: "";
-  inline-size: 0.45rem;
-  block-size: 0.45rem;
-  margin-inline-end: 0.55rem;
-  border-radius: 50%;
-  background-color: var(--brand);
-}
-
-.lp-loop li:nth-child(even) a::before {
-  background-color: var(--accent);
+.lp-path-name {
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
 }
 
 /* The picture: two photographs, two soft lights, and the product's three
@@ -4182,22 +4309,28 @@ textarea:focus {
   letter-spacing: 0.08em;
 }
 
+/* One tall step with its photograph, two steps beside it, and the last
+   step as a full-width band. */
 .lp-steps {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: clamp(1rem, 2vw, 1.5rem);
+  grid-template-columns: minmax(0, 1.28fr) minmax(0, 0.9fr);
+  grid-template-rows: 1fr 1fr auto;
+  gap: clamp(0.85rem, 1.6vw, 1.2rem);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .lp-step {
-  position: relative;
-  grid-column: span 6;
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon . number"
+    "copy copy copy";
   align-content: start;
-  gap: var(--s3);
-  padding: clamp(1.4rem, 3vw, 2.2rem);
+  gap: 0.7rem 0.85rem;
+  min-inline-size: 0;
+  padding: clamp(1.15rem, 2vw, 1.55rem);
   overflow: hidden;
   border: 1px solid var(--hair);
   border-radius: var(--r-xl);
@@ -4211,21 +4344,33 @@ textarea:focus {
 }
 
 .lp-step:first-child {
-  grid-column: span 7;
-  grid-row: span 2;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "icon . number"
+    "copy copy copy"
+    "photo photo photo";
+  align-content: start;
   background-color: var(--brand-wash);
 }
 
 .lp-step:nth-child(2) {
-  grid-column: span 5;
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .lp-step:nth-child(3) {
-  grid-column: span 5;
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .lp-step:nth-child(4) {
-  grid-column: span 12;
+  grid-column: 1 / -1;
+  grid-row: 3;
+  grid-template-areas: "icon copy number";
+  align-items: center;
+  align-content: center;
   background-color: var(--accent-wash);
 }
 
@@ -4239,47 +4384,54 @@ textarea:focus {
   line-height: var(--leading-normal);
 }
 
-.lp-step-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .lp-step-icon {
+  grid-area: icon;
   display: inline-grid;
   place-items: center;
-  inline-size: 3.25rem;
-  block-size: 3.25rem;
-  border-radius: var(--r);
+  justify-self: start;
+  inline-size: 2.85rem;
+  block-size: 2.85rem;
+  border-radius: 0.9rem;
   background-color: var(--brand);
   color: var(--ink-on-brand);
-  box-shadow: var(--glow-brand);
 }
 
 .lp-step:nth-child(even) .lp-step-icon {
   background-color: var(--accent);
   color: var(--ink-on-accent);
-  box-shadow: none;
 }
 
 .lp-step-number {
-  font-family: var(--font-latin);
-  font-size: 2.5rem;
-  font-weight: 800;
+  grid-area: number;
+  justify-self: end;
+  align-self: center;
+  font-size: clamp(2.15rem, 2.6vw, 2.85rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
   color: var(--ink-muted);
-  line-height: var(--leading-tight);
+  opacity: 0.42;
+}
+
+.lp-step-copy {
+  grid-area: copy;
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  min-inline-size: 0;
 }
 
 .lp-step-photo {
+  grid-area: photo;
+  display: block;
   inline-size: 100%;
-  block-size: auto;
-  max-block-size: 20rem;
-  margin-block-start: var(--s3);
+  block-size: clamp(12.5rem, 24vw, 16.5rem);
+  min-block-size: 0;
+  margin-block-start: 0.35rem;
   object-fit: cover;
   /* The colour wheel, not the cork board above it. */
-  object-position: 50% 82%;
+  object-position: center 82%;
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-2);
 }
 
 .lp-audience {
@@ -4410,6 +4562,7 @@ textarea:focus {
 
   .lp-steps {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
   }
 
   .lp-step,
@@ -4419,6 +4572,21 @@ textarea:focus {
   .lp-step:nth-child(4) {
     grid-column: auto;
     grid-row: auto;
+    grid-template-rows: auto;
+    grid-template-areas:
+      "icon . number"
+      "copy copy copy";
+  }
+
+  .lp-step:first-child {
+    grid-template-areas:
+      "icon . number"
+      "copy copy copy"
+      "photo photo photo";
+  }
+
+  .lp-step-photo {
+    block-size: 14rem;
   }
 
   .lp-audience,
@@ -4432,6 +4600,28 @@ textarea:focus {
 }
 
 @media (max-width: 30em) {
+  .lp-path ol {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+  }
+
+  .lp-path ol::before {
+    inset-block: calc(0.35rem + var(--stop) / 2);
+    inset-inline-start: calc(0.15rem + var(--stop) / 2 - 1px);
+    inset-inline-end: auto;
+    inline-size: 2px;
+    block-size: auto;
+  }
+
+  .lp-path a {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.85rem;
+    padding: 0.35rem 0.15rem;
+    text-align: start;
+  }
+
   .lp-hero-art {
     min-block-size: 22rem;
   }
@@ -4468,6 +4658,70 @@ textarea:focus {
   font-size: var(--text-display);
   font-weight: 700;
 }
+
+/* A public guide page: the photograph is the ground. The article sits on it
+   as a card, so the type never lands on the picture. */
+.guide {
+  display: grid;
+  justify-items: center;
+}
+
+.guide-photo {
+  position: relative;
+  grid-area: 1 / 1;
+  inline-size: 100%;
+  block-size: clamp(18rem, 38vw, 26rem);
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+}
+
+.guide-photo img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+}
+
+.guide-photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--paper) 18%, transparent) 0%,
+    color-mix(in srgb, var(--paper) 55%, transparent) 46%,
+    var(--paper) 100%
+  );
+}
+
+.guide .prose-page {
+  grid-area: 1 / 1;
+  z-index: 1;
+  align-self: end;
+  inline-size: min(44rem, 100%);
+  margin-block-start: clamp(7.5rem, 16vw, 12rem);
+  box-shadow: var(--shadow-3);
+}
+
+.guide .prose-page h1::after {
+  content: "";
+  display: block;
+  inline-size: 3.25rem;
+  block-size: 3px;
+  margin-block-start: 0.9rem;
+  border-radius: var(--r-pill);
+  background-color: var(--accent);
+}
+
+.guide .prose-page section {
+  padding-block-start: var(--s5);
+  border-block-start: 1px solid var(--hair);
+}
+
+/* The photograph stays in dark mode. The fade above already dissolves it
+   into --paper, which is the dark page colour in this theme. */
 
 /* -- the reading workspace ------------------------------------------------ */
 
@@ -4562,9 +4816,9 @@ textarea:focus {
 
   :root:not([data-theme="light"]) .continue .btn-primary,
   :root:not([data-theme="light"]) .welcome .btn-primary {
-    border-color: var(--brand);
-    background-color: var(--brand);
-    color: var(--ink-on-brand);
+    border-color: var(--brand-solid);
+    background-color: var(--brand-solid);
+    color: var(--ink-on-solid);
   }
 
   :root:not([data-theme="light"]) .welcome .btn:not(.btn-primary) {
@@ -4594,9 +4848,68 @@ textarea:focus {
 
 :root[data-theme="dark"] .continue .btn-primary,
 :root[data-theme="dark"] .welcome .btn-primary {
-  border-color: var(--brand);
-  background-color: var(--brand);
-  color: var(--ink-on-brand);
+  border-color: var(--brand-solid);
+  background-color: var(--brand-solid);
+  color: var(--ink-on-solid);
+}
+
+/* Fills that are the logo's blue, not the lightened text colour. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) :is(
+      .btn-primary,
+      .nav-link[aria-current="page"],
+      .segment:has(input:checked),
+      .lp-play,
+      .lp-step-icon,
+      .account-avatar,
+      .workspace-tools .btn[aria-pressed="true"]
+    ) {
+    background-color: var(--brand-solid);
+    border-color: var(--brand-solid);
+    color: var(--ink-on-solid);
+  }
+
+  :root:not([data-theme="light"]) .btn-primary:hover:not(:disabled) {
+    background-color: var(--brand-solid-deep);
+    border-color: var(--brand-solid-deep);
+    color: var(--ink-on-solid);
+  }
+}
+
+:root[data-theme="dark"] :is(
+    .btn-primary,
+    .nav-link[aria-current="page"],
+    .segment:has(input:checked),
+    .lp-play,
+    .lp-step-icon,
+    .account-avatar,
+    .workspace-tools .btn[aria-pressed="true"]
+  ) {
+  background-color: var(--brand-solid);
+  border-color: var(--brand-solid);
+  color: var(--ink-on-solid);
+}
+
+:root[data-theme="dark"] .btn-primary:hover:not(:disabled) {
+  background-color: var(--brand-solid-deep);
+  border-color: var(--brand-solid-deep);
+  color: var(--ink-on-solid);
+}
+
+/* Steps 02 and 04 keep the orange badge. The solid-blue fill above would
+   otherwise paint every step icon the same colour. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lp-step:nth-child(even) .lp-step-icon {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: var(--ink-on-accent);
+  }
+}
+
+:root[data-theme="dark"] .lp-step:nth-child(even) .lp-step-icon {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink-on-accent);
 }
 
 :root[data-theme="dark"] .welcome .btn:not(.btn-primary) {

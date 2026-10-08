@@ -457,6 +457,7 @@ export const si = {
   primaryNavigation: "ප්‍රධාන සංචාලනය",
   publicNavigation: "ස්වර ගැන",
   footerNavigation: "වෙබ් අඩවියේ ප්‍රකාශ",
+  footerGuide: "ස්වර භාවිතය",
   howItWorksNav: "ක්‍රියා කරන ආකාරය",
   forTeachersNav: "ගුරුවරුන් සඳහා",
   helpNav: "උදව්",

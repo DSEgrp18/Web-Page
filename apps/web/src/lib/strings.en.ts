@@ -451,6 +451,7 @@ export const en: Strings = {
   primaryNavigation: "Main navigation",
   publicNavigation: "About Swara",
   footerNavigation: "Site statements",
+  footerGuide: "Using Swara",
   howItWorksNav: "How it works",
   forTeachersNav: "For teachers",
   helpNav: "Help",

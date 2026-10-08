@@ -58,14 +58,14 @@ export function ProsePageView({
       {children}
 
       {report ? (
-        <p>
-          <a className="btn" href={REPORT_URL} rel="noopener noreferrer">
+        <div className="prose-reports">
+          <a className="btn btn-primary" href={REPORT_URL} rel="noopener noreferrer">
             {strings.reportBarrier}
-          </a>{" "}
-          <a className="btn" href="/report?kind=accessibility">
+          </a>
+          <a className="btn btn-accent" href="/report?kind=accessibility">
             {strings.reportInApp}
           </a>
-        </p>
+        </div>
       ) : null}
 
       {page.reviewed ? <p className="hint">{strings.lastReviewed(page.reviewed)}</p> : null}
