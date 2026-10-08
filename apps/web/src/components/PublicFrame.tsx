@@ -36,40 +36,67 @@ export function SiteFooter() {
   const pathname = usePathname();
   return (
     <footer className="shell-footer">
-      <div className="footer-brand">
-        {/* The mark again, quietly, beside the page's last word. Decorative:
-            the masthead link already names the site. */}
-        <img
-          className="brand-lockup brand-lockup-light"
-          src="/brand/swara-lockup.webp"
-          alt=""
-          width={528}
-          height={140}
-          loading="lazy"
-          decoding="async"
-        />
-        <img
-          className="brand-lockup brand-lockup-dark"
-          src="/brand/swara-lockup-dark.webp"
-          alt=""
-          width={528}
-          height={140}
-          loading="lazy"
-          decoding="async"
-        />
-        <p>{strings.footerNote}</p>
+      <div className="footer-inner">
+        <div className="footer-brand">
+          {/* The mark again, quietly. Decorative: the masthead link already
+              names the site. */}
+          <img
+            className="brand-lockup brand-lockup-light"
+            src="/brand/swara-lockup.webp"
+            alt=""
+            width={528}
+            height={140}
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            className="brand-lockup brand-lockup-dark"
+            src="/brand/swara-lockup-dark.webp"
+            alt=""
+            width={528}
+            height={140}
+            loading="lazy"
+            decoding="async"
+          />
+          <p className="footer-note">{strings.footerNote}</p>
+        </div>
+        <nav className="footer-col" aria-labelledby="footer-guide">
+          <p className="footer-label" id="footer-guide">
+            {strings.footerGuide}
+          </p>
+          <ul className="footer-links">
+            {publicLinks(strings).map(([href, label]) => (
+              <li key={href}>
+                <Link href={href} aria-current={pathname === href ? "page" : undefined}>
+                  {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <nav className="footer-col" aria-labelledby="footer-statements">
+          <p className="footer-label" id="footer-statements">
+            {strings.footerNavigation}
+          </p>
+          <ul className="footer-links">
+            {footerLinks(strings).map(([href, label]) => (
+              <li key={href}>
+                <Link href={href} aria-current={pathname === href ? "page" : undefined}>
+                  {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </div>
-      <nav aria-label={strings.footerNavigation}>
-        <ul className="footer-links">
-          {footerLinks(strings).map(([href, label]) => (
-            <li key={href}>
-              <Link href={href} aria-current={pathname === href ? "page" : undefined}>
-                {label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <div className="footer-base">
+        <p>
+          <span>{strings.appName}</span>
+          <span className="latin" lang="en">
+            {strings.appNameLatin}
+          </span>
+        </p>
+      </div>
     </footer>
   );
 }

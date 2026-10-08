@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ComponentType } from "react";
 
 import {
   AnswerIcon,
@@ -39,11 +39,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /** One icon per step of the loop, in the order the steps are written. */
-const STEP_ICONS: ReactNode[] = [
-  <HeadphonesIcon key="listen" size={26} />,
-  <AnswerIcon key="understand" size={26} />,
-  <PractiseIcon key="practise" size={26} />,
-  <TrackIcon key="track" size={26} />,
+const STEP_ICONS: ComponentType<{ size?: number }>[] = [
+  HeadphonesIcon,
+  AnswerIcon,
+  PractiseIcon,
+  TrackIcon,
 ];
 
 /** The bars of the player's picture: a speaking voice, not a flat line. */
@@ -62,10 +62,7 @@ export default async function LandingPage() {
       {/* -- hero ---------------------------------------------------------- */}
       <section className="lp-hero" aria-labelledby="lp-title">
         <div className="lp-hero-copy">
-          <p className="lp-eyebrow">
-            <span className="lp-eyebrow-dot" aria-hidden="true" />
-            {strings.homeTitle}
-          </p>
+          <p className="lp-eyebrow">{strings.homeTitle}</p>
           <h1 id="lp-title" className="lp-title">
             {landing.tagline}
           </h1>
@@ -79,13 +76,23 @@ export default async function LandingPage() {
               {strings.signInAction}
             </Link>
           </div>
-          <ul className="lp-loop" aria-label={landing.stepsHeading}>
-            {landing.steps.map((step, index) => (
-              <li key={step.title}>
-                <a href={`#step-${index + 1}`}>{step.title}</a>
-              </li>
-            ))}
-          </ul>
+          <nav className="lp-path" aria-label={landing.stepsHeading}>
+            <ol>
+              {landing.steps.map((step, index) => {
+                const Icon = STEP_ICONS[index]!;
+                return (
+                  <li key={step.title}>
+                    <a href={`#step-${index + 1}`}>
+                      <span className="lp-path-stop" aria-hidden="true">
+                        <Icon size={20} />
+                      </span>
+                      <span className="lp-path-name">{step.title}</span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
         </div>
 
         <div className="lp-hero-art" aria-hidden="true">
@@ -154,42 +161,49 @@ export default async function LandingPage() {
           <h2 id="landing-steps">{landing.stepsHeading}</h2>
         </header>
         <ol className="lp-steps">
-          {landing.steps.map((step, index) => (
-            <li
-              key={step.title}
-              id={`step-${index + 1}`}
-              className="lp-step"
-              data-ready={step.ready}
-            >
-              <div className="lp-step-top">
-                <span className="lp-step-icon">{STEP_ICONS[index]}</span>
-                <span className="lp-step-number" aria-hidden="true">
+          {landing.steps.map((step, index) => {
+            const Icon = STEP_ICONS[index]!;
+            return (
+              <li
+                key={step.title}
+                id={`step-${index + 1}`}
+                className="lp-step"
+                data-ready={step.ready}
+              >
+                <span className="lp-step-icon">
+                  <Icon size={22} />
+                </span>
+                <span className="lp-step-number latin" aria-hidden="true">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-              </div>
-              <h3>
-                {step.title}
-                {step.ready ? null : (
-                  <>
-                    {" "}
-                    <span className="pill pill-quiet">{landing.notYet}</span>
-                  </>
-                )}
-              </h3>
-              <p>{step.body}</p>
-              {index === 0 ? (
-                <img
-                  className="lp-step-photo"
-                  src="/images/colour-book-540.webp"
-                  alt=""
-                  width={540}
-                  height={729}
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : null}
-            </li>
-          ))}
+                <div className="lp-step-copy">
+                  <h3>
+                    {step.title}
+                    {step.ready ? null : (
+                      <>
+                        {" "}
+                        <span className="pill pill-quiet">{landing.notYet}</span>
+                      </>
+                    )}
+                  </h3>
+                  <p>{step.body}</p>
+                </div>
+                {index === 0 ? (
+                  <img
+                    className="lp-step-photo"
+                    src="/images/colour-book-900.webp"
+                    srcSet="/images/colour-book-540.webp 540w, /images/colour-book-900.webp 900w"
+                    sizes="(max-width: 60em) 92vw, 42vw"
+                    alt=""
+                    width={540}
+                    height={729}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : null}
+              </li>
+            );
+          })}
         </ol>
       </section>
 

@@ -1,3 +1,4 @@
+import { devFakeAnswer, devFakeEnabled } from "@/lib/devBackend";
 import { passThrough } from "@/lib/passThrough";
 
 /**
@@ -14,6 +15,7 @@ type Context = { params: Promise<{ path: string[] }> };
 
 async function handle(request: Request, { params }: Context): Promise<Response> {
   const { path } = await params;
+  if (devFakeEnabled()) return devFakeAnswer(request, path);
   return passThrough(request, path);
 }
 

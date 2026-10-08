@@ -84,6 +84,8 @@ const pairs: [string, string, number][] = [
   // Primary buttons, the skip link and selected tabs, at rest and hovered.
   ["--ink-on-brand", "--brand", TEXT],
   ["--ink-on-brand", "--brand-deep", TEXT],
+  ["--ink-on-solid", "--brand-solid", TEXT],
+  ["--ink-on-solid", "--brand-solid-deep", TEXT],
   ["--paper", "--brand-deep", TEXT],
   // Pills, notices and the player warning: status ink, and body ink, on washes.
   ...["ok", "warn", "bad"].flatMap((s): [string, string, number][] => [

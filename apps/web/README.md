@@ -82,6 +82,11 @@ npm install
 READER_API_URL=http://127.0.0.1:8000 npm run dev
 ```
 
+To work on the interface with no API at all, start the reader with
+`READER_DEV_FAKE=1 npm run dev`. `/api/...` is then answered in memory by the
+test suite's fake, signed in as a teacher with sample books and a class. It
+never runs in a production build; there is no real voice, answer, or PDF.
+
 Then `http://localhost:3000`, and make an account. Without a database the API
 keeps accounts in memory, so a restart means registering again; set
 `SINHALA_READER_DATABASE_URL` to keep them.
