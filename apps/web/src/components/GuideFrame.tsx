@@ -37,7 +37,7 @@ export function GuideFrame({
           style={{ objectPosition: focus }}
         />
       </figure>
-      {children}
+      <div className="guide-sheet">{children}</div>
     </div>
   );
 }

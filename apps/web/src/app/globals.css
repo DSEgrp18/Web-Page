@@ -4409,8 +4409,42 @@ textarea:focus {
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
+  /* Large, decorative type still has to clear 3:1 on each card wash. */
+  color: var(--edge);
+}
+
+.lp-step:first-child .lp-step-number {
+  color: var(--brand-deep);
+}
+
+.lp-step:nth-child(4) .lp-step-number {
+  color: var(--accent-deep);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lp-step-number {
+    color: var(--ink-muted);
+  }
+
+  :root:not([data-theme="light"]) .lp-step:first-child .lp-step-number {
+    color: var(--brand);
+  }
+
+  :root:not([data-theme="light"]) .lp-step:nth-child(4) .lp-step-number {
+    color: var(--accent-deep);
+  }
+}
+
+:root[data-theme="dark"] .lp-step-number {
   color: var(--ink-muted);
-  opacity: 0.42;
+}
+
+:root[data-theme="dark"] .lp-step:first-child .lp-step-number {
+  color: var(--brand);
+}
+
+:root[data-theme="dark"] .lp-step:nth-child(4) .lp-step-number {
+  color: var(--accent-deep);
 }
 
 .lp-step-copy {
@@ -4662,18 +4696,26 @@ textarea:focus {
 /* A public guide page: the photograph is the ground. The article sits on it
    as a card, so the type never lands on the picture. */
 .guide {
-  display: grid;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .guide-photo {
   position: relative;
-  grid-area: 1 / 1;
   inline-size: 100%;
   block-size: clamp(18rem, 38vw, 26rem);
   margin: 0;
   overflow: hidden;
   border-radius: var(--r-xl);
+  flex-shrink: 0;
+}
+
+.guide-sheet {
+  position: relative;
+  z-index: 1;
+  inline-size: min(44rem, 100%);
+  margin-block-start: clamp(-12rem, -16vw, -7.5rem);
 }
 
 .guide-photo img {
@@ -4697,11 +4739,8 @@ textarea:focus {
 }
 
 .guide .prose-page {
-  grid-area: 1 / 1;
-  z-index: 1;
-  align-self: end;
-  inline-size: min(44rem, 100%);
-  margin-block-start: clamp(7.5rem, 16vw, 12rem);
+  margin-block-start: 0;
+  background-color: var(--panel);
   box-shadow: var(--shadow-3);
 }
 
@@ -4855,7 +4894,8 @@ textarea:focus {
 
 /* Fills that are the logo's blue, not the lightened text colour. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) :is(
+  :root:not([data-theme="light"])
+    :is(
       .btn-primary,
       .nav-link[aria-current="page"],
       .segment:has(input:checked),
@@ -4876,7 +4916,8 @@ textarea:focus {
   }
 }
 
-:root[data-theme="dark"] :is(
+:root[data-theme="dark"]
+  :is(
     .btn-primary,
     .nav-link[aria-current="page"],
     .segment:has(input:checked),
