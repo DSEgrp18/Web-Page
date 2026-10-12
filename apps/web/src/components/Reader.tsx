@@ -11,7 +11,6 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { PdfPanel } from "@/components/PdfPanel";
 import { PlayerBar } from "@/components/PlayerBar";
 import { usePreferences } from "@/components/PreferencesProvider";
-import { PageCorrection } from "@/components/PageCorrection";
 import { ReadingPanel } from "@/components/ReadingPanel";
 import { SaveOffline } from "@/components/SaveOffline";
 import { useReader } from "@/components/ReaderProvider";
@@ -519,16 +518,6 @@ export function Reader({
         onPlayIndex={player.playAt}
         documentNotes={book.notes}
       />
-      {page && book ? (
-        <PageCorrection
-          documentId={documentId}
-          page={page}
-          onSaved={(saved) => {
-            setPage(saved);
-            void api.getDocument(documentId).then(setBook).catch(fail);
-          }}
-        />
-      ) : null}
       <div className="reading-pager">
         <button
           type="button"

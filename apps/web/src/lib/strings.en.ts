@@ -601,12 +601,6 @@ export const en: Strings = {
 
   // -- what the page loses ----------------------------------------------
   pageNotesHeading: "About this page",
-  pageCorrectionHeading: "Correct this page's text",
-  pageCorrectionIntro:
-    "If OCR or extraction got this page wrong, enter the correct Sinhala text here. Saving creates a new version of the book and regenerates audio for this page.",
-  pageCorrectionLabel: "Page text",
-  savePageCorrection: "Save corrected text",
-  pageCorrected: "The page text was saved.",
   pageCorrectionUnchanged: "The text has not been changed. Correct it before saving.",
   qualityNeedsReview: "Some parts of this page have not been confirmed as read correctly.",
   qualityUndecodable: "This page could not be read. It has not been turned into audio.",
