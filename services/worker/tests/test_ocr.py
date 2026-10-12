@@ -353,6 +353,39 @@ def test_a_stray_symbol_inside_a_readable_line_does_not_count_the_line() -> None
     assert text_layer_failed(broken_page(lines=(real,), notes=(), kind=PageKind.TEXT))
 
 
+def _mixed_page(good: int, malformed: int):
+    box = BoundingBox(0, 0, 10, 10)
+    ok = TextSpan(text=SENTENCE, font="", raw_font="", size=12, box=box)
+    bad = replace(ok, text="පා්‍ර ග් ඓතිහාසික යුග යේ", quality=QualityState.NEEDS_REVIEW)
+    # Each line its own, or the page would look like a hidden copy of itself.
+    lines = tuple(
+        TextLine(spans=(replace(ok, text=f"{SENTENCE} {n}"),), box=box) for n in range(good)
+    )
+    lines += tuple(TextLine(spans=(bad,), box=box) for _ in range(malformed))
+    return broken_page(lines=lines, notes=(), kind=PageKind.TEXT)
+
+
+def test_a_page_mostly_in_malformed_sinhala_has_a_failed_text_layer() -> None:
+    """The WeasyPrint history book: a fifth to a third of every page malformed."""
+    assert text_layer_failed(_mixed_page(good=8, malformed=3))
+
+
+def test_a_little_malformed_text_is_not_worth_recognising_the_page_for() -> None:
+    """One odd span among many good lines keeps the page's exact text."""
+    assert not text_layer_failed(_mixed_page(good=30, malformed=1))
+
+
+def test_a_short_page_needs_enough_malformed_text_to_count() -> None:
+    """A large share of very little is still very little."""
+    box = BoundingBox(0, 0, 10, 10)
+    bad = TextSpan(
+        text="පා්‍ර", font="", raw_font="", size=12, box=box, quality=QualityState.NEEDS_REVIEW
+    )
+    assert not text_layer_failed(
+        broken_page(lines=(TextLine(spans=(bad,), box=box),), notes=(), kind=PageKind.TEXT)
+    )
+
+
 def test_a_scan_has_a_failed_text_layer() -> None:
     assert text_layer_failed(page_with(kind=PageKind.IMAGE))
 
