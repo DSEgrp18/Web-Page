@@ -491,6 +491,19 @@ _REPEAT_MINIMUM = 20
 #: stray symbol. The other single withheld lines were real sentences.
 _WITHHELD_MINIMUM = 5
 
+#: A page with this share of its text in malformed Sinhala is read from its
+#: image. A WeasyPrint history book (fonts NSerifSi and NSansSi) mapped its
+#: glyphs to text so badly that letters were dropped ("තම්බපණ්ණි" became
+#: "තම්බ ණ්ණි") and vowel signs moved ("ප්‍රාග්" became "පා්‍ර ග්"): 20 to 36%
+#: of every page was in malformed spans, while a clean Unicode PDF has none.
+#: Dropped letters are not in the text layer at all, so nothing but the image
+#: can restore them. Not calibrated on the 168-page textbook.
+MALFORMED_SHARE = 0.10
+
+#: Below this many malformed characters a page keeps its text: a short page
+#: with one odd span is not worth replacing exact lines with recognised ones.
+_MALFORMED_MINIMUM = 20
+
 
 def _withholds_text(line: TextLine) -> bool:
     """Whether the *withheld spans* of this line amount to text.
@@ -500,6 +513,18 @@ def _withholds_text(line: TextLine) -> bool:
     """
     withheld = "".join(span.text for span in line.spans if span.quality is QualityState.UNDECODABLE)
     return sum(not character.isspace() for character in withheld) >= _WITHHELD_MINIMUM
+
+
+def _malformed(page: PageExtraction) -> bool:
+    """Whether too much of this page's text decodes to malformed Sinhala."""
+    spans = [span for line in page.lines for span in line.spans]
+    total = sum(sum(not c.isspace() for c in span.text) for span in spans)
+    bad = sum(
+        sum(not c.isspace() for c in span.text)
+        for span in spans
+        if span.quality is QualityState.NEEDS_REVIEW
+    )
+    return bad >= _MALFORMED_MINIMUM and bad >= MALFORMED_SHARE * total
 
 
 def text_layer_failed(page: PageExtraction) -> bool:
@@ -513,10 +538,16 @@ def text_layer_failed(page: PageExtraction) -> bool:
     - **Repeated lines.** A hidden second copy of the page, read as well as the
       visible one. Pages 3, 5, 7, 8 and 121.
     - **No text at all on a page with images.** A scan.
+
+    And one measured on a generated PDF since: **malformed text** — at least
+    :data:`MALFORMED_SHARE` of the page in spans that decode to malformed
+    Sinhala, which is what a broken glyph-to-text map looks like.
     """
     if page.kind is PageKind.IMAGE:
         return True
     if any(_withholds_text(line) for line in page.lines):
+        return True
+    if _malformed(page):
         return True
     texts = [line.text.strip() for line in page.lines]
     counts = Counter(text for text in texts if len(text) >= _REPEAT_MINIMUM)
