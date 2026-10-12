@@ -627,12 +627,6 @@ export const si = {
 
   // -- what the page loses ----------------------------------------------
   pageNotesHeading: "මෙම පිටුව ගැන",
-  pageCorrectionHeading: "පිටුවේ පෙළ නිවැරදි කරන්න",
-  pageCorrectionIntro:
-    "OCR හෝ extraction වැරදි නම්, මෙහි නිවැරදි Sinhala පෙළ ඇතුළත් කරන්න. සුරැකීමෙන් පසු පොතේ නව අනුවාදයක් සෑදෙන අතර, මෙම පිටුවේ හඬ නැවත හැදෙයි.",
-  pageCorrectionLabel: "පිටුවේ පෙළ",
-  savePageCorrection: "නිවැරදි පෙළ සුරකින්න",
-  pageCorrected: "පිටුවේ පෙළ සුරකින ලදී.",
   pageCorrectionUnchanged: "පෙළ වෙනස් කර නැත. සුරැකීමට පෙර වැරදි නිවැරදි කරන්න.",
   qualityNeedsReview: "මෙම පිටුවේ සමහර කොටස් නිවැරදිව කියවා ඇත්දැයි තහවුරු කර නැත.",
   qualityUndecodable: "මෙම පිටුව කියවිය නොහැකි විය. එය ශබ්දයට හරවා නැත.",
