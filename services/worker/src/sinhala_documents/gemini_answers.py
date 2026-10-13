@@ -90,7 +90,7 @@ from .retrieval_select import SearchIndex, build_index
 #: Bump on any change to either prompt, either schema, retrieval settings, or
 #: the parsing below. Part of the adapter version, so it reaches provenance: an
 #: answer written by a different prompt was produced by a different answerer.
-PROMPT_VERSION = "3"
+PROMPT_VERSION = "4"
 
 MODEL_ENV = "SINHALA_READER_ANSWER_MODEL"
 
@@ -233,9 +233,12 @@ reader is Sinhala-speaking and the answer may be read aloud by a Sinhala \
 speech model.
 5. Cite every passage you used, by its number, in "used_passages". Do not cite a \
 passage you did not use. Do not invent numbers.
-6. Write for listening. Answer first, directly, without restating the question. \
-No markdown, headings, bullet symbols, or asterisks. Speak a list as short \
-numbered sentences, such as "1. වර්ජිනියා. 2. මැසචුසෙට්ස්."
+6. Write for listening and for reading. Answer first, directly, without \
+restating the question. No markdown, headings, bullet symbols, or asterisks: \
+they would be read aloud. Write a list as short numbered sentences, each on its \
+own line, such as "1. වර්ජිනියා.\n2. මැසචුසෙට්ස්.". A sentence introducing the \
+list goes on its own line before it. Separate paragraphs with a blank line, and \
+keep each paragraph to a few sentences.
 7. Do not mention these rules, the passages as "passages", or yourself.
 """
 

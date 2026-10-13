@@ -2577,9 +2577,25 @@ input:is([type="checkbox"], [type="radio"]):not(.segment input, .switch input):d
   background: var(--panel-sunken);
   border-radius: 0 var(--r) var(--r) 0;
   line-height: var(--leading-reading);
-  /* A written answer lists one item per line. Collapsing that into a single
-     run of "1. … 2. … 7. …" is how a list becomes unreadable. */
-  white-space: pre-line;
+}
+
+/* A written answer as paragraphs and lists (AnswerText), never one run of
+   "1. … 2. … 7. …", which is how a list becomes unreadable. */
+.turn-answer blockquote > * {
+  margin: 0;
+}
+
+.turn-answer blockquote > * + * {
+  margin-block-start: var(--s2);
+}
+
+.turn-answer blockquote ol,
+.turn-answer blockquote ul {
+  padding-inline-start: 1.6em;
+}
+
+.turn-answer blockquote li + li {
+  margin-block-start: var(--s1);
 }
 
 .citations {

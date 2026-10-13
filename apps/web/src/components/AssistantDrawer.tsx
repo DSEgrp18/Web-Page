@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { AnswerText } from "@/components/AnswerText";
 import { useAnnouncer } from "@/components/Announcer";
 import { usePreferences } from "@/components/PreferencesProvider";
 import { useReader } from "@/components/ReaderProvider";
@@ -426,7 +427,9 @@ export function AssistantDrawer({
                   <span className="turn-who">
                     {turn.answer.generated ? strings.answerFromAi : strings.answerFromBook}
                   </span>
-                  <blockquote lang="si">{turn.answer.answer}</blockquote>
+                  <blockquote lang="si">
+                    <AnswerText text={turn.answer.answer ?? ""} />
+                  </blockquote>
 
                   {turn.answer.citations.length > 0 ? (
                     <ol className="citations">
