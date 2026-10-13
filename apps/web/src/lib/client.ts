@@ -358,9 +358,15 @@ export class ReaderApi {
     );
   }
 
-  async getAudio(documentId: string, segmentId: string, signal?: AbortSignal): Promise<AudioClip> {
+  async getAudio(
+    documentId: string,
+    segmentId: string,
+    signal?: AbortSignal,
+    voice?: string,
+  ): Promise<AudioClip> {
+    const query = voice ? `?voice=${encodeURIComponent(voice)}` : "";
     const response = await this.request(
-      `/documents/${encodeURIComponent(documentId)}/segments/${encodeURIComponent(segmentId)}/audio`,
+      `/documents/${encodeURIComponent(documentId)}/segments/${encodeURIComponent(segmentId)}/audio${query}`,
       { signal },
     );
     // Absent means unknown, and unknown must not read as "real".

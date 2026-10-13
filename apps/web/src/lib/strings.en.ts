@@ -640,6 +640,12 @@ export const en: Strings = {
   settingFollowSentence: "Follow the sentence being read",
   settingPageTurnSound: "Page-turn sound",
   settingPageTurnSoundHelp: "This can get in the way when you use a screen reader.",
+  settingsVoice: "Reading voice",
+  voiceFemale: "Female voice",
+  voiceMale: "Male voice",
+  settingsVoiceHelp: "The chosen voice reads from the next sentence on.",
+  voiceMaleUnavailable: "The male voice is not available yet.",
+  voiceUnavailable: "This voice is not available yet. Choose another voice in the settings.",
   settingsLanguage: "Interface language",
   settingsLanguageHelp: "Books are always read in their own language.",
 

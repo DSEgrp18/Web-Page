@@ -667,6 +667,12 @@ export const si = {
   settingFollowSentence: "කියවන වාක්‍යය අනුව ගමන් කරන්න",
   settingPageTurnSound: "පිටුව හැරවීමේ ශබ්දය",
   settingPageTurnSoundHelp: "තිර කියවනයක් භාවිත කරන විට මෙය ඔබට බාධා විය හැක.",
+  settingsVoice: "කියවන හඬ",
+  voiceFemale: "කාන්තා හඬ",
+  voiceMale: "පිරිමි හඬ",
+  settingsVoiceHelp: "ඊළඟ වාක්‍යයේ සිට තෝරාගත් හඬින් කියවේ.",
+  voiceMaleUnavailable: "පිරිමි හඬ තවම ලබා ගත නොහැක.",
+  voiceUnavailable: "මෙම හඬ තවම ලබා ගත නොහැක. සැකසුම් තුළ වෙනත් හඬක් තෝරන්න.",
   settingsLanguage: "අතුරු මුහුණතේ භාෂාව",
   settingsLanguageHelp: "පොත් සැමවිටම ඒවායේම භාෂාවෙන් කියවේ.",
 

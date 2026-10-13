@@ -30,8 +30,14 @@ export function parseTheme(value: string | null | undefined): Theme {
   return value === "light" || value === "dark" ? value : "system";
 }
 
+/** The narrating voice. Each is a reference clip on the server; see `VOICE_CLIPS`. */
+export type Voice = "si-female" | "si-male";
+export const VOICES: readonly Voice[] = ["si-female", "si-male"];
+
 export interface Preferences {
   theme: Theme;
+  /** Who reads the book aloud. A voice the server lacks is refused, never swapped. */
+  voice: Voice;
   /** Multiplier on reading text only. The interface stays put. */
   textScale: number;
   /** Scroll the reading panel to the sentence being narrated. */
@@ -55,6 +61,7 @@ export const TEXT_SCALES = [0.9, 1, 1.15, 1.3, 1.5] as const;
 
 export const DEFAULTS: Preferences = {
   theme: "system",
+  voice: "si-female",
   textScale: 1,
   followSentence: true,
   syncPages: true,
@@ -97,6 +104,7 @@ function sanitise(value: Partial<Preferences>): Preferences {
     : DEFAULTS.textScale;
   return {
     theme,
+    voice: VOICES.includes(value.voice as Voice) ? (value.voice as Voice) : DEFAULTS.voice,
     textScale: scale,
     followSentence: value.followSentence ?? DEFAULTS.followSentence,
     syncPages: value.syncPages ?? DEFAULTS.syncPages,

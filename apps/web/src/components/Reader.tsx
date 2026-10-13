@@ -117,7 +117,11 @@ export function Reader({
   const fail = useCallback(
     (cause: unknown) => {
       const message =
-        cause instanceof ApiError ? messageFor(cause.kind, strings) : strings.errorServer;
+        cause instanceof ApiError && cause.status === 409
+          ? strings.voiceUnavailable
+          : cause instanceof ApiError
+            ? messageFor(cause.kind, strings)
+            : strings.errorServer;
       setError(message);
       alert(message);
     },
@@ -270,7 +274,15 @@ export function Reader({
     [api, documentId, sendHeard],
   );
 
-  const player = usePlayer({ api, documentId, segments, onPosition, onHeard, onError: fail });
+  const player = usePlayer({
+    api,
+    documentId,
+    segments,
+    voice: preferences.voice,
+    onPosition,
+    onHeard,
+    onError: fail,
+  });
   const { stop } = player;
 
   // A new page is a new queue. Anything still playing belongs to the old one.

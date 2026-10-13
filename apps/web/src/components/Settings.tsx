@@ -5,7 +5,8 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { usePreferences } from "@/components/PreferencesProvider";
 import { themeName } from "@/lib/strings";
-import { TEXT_SCALES, type Theme } from "@/lib/preferences";
+import { TEXT_SCALES, VOICES, type Theme, type Voice } from "@/lib/preferences";
+import { API_BASE } from "@/lib/client";
 import { saveLocale, useLocale, useStrings } from "@/components/LocaleProvider";
 import { LOCALES, type Locale } from "@/lib/i18n";
 
@@ -34,6 +35,9 @@ export function Settings() {
   // The room below the header, measured: on a phone the header wraps, so no
   // fixed figure is right, and the panel scrolls inside this.
   const [room, setRoom] = useState<number | null>(null);
+  // The voices the server has a clip for; null until asked, or if it could not
+  // say. Unknown is not "unavailable": nothing is disabled on a guess.
+  const [installed, setInstalled] = useState<string[] | null>(null);
   const panelId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -61,6 +65,20 @@ export function Settings() {
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || installed !== null) return;
+    let cancelled = false;
+    fetch(`${API_BASE}/readiness`, { credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { voices?: unknown } | null) => {
+        if (!cancelled && body && Array.isArray(body.voices)) setInstalled(body.voices as string[]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, installed]);
 
   useEffect(() => {
     if (!open) return;
@@ -168,6 +186,35 @@ export function Settings() {
             ))}
           </div>
           <p className="hint">{strings.settingsTextSizeHelp}</p>
+        </fieldset>
+
+        <fieldset className="settings-group">
+          <legend>{strings.settingsVoice}</legend>
+          <div className="segmented">
+            {VOICES.map((voice: Voice) => {
+              const missing = installed !== null && !installed.includes(voice);
+              return (
+                <label key={voice} className="segment">
+                  <input
+                    type="radio"
+                    name="swara-voice"
+                    value={voice}
+                    checked={preferences.voice === voice}
+                    // Still choosable if already chosen, so a reader is never
+                    // stuck on a radio they cannot leave by keyboard.
+                    disabled={missing && preferences.voice !== voice}
+                    onChange={() => set("voice", voice)}
+                  />
+                  <span>{voice === "si-male" ? strings.voiceMale : strings.voiceFemale}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="hint">
+            {installed !== null && !installed.includes("si-male")
+              ? strings.voiceMaleUnavailable
+              : strings.settingsVoiceHelp}
+          </p>
         </fieldset>
 
         <fieldset className="settings-group">
