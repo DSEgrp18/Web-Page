@@ -62,6 +62,7 @@ from .adapter import (
 )
 from .audio_checks import check_audio
 from .normalize import NORMALIZER_VERSION
+from .overrides import normalizer_version
 
 #: How long to wait for the remote voice to answer, cold start included.
 STATUS_TIMEOUT_SECONDS = 15 * 60
@@ -230,7 +231,7 @@ class RemoteVoiceAdapter(TtsAdapter):
             is_real_model=True,
             model_version=loaded.version,
             settings=settings,
-            normalizer_version=NORMALIZER_VERSION,
+            normalizer_version=normalizer_version(),
             device=loaded.device,
             readiness=self._state,
             sample_rate=sample_rate,
