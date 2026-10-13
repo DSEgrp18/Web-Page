@@ -188,10 +188,10 @@ Local destination: `C:/D/Github Projects/Web-Page/models/xtts_si_female/`.
 | `vocab.json` | 376,645 |
 | `config.json` | 4,526 |
 | `sinhala_text.py` | 10,652 |
-| `reference.wav` | 271,916 |
+| `reference.wav` | 144,428 |
 | `reference_male.wav` (optional) | 268,438 |
 
-Only these files belong in this local model bundle. `reference_male.wav` is the optional male voice's speaker clip (clip `aIBFQo8vHDM_010_0013.wav`, 6.1 s, chosen 2026-10-13); without it the male voice is unavailable, never substituted. Its speaker's permission and how well the female-tuned checkpoint follows it are both unverified. Do not copy the source `archive/` or `__pycache__/`. The owner identifies `archive/` as an accidentally extracted duplicate checkpoint; leave the original source and archive untouched. Load `model.pth` as a checkpoint, not as an archive to unpack.
+Only these files belong in this local model bundle. `reference_male.wav` is the optional male voice's speaker clip (clip `aIBFQo8vHDM_010_0013.wav`, 6.1 s, chosen 2026-10-13); without it the male voice is unavailable, never substituted. Its speaker's permission and how well the female-tuned checkpoint follows it are both unverified. On 2026-10-13 the owner replaced `reference.wav` with `PDF-Tool/xtts-female.wav` (3.0 s, sha256 `01a326fd…`); the original (271,916 bytes, sha256 `fa1e2295…`) is kept outside the bundle in `models/backup/` and at `/backup/` on the Modal volume. Changing it changed the bundle version, so all earlier audio is regenerated on demand. Do not copy the source `archive/` or `__pycache__/`. The owner identifies `archive/` as an accidentally extracted duplicate checkpoint; leave the original source and archive untouched. Load `model.pth` as a checkpoint, not as an archive to unpack.
 
 The owner confirms that `sinhala_text.py` / `to_ascii()` is the required text frontend, `reference.wav` is the separately supplied speaker-conditioning clip, and `vocab.json` must match the checkpoint. Keep all five assets together; do not replace the tokenizer or omit the reference audio. Runtime inference and dependency compatibility still need verification.
 
