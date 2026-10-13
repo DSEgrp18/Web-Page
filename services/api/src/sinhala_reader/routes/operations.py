@@ -142,6 +142,8 @@ def register(app: FastAPI, deps: Deps) -> None:
             # half gets killed and reported as an outage rather than a cold start.
             "model_version": loaded_model_version(deps.adapter),
             "voice": adapter_mode(),
+            # The voices a reader can choose now. Never loads the model.
+            "voices": sorted(deps.adapter.voices()),
             "device": report.device,
             "voice_detail": report.detail,
             "auth_mode": auth_mode() or "unconfigured",

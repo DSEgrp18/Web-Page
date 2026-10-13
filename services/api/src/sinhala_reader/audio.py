@@ -24,7 +24,7 @@ import threading
 import wave
 
 import numpy as np
-from sinhala_tts.adapter import SynthesisSettings, TtsAdapter
+from sinhala_tts.adapter import DEFAULT_VOICE, SynthesisSettings, TtsAdapter
 
 from .storage import AudioRecord, Store
 
@@ -120,7 +120,7 @@ class SynthesisService:
         self,
         adapter: TtsAdapter,
         store: Store,
-        voice_id: str = "si-female",
+        voice_id: str = DEFAULT_VOICE,
         encoding: str | None = None,
     ) -> None:
         self._adapter = adapter
@@ -145,6 +145,7 @@ class SynthesisService:
         settings: SynthesisSettings | None = None,
         *,
         prepared: tuple[str, str] | None = None,
+        voice_id: str | None = None,
     ) -> str:
         """The key this text would be cached under, without generating anything.
 
@@ -154,9 +155,16 @@ class SynthesisService:
         ``prepared`` is the segment's stored ``(spoken_text, model_text)``. Pass
         it wherever the segment is known: the key must be derived from the same
         text the synthesis will speak, or a lookup misses audio that exists.
+
+        ``voice_id`` is the reader's chosen voice; without one, the service's
+        default. Raises ``VoiceUnavailableError`` for a voice not installed.
         """
         return self._adapter.cache_key(
-            text, self._voice_id, settings, document_version=document_version, prepared=prepared
+            text,
+            voice_id or self._voice_id,
+            settings,
+            document_version=document_version,
+            prepared=prepared,
         )
 
     def synthesize(
@@ -169,9 +177,13 @@ class SynthesisService:
         document_version: str,
         settings: SynthesisSettings | None = None,
         prepared: tuple[str, str] | None = None,
+        voice_id: str | None = None,
     ) -> AudioRecord:
         """Return cached audio for this segment, generating it if needed."""
-        key = self.cache_key_for(text, document_version, settings, prepared=prepared)
+        voice = voice_id or self._voice_id
+        key = self.cache_key_for(
+            text, document_version, settings, prepared=prepared, voice_id=voice
+        )
 
         cached = self._store.get_audio(key, document_id, owner)
         if cached is not None:
@@ -185,7 +197,7 @@ class SynthesisService:
 
             result = self._adapter.synthesize(
                 text,
-                self._voice_id,
+                voice,
                 settings,
                 document_version=document_version,
                 prepared=prepared,

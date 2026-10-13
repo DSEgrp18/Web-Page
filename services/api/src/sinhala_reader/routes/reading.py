@@ -6,10 +6,10 @@ from dataclasses import replace
 from functools import partial
 from typing import TYPE_CHECKING
 
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sinhala_documents.corrections import UnchangedCorrection, apply_page_correction
-from sinhala_tts.adapter import TextNotSpeakableError
+from sinhala_tts.adapter import DEFAULT_VOICE, TextNotSpeakableError, VoiceUnavailableError
 
 from ..audio import extension_for
 from ..preparation import get_prepared, store_prepared
@@ -25,6 +25,14 @@ from ..schemas import (
 from ..security import require_owner
 from ..storage import Bookmark, Progress, new_id
 from .common import REAL_MODEL_HEADER, prepared_for_in, readable_in
+
+#: The reader's choice of voice, on every audio route. Short and closed: the
+#: adapter refuses any id it does not know.
+VOICE_QUERY = Query(DEFAULT_VOICE, max_length=32, description="si-female or si-male.")
+
+#: Said to a reader who chose a voice that is not installed. Never answered in
+#: the other voice instead: CLAUDE.md forbids substituting one silently.
+VOICE_UNAVAILABLE = "This voice is not available yet."
 
 if TYPE_CHECKING:
     from ..app import Deps
@@ -108,7 +116,10 @@ def register(app: FastAPI, deps: Deps) -> None:
 
     @app.get("/documents/{document_id}/segments/{segment_id}/audio", tags=["reading"])
     def get_audio(
-        document_id: str, segment_id: str, owner: str = Depends(require_owner)
+        document_id: str,
+        segment_id: str,
+        voice: str = VOICE_QUERY,
+        owner: str = Depends(require_owner),
     ) -> Response:
         """The audio for one segment, generated on demand and then cached.
 
@@ -138,11 +149,14 @@ def register(app: FastAPI, deps: Deps) -> None:
                 # fresh normalisation of what is on screen: a heading's "1.1" is a
                 # section number, and only the pipeline knew it was a heading.
                 prepared=(segment.spoken_text, segment.model_text),
+                voice_id=voice,
             )
         except TextNotSpeakableError as error:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, "This segment has nothing to say."
             ) from error
+        except VoiceUnavailableError as error:
+            raise HTTPException(status.HTTP_409_CONFLICT, VOICE_UNAVAILABLE) from error
 
         return Response(
             content=record.wav,
@@ -158,7 +172,10 @@ def register(app: FastAPI, deps: Deps) -> None:
 
     @app.get("/documents/{document_id}/segments/{segment_id}/audio/manifest", tags=["reading"])
     def get_audio_manifest(
-        document_id: str, segment_id: str, owner: str = Depends(require_owner)
+        document_id: str,
+        segment_id: str,
+        voice: str = VOICE_QUERY,
+        owner: str = Depends(require_owner),
     ) -> AudioManifest:
         """What produced this segment's audio, without downloading it."""
         reading = readable(document_id, owner)
@@ -167,11 +184,15 @@ def register(app: FastAPI, deps: Deps) -> None:
         if segment is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such segment.")
         assert document.version is not None
-        key = deps.synthesis.cache_key_for(
-            segment.display_text,
-            document.version,
-            prepared=(segment.spoken_text, segment.model_text),
-        )
+        try:
+            key = deps.synthesis.cache_key_for(
+                segment.display_text,
+                document.version,
+                prepared=(segment.spoken_text, segment.model_text),
+                voice_id=voice,
+            )
+        except VoiceUnavailableError as error:
+            raise HTTPException(status.HTTP_409_CONFLICT, VOICE_UNAVAILABLE) from error
         record = deps.store.get_audio(key, document_id, document.owner)
         return AudioManifest(
             segment_id=segment_id,

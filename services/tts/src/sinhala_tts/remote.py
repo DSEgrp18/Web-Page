@@ -46,6 +46,7 @@ from typing import Any
 import numpy as np
 
 from .adapter import (
+    DEFAULT_VOICE,
     ModelNotReadyError,
     ReadinessState,
     SynthesisError,
@@ -56,6 +57,8 @@ from .adapter import (
     TextNotSpeakableError,
     TextTooLongError,
     TtsAdapter,
+    VoiceUnavailableError,
+    check_voice,
 )
 from .audio_checks import check_audio
 from .normalize import NORMALIZER_VERSION
@@ -64,6 +67,9 @@ from .normalize import NORMALIZER_VERSION
 STATUS_TIMEOUT_SECONDS = 15 * 60
 #: How long one segment may take, a cold start included.
 SYNTHESIS_TIMEOUT_SECONDS = 10 * 60
+#: How often a request for a voice the remote did not have may ask again, so a
+#: clip added to the remote's bundle is found without restarting this server.
+VOICE_RECHECK_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -72,6 +78,9 @@ class _Remote:
 
     device: str
     version: str
+    #: Voice id to the id its audio is recorded under. An endpoint from before
+    #: voices existed reports none and has only the default.
+    voices: dict[str, str]
 
 
 class RemoteVoiceAdapter(TtsAdapter):
@@ -90,6 +99,7 @@ class RemoteVoiceAdapter(TtsAdapter):
         self._failure: str | None = None
         self._load_lock = threading.Lock()
         self._slots = threading.BoundedSemaphore(max_concurrent)
+        self._voices_checked = 0.0
 
     # -- state ------------------------------------------------------------
 
@@ -134,12 +144,32 @@ class RemoteVoiceAdapter(TtsAdapter):
                 self._loaded = _Remote(
                     device=str(answer.get("device") or "remote"),
                     version=str(answer["model_version"]),
+                    voices=_voices(answer),
                 )
+                self._voices_checked = time.monotonic()
             except Exception as error:  # noqa: BLE001 - recorded, then re-raised
                 self._state = ReadinessState.FAILED
                 self._failure = str(error)
                 raise
             self._state = state
+
+    def voices(self) -> dict[str, str]:
+        """What the remote reported. Never waits for it: readiness calls this."""
+        return dict(self._loaded.voices) if self._loaded else {}
+
+    def voice_id_for(self, voice_id: str) -> str:
+        """As the base class, after asking the remote again if the voice was missing."""
+        check_voice(voice_id)
+        self.load()
+        loaded = self._loaded
+        assert loaded is not None
+        if voice_id not in loaded.voices and (
+            time.monotonic() - self._voices_checked >= VOICE_RECHECK_SECONDS
+        ):
+            self._voices_checked = time.monotonic()
+            answer = self._post({"status": True}, STATUS_TIMEOUT_SECONDS)
+            self._loaded = _Remote(loaded.device, loaded.version, _voices(answer))
+        return super().voice_id_for(voice_id)
 
     # -- speech -----------------------------------------------------------
 
@@ -156,6 +186,7 @@ class RemoteVoiceAdapter(TtsAdapter):
         settings = settings or SynthesisSettings()
         spoken, model_text = self.prepare_text(text, prepared=prepared)
         self.load()
+        recorded = self.voice_id_for(voice_id)
 
         if not self._slots.acquire(timeout=timeout_seconds):
             raise SynthesisTimeoutError(
@@ -182,12 +213,20 @@ class RemoteVoiceAdapter(TtsAdapter):
         version = str(answer.get("model_version") or "")
         if self._loaded is not None and version and version != self._loaded.version:
             # Redeployed since start-up: later cache keys describe the new one.
-            self._loaded = _Remote(device=self._loaded.device, version=version)
+            self._loaded = _Remote(self._loaded.device, version, self._loaded.voices)
+        # What the remote says it spoke in. Differs from `recorded` only if the
+        # clip was replaced there since this server last asked.
+        spoken_in = str(answer.get("voice_id") or recorded)
         loaded = self._loaded
         assert loaded is not None
+        if spoken_in != loaded.voices.get(voice_id):
+            self._loaded = _Remote(
+                loaded.device, loaded.version, {**loaded.voices, voice_id: spoken_in}
+            )
+            loaded = self._loaded
 
         metadata = SynthesisMetadata(
-            voice_id=voice_id,
+            voice_id=spoken_in,
             is_real_model=True,
             model_version=loaded.version,
             settings=settings,
@@ -226,6 +265,8 @@ class RemoteVoiceAdapter(TtsAdapter):
                 raise TextNotSpeakableError(detail) from error
             if error.code == 422 and detail.startswith("TextTooLongError"):
                 raise TextTooLongError(detail) from error
+            if error.code == 422 and detail.startswith("VoiceUnavailableError"):
+                raise VoiceUnavailableError(detail) from error
             if error.code == 401:
                 raise SynthesisError(
                     "the remote voice refused this server's key; check SINHALA_READER_TTS_KEY "
@@ -234,6 +275,13 @@ class RemoteVoiceAdapter(TtsAdapter):
             raise SynthesisError(f"the remote voice answered {error.code}: {detail}") from error
         except (urllib.error.URLError, TimeoutError) as error:
             raise SynthesisError(f"the remote voice could not be reached: {error}") from error
+
+
+def _voices(answer: dict[str, Any]) -> dict[str, str]:
+    reported = answer.get("voices")
+    if not isinstance(reported, dict):
+        return {DEFAULT_VOICE: DEFAULT_VOICE}
+    return {str(voice): str(recorded) for voice, recorded in reported.items()}
 
 
 def _detail(error: urllib.error.HTTPError) -> str:

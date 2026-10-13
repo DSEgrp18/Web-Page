@@ -10,11 +10,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import Depends, FastAPI, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sinhala_tts.adapter import VoiceUnavailableError
 
 from ..security import require_owner
 from .common import prepared_for_in, readable_in
+from .reading import VOICE_QUERY, VOICE_UNAVAILABLE
 
 if TYPE_CHECKING:
     from ..app import Deps
@@ -52,6 +54,7 @@ def register(app: FastAPI, deps: Deps) -> None:
     def offline_manifest(
         document_id: str,
         page: int = Query(ge=0, description="Any page of the chapter to save."),
+        voice: str = VOICE_QUERY,
         reader: str = Depends(require_owner),
     ) -> OfflineManifest:
         """The chapter containing ``page``, or the whole book if it has no chapters."""
@@ -73,16 +76,25 @@ def register(app: FastAPI, deps: Deps) -> None:
 
         have = deps.store.audio_keys(document_id, document.owner)
         segments = [s for s in prepared.segments if first <= s.page_index <= last]
+        try:
+            keys = {
+                s.segment_id: deps.synthesis.cache_key_for(
+                    s.display_text,
+                    prepared.version,
+                    prepared=(s.spoken_text, s.model_text),
+                    voice_id=voice,
+                )
+                for s in segments[:MAX_CLIPS]
+            }
+        except VoiceUnavailableError as error:
+            raise HTTPException(status.HTTP_409_CONFLICT, VOICE_UNAVAILABLE) from error
         clips = [
             OfflineClip(
                 segment_id=s.segment_id,
                 page_index=s.page_index,
                 page_label=s.page_label,
                 text=s.display_text,
-                ready=deps.synthesis.cache_key_for(
-                    s.display_text, prepared.version, prepared=(s.spoken_text, s.model_text)
-                )
-                in have,
+                ready=keys[s.segment_id] in have,
             )
             for s in segments[:MAX_CLIPS]
         ]
