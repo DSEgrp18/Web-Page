@@ -100,6 +100,32 @@ def _rq4_listening(args: argparse.Namespace) -> None:
     print(write_result(args.name, {"rq": "RQ4", **result}))
 
 
+def _pron_candidates(args: argparse.Namespace) -> None:
+    from .pronunciation import Tokens, write_candidates
+
+    bundle = Path(args.bundle)
+    rows = write_candidates(Path(args.out), Tokens(bundle / "vocab.json", bundle / "config.json"))
+    for row in rows:
+        print(
+            f"{row['word']:<12} {row['variant']:<15} {row['ascii_word']:<18} {row['word_tokens']}"
+        )
+    print(f"{len(rows)} candidates, 0 [UNK], all within the token limit: {args.out}/candidates.csv")
+
+
+def _pron_page(args: argparse.Namespace) -> None:
+    from .pronunciation import build_page
+
+    page = build_page(Path(args.results), Path(args.out), seed=args.seed)
+    print(f"Listening page: {page}. Keep {Path(args.out) / 'key.json'} from the listeners.")
+
+
+def _pron_score(args: argparse.Namespace) -> None:
+    from .pronunciation import score
+
+    payload = score(Path(args.key), [Path(p) for p in args.answers])
+    print(write_result(args.name, {"rq": "pronunciation-sanyaka", **payload}))
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="swara_eval", description=__doc__)
     commands = parser.add_subparsers(required=True)
@@ -165,6 +191,26 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--key", required=True)
     c.add_argument("--name", default="rq4-listening")
     c.set_defaults(run=_rq4_listening)
+
+    pron = DATA / "pronunciation"
+    c = commands.add_parser("pron-candidates", help="Spellings of ඟ words, tokenised. No audio.")
+    c.add_argument(
+        "--bundle", default=str(Path(__file__).resolve().parents[2] / "models" / "xtts_si_female")
+    )
+    c.add_argument("--out", default=str(pron))
+    c.set_defaults(run=_pron_candidates)
+
+    c = commands.add_parser("pron-page", help="A blind listening page from a GPU run.")
+    c.add_argument("--results", required=True, help="results.csv from pronunciation_modal.py")
+    c.add_argument("--out", required=True, help="where to write page/ and key.json")
+    c.add_argument("--seed", type=int, default=0)
+    c.set_defaults(run=_pron_page)
+
+    c = commands.add_parser("pron-score", help="Tally the listeners' answers.")
+    c.add_argument("--key", required=True)
+    c.add_argument("--answers", nargs="+", required=True)
+    c.add_argument("--name", default="pronunciation-sanyaka")
+    c.set_defaults(run=_pron_score)
 
     args = parser.parse_args(argv)
     args.run(args)

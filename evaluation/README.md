@@ -55,3 +55,41 @@ takes two private arguments for this, `_check` and `_blind`:
 - No product code passes them; `tests/test_boundary.py` fails the build if any code under
   `services/` or `apps/` does.
 - Questions made this way exist only in `data/` and on rating sheets. They never reach a reader.
+
+## Prenasalised consonants (ඟ): a blind pronunciation test
+
+The bundled converter writes ඟ as `ng`, and the tokenizer reads `ganga` (ගඟ) as
+the English token `gang` plus `a`: a nasal with no `g` after it. ඹ, ඳ and ඬ keep
+their stop (`mb`, `ndh`, `nd`). This tests other spellings by ear, without
+retraining and without changing the converter, the model or the product.
+
+1. **Candidates, no audio.** Eight ඟ words, each with four spellings (today's,
+   `ngg`, `n-g`, and no nasal as a control), plus six words that sound right
+   today, all in the carrier sentence "X යන වචනය.". Every row is tokenised and
+   checked for [UNK] and length; zero [UNK] means readable, not right.
+
+       python -m swara_eval pron-candidates
+
+2. **Audio, on a GPU, after approval.** One reference clip, the product's
+   decoding settings, and the same seeds for every candidate of a word. Without
+   `--confirm` it prints the clip count and estimated minutes and stops.
+
+       modal run evaluation/pronunciation_modal.py \
+           --candidates evaluation/data/pronunciation/candidates.csv \
+           --out evaluation/data/pronunciation --reference female --confirm
+
+   It writes `results.csv` (word, ASCII input, token ids from both tokenizers,
+   seed, reference, output path, duration, audio-check problems, model version)
+   and the WAVs under `evaluation/data/pronunciation/run-…/`.
+
+3. **Listening and scoring.** The page shows only shuffled A–D clips with
+   random names; `key.json` stays with you.
+
+       python -m swara_eval pron-page --results <run>/results.csv --out <run>/test
+       python -m swara_eval pron-score --key <run>/test/key.json --answers answers-*.json
+
+A spelling that native listeners prefer, consistently across seeds and
+listeners, can go into the opt-in override dictionary
+(`SINHALA_TTS_PRONUNCIATION_OVERRIDES`, see
+`services/tts/src/sinhala_tts/overrides.py`) one word at a time. That is a
+separate experimental variant: it never changes the default output.
