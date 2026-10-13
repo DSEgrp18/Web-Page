@@ -167,6 +167,8 @@ export function readablePage(pageIndex: number, texts: string[], pageLabel = "12
 }
 
 export class FakeServer {
+  /** The voice each audio request named, or "default" when it named none. */
+  audioVoices: string[] = [];
   readonly calls: RecordedCall[] = [];
   books: FakeBook[];
   progress: Progress | null;
@@ -384,8 +386,13 @@ export class FakeServer {
     const retry = /^\/documents\/([^/]+)\/retry$/.exec(path);
     if (method === "POST" && retry) return this.retry(retry[1]!);
 
-    const audio = /^\/documents\/([^/]+)\/segments\/([^/]+)\/audio$/.exec(path);
-    if (method === "GET" && audio) return this.audio(audio[1]!, audio[2]!);
+    const audio = /^\/documents\/([^/]+)\/segments\/([^/]+)\/audio(?:\?voice=([\w-]+))?$/.exec(
+      path,
+    );
+    if (method === "GET" && audio) {
+      this.audioVoices.push(audio[3] ?? "default");
+      return this.audio(audio[1]!, audio[2]!);
+    }
 
     const seg = /^\/documents\/([^/]+)\/segments\/([^/]+)$/.exec(path);
     if (method === "GET" && seg) return this.segment(seg[1]!, seg[2]!);

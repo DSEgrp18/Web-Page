@@ -30,7 +30,7 @@ class HeldAudio extends FakeServer {
   override get fetch(): typeof fetch {
     const real = super.fetch;
     return (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const match = /segments\/([^/]+)\/audio$/.exec(String(input));
+      const match = /segments\/([^/]+)\/audio(?:\?|$)/.exec(String(input));
       if (match) {
         const segment = match[1]!;
         this.asked.push(segment);

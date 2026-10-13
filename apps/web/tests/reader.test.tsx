@@ -66,7 +66,7 @@ describe("arriving at a page", () => {
     // CLAUDE.md forbids narration on page load. A page that starts talking
     // talks over the screen reader announcing it.
     expect(playCalls).toHaveLength(0);
-    expect(server.callsTo("GET", /\/audio$/)).toHaveLength(0);
+    expect(server.callsTo("GET", /\/audio(\?|$)/)).toHaveLength(0);
   });
 
   it("offers every sentence as a control whose name is the sentence", async () => {
@@ -258,7 +258,9 @@ describe("listening", () => {
 
     // The second press replays what was already fetched. On a real deployment
     // the alternative is a second GPU job for audio already in hand.
-    expect(server.callsTo("GET", /segments\/0000-s0\/audio$/)).toHaveLength(1);
+    expect(server.callsTo("GET", /segments\/0000-s0\/audio(\?|$)/)).toHaveLength(1);
+    // In the reader's voice, which is the female one until they choose.
+    expect(server.audioVoices[0]).toBe("si-female");
   });
 
   it("scrolls the current sentence into view while playing, without moving focus", async () => {
@@ -574,7 +576,7 @@ describe("moving between chapters", () => {
     );
     // Rule 1: nothing speaks unless a person asks.
     expect(playCalls).toHaveLength(0);
-    expect(server.callsTo("GET", /\/audio$/)).toHaveLength(0);
+    expect(server.callsTo("GET", /\/audio(\?|$)/)).toHaveLength(0);
     // The header says which chapter this is, as the design shows it.
     expect(screen.getByText("02 / ජාතික පුනරුදය")).toBeTruthy();
   });

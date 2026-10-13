@@ -60,6 +60,8 @@ export interface PlayerOptions {
   api: ReaderApi;
   documentId: string;
   segments: PlayableSegment[];
+  /** The narrating voice. Changing it stops playback and drops clips made in the old one. */
+  voice?: string;
   /** Called when the reader's position changes in a way worth persisting. */
   onPosition?: (segmentId: string, offsetSeconds: number) => void;
   /** Called when a sentence has played to its end. */
@@ -86,7 +88,7 @@ export interface Player {
 }
 
 export function usePlayer(options: PlayerOptions): Player {
-  const { api, documentId, segments, onPosition, onHeard, onError } = options;
+  const { api, documentId, segments, voice, onPosition, onHeard, onError } = options;
 
   const [status, setStatus] = useState<PlayerStatus>("idle");
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -115,6 +117,9 @@ export function usePlayer(options: PlayerOptions): Player {
   // attached once instead of being torn down whenever a page loads. They are
   // written in an effect, not during render: a ref written while rendering is
   // a value React is free to throw away and re-derive.
+  // Which voice clips are being made in now. A request that finishes after the
+  // reader switched voices is dropped rather than played in the old voice.
+  const voiceRef = useRef(voice);
   const segmentsRef = useRef(segments);
   const onPositionRef = useRef(onPosition);
   const onHeardRef = useRef(onHeard);
@@ -141,10 +146,10 @@ export function usePlayer(options: PlayerOptions): Player {
       const pending = pendingRef.current.get(segmentId);
       if (pending) return pending;
       const request = api
-        .getAudio(documentId, segmentId)
+        .getAudio(documentId, segmentId, undefined, voice)
         .then(({ blob, realModel: isReal }) => {
           const clip: Clip = { url: URL.createObjectURL(blob), realModel: isReal };
-          if (disposedRef.current) {
+          if (disposedRef.current || voiceRef.current !== voice) {
             URL.revokeObjectURL(clip.url);
             return clip;
           }
@@ -152,11 +157,13 @@ export function usePlayer(options: PlayerOptions): Player {
           evict(clipsRef.current, segmentId, keptIds(segmentsRef.current, targetRef.current));
           return clip;
         })
-        .finally(() => pendingRef.current.delete(segmentId));
+        .finally(() => {
+          if (pendingRef.current.get(segmentId) === request) pendingRef.current.delete(segmentId);
+        });
       pendingRef.current.set(segmentId, request);
       return request;
     },
-    [api, documentId],
+    [api, documentId, voice],
   );
 
   // Keep the sentences ahead coming: in reading order, never more than
@@ -260,6 +267,17 @@ export function usePlayer(options: PlayerOptions): Player {
     setCurrentId(null);
     setStatus("idle");
   }, []);
+
+  // A new voice: stop, and forget every clip made in the old one, so the next
+  // sentence is never played in a voice the reader just turned away from.
+  useEffect(() => {
+    if (voiceRef.current === voice) return;
+    voiceRef.current = voice;
+    stop();
+    for (const clip of clipsRef.current.values()) URL.revokeObjectURL(clip.url);
+    clipsRef.current.clear();
+    pendingRef.current.clear();
+  }, [voice, stop]);
 
   const toggle = useCallback(() => {
     const audio = audioRef.current;
