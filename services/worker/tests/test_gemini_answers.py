@@ -537,7 +537,7 @@ def test_the_version_names_the_models_the_thinking_and_the_prompt() -> None:
     assert "gemini-test" in version
     assert "gemini-small" in version
     assert "thinking-minimal" in version
-    assert "answer-prompt-3" in version
+    assert "answer-prompt-4" in version
 
 
 # --------------------------------------------------------------------------
