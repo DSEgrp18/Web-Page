@@ -46,12 +46,13 @@ import numpy as np
 from .audio_checks import EXPECTED_SAMPLE_RATE, AudioReport, check_audio
 from .normalize import (
     MODEL_INPUT_CHAR_LIMIT,
-    NORMALIZER_VERSION,
     exceeds_model_limit,
     is_speakable,
     to_model_input,
     to_speech_text,
 )
+from .overrides import active as active_overrides
+from .overrides import normalizer_version
 
 # Files a usable voice bundle must contain. The tokenizer and the speaker
 # reference are not interchangeable, so a partial bundle is a hard failure
@@ -357,7 +358,7 @@ class TtsAdapter(ABC):
             is_real_model=self.is_real_model,
             model_version=self.model_version,
             settings=settings or SynthesisSettings(),
-            normalizer_version=NORMALIZER_VERSION,
+            normalizer_version=normalizer_version(),
             device="",
             readiness=self.readiness,
             sample_rate=0,
@@ -403,6 +404,11 @@ class TtsAdapter(ABC):
             model_text = to_model_input(text)
         else:
             spoken, model_text = prepared
+        # Experimental and off by default: whole-word spellings from the file
+        # named by SINHALA_TTS_PRONUNCIATION_OVERRIDES. See overrides.py.
+        overrides = active_overrides()
+        if overrides is not None:
+            model_text = overrides.model_input(spoken)
         if not is_speakable(model_text):
             raise TextNotSpeakableError(
                 f"{text!r} normalises to {model_text!r}, which has nothing to say. "
@@ -483,7 +489,7 @@ class DevelopmentAdapter(TtsAdapter):
             is_real_model=self.is_real_model,
             model_version=self.model_version,
             settings=settings,
-            normalizer_version=NORMALIZER_VERSION,
+            normalizer_version=normalizer_version(),
             device="none",
             readiness=ReadinessState.READY,
             sample_rate=self._sample_rate,
@@ -775,7 +781,7 @@ class XttsAdapter(TtsAdapter):
             is_real_model=True,
             model_version=loaded.version,
             settings=settings,
-            normalizer_version=NORMALIZER_VERSION,
+            normalizer_version=normalizer_version(),
             device=loaded.device,
             readiness=self._state,
             sample_rate=sample_rate,
