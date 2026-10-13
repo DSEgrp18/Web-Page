@@ -370,3 +370,52 @@ def test_an_identical_bundle_keeps_its_version(tmp_path) -> None:
     os.utime(two / "model.pth", (stat.st_atime, stat.st_mtime))
 
     assert bundle_version(one) == bundle_version(two)
+
+
+# --------------------------------------------------------------------------
+# Voices: one reference clip each, never substituted
+# --------------------------------------------------------------------------
+
+
+def test_the_male_voice_is_absent_until_its_clip_is_installed(tmp_path) -> None:
+    from sinhala_tts.adapter import VoiceUnavailableError, XttsAdapter
+
+    bundle = _bundle(tmp_path / "b", reference=b"female-clip")
+    adapter = XttsAdapter(bundle)
+    assert adapter.voices() == {"si-female": "si-female"}
+    with pytest.raises(VoiceUnavailableError, match="reference_male.wav"):
+        adapter.voice_id_for("si-male")
+
+    (bundle / "reference_male.wav").write_bytes(b"male-clip")
+    voices = adapter.voices()
+    assert voices["si-female"] == "si-female"
+    assert voices["si-male"].startswith("si-male+")
+
+
+def test_replacing_the_male_clip_changes_its_recorded_voice(tmp_path) -> None:
+    """The reason bundle_version hashes reference.wav, applied to the other voices."""
+    from sinhala_tts.adapter import voice_identity
+
+    one = _bundle(tmp_path / "one", reference=b"female")
+    two = _bundle(tmp_path / "two", reference=b"female")
+    (one / "reference_male.wav").write_bytes(b"kasun")
+    (two / "reference_male.wav").write_bytes(b"nuwan")
+    assert voice_identity(one, "si-male") != voice_identity(two, "si-male")
+    # The female voice keeps its plain id, so audio already made keeps its key.
+    assert voice_identity(one, "si-female") == "si-female"
+
+
+def test_an_unknown_voice_is_refused_by_name() -> None:
+    from sinhala_tts.adapter import VoiceUnavailableError
+
+    with pytest.raises(VoiceUnavailableError, match="no voice 'en-robot'"):
+        DevelopmentAdapter().voice_id_for("en-robot")
+
+
+def test_the_development_tone_offers_every_voice_labelled() -> None:
+    adapter = DevelopmentAdapter()
+    assert adapter.voices() == {
+        "si-female": "development-si-female",
+        "si-male": "development-si-male",
+    }
+    assert adapter.cache_key(SENTENCE, "si-male") != adapter.cache_key(SENTENCE, "si-female")

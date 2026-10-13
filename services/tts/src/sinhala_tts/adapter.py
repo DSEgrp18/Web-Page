@@ -60,6 +60,24 @@ REQUIRED_BUNDLE_FILES = ("config.json", "model.pth", "vocab.json", "reference.wa
 
 DEFAULT_MODEL_DIR_ENV = "SINHALA_TTS_MODEL_DIR"
 
+#: The voice a request gets when it names none: the one the checkpoint was
+#: fine-tuned with.
+DEFAULT_VOICE = "si-female"
+
+#: Every voice this system knows, and its reference clip in the model bundle.
+#: XTTS has no voices inside the checkpoint; it conditions on a clip, so the
+#: clip *is* the voice. A voice whose clip is not in the bundle is unavailable:
+#: a request for it fails, and is never answered in another voice.
+#:
+#: ``reference_male.wav`` is a placeholder until a male speaker's recording,
+#: with that speaker's permission, is put beside ``reference.wav``. The
+#: checkpoint was fine-tuned on one female speaker, so how well it follows a
+#: male clip is unmeasured: listen before offering it to readers.
+VOICE_CLIPS: dict[str, str] = {
+    "si-female": "reference.wav",
+    "si-male": "reference_male.wav",
+}
+
 
 class ReadinessState(StrEnum):
     """Process liveness and model readiness are different questions.
@@ -86,6 +104,43 @@ class SynthesisError(Exception):
 
 class ModelNotReadyError(SynthesisError):
     pass
+
+
+class VoiceUnavailableError(SynthesisError):
+    """A voice this system does not know, or one whose reference clip is not installed."""
+
+
+def check_voice(voice_id: str) -> str:
+    """The voice id, if this system knows it. Raises :class:`VoiceUnavailableError`."""
+    if voice_id not in VOICE_CLIPS:
+        raise VoiceUnavailableError(
+            f"there is no voice {voice_id!r}; the voices are {', '.join(VOICE_CLIPS)}"
+        )
+    return voice_id
+
+
+_clip_digests: dict[tuple[str, int, int], str] = {}
+
+
+def voice_identity(model_dir: Path, voice_id: str) -> str | None:
+    """The id audio in this voice is recorded under, or ``None`` if not installed.
+
+    The default voice keeps its plain id: its clip is already in
+    :func:`bundle_version`, so audio made before other voices existed keeps
+    its cache key. Every other voice carries a digest of its own clip, for the
+    reason :func:`bundle_version` gives: replace the clip and the voice changes,
+    so its cache key must too.
+    """
+    clip = model_dir / VOICE_CLIPS[check_voice(voice_id)]
+    if not clip.is_file():
+        return None
+    if voice_id == DEFAULT_VOICE:
+        return voice_id
+    stat = clip.stat()
+    token = (str(clip), stat.st_size, int(stat.st_mtime))
+    if token not in _clip_digests:
+        _clip_digests[token] = hashlib.sha256(clip.read_bytes()).hexdigest()[:12]
+    return f"{voice_id}+{_clip_digests[token]}"
 
 
 class TextNotSpeakableError(SynthesisError):
@@ -252,14 +307,30 @@ class TtsAdapter(ABC):
     def model_version(self) -> str:
         """Identity of what would generate audio right now."""
 
+    def voices(self) -> dict[str, str]:
+        """Each voice that can speak now, and the id its audio is recorded under.
+
+        Never loads a model: readiness calls this, and a probe that waits out a
+        cold start is reported as an outage.
+        """
+        return {DEFAULT_VOICE: DEFAULT_VOICE}
+
     def voice_id_for(self, voice_id: str) -> str:
         """The voice id that will be *recorded*, which need not be the one asked for.
 
         The development adapter answers a request for ``si-female`` with
-        ``development-si-female``, and that difference has to reach the cache key
-        rather than being applied only on the way out.
+        ``development-si-female``, and another voice carries a digest of its
+        clip; both have to reach the cache key rather than being applied only on
+        the way out. A voice that is not installed raises
+        :class:`VoiceUnavailableError` here, before anything is generated.
         """
-        return voice_id
+        recorded = self.voices().get(check_voice(voice_id))
+        if recorded is None:
+            raise VoiceUnavailableError(
+                f"the {voice_id} voice is not installed: its reference clip, "
+                f"{VOICE_CLIPS[voice_id]}, is not in the model bundle"
+            )
+        return recorded
 
     def cache_key(
         self,
@@ -379,8 +450,10 @@ class DevelopmentAdapter(TtsAdapter):
     def model_version(self) -> str:
         return "development-adapter"
 
-    def voice_id_for(self, voice_id: str) -> str:
-        return f"development-{voice_id}"
+    def voices(self) -> dict[str, str]:
+        # Every voice, as a tone, so the reader's voice choice can be built and
+        # tested without any reference clip.
+        return {voice: f"development-{voice}" for voice in VOICE_CLIPS}
 
     def synthesize(
         self,
@@ -431,8 +504,10 @@ class _LoadedModel:
     config: Any
     device: str
     half: bool
-    conditioning: tuple[Any, Any]
+    #: Speaker latents per recorded voice id, computed once each.
+    conditioning: dict[str, tuple[Any, Any]]
     version: str
+    model_dir: Path
 
 
 class XttsAdapter(TtsAdapter):
@@ -488,6 +563,19 @@ class XttsAdapter(TtsAdapter):
     @property
     def failure_reason(self) -> str | None:
         return self._failure
+
+    def voices(self) -> dict[str, str]:
+        """The voices whose clip is in the bundle. Checks files; loads nothing."""
+        try:
+            model_dir = (
+                self._loaded.model_dir
+                if self._loaded
+                else resolve_model_dir(self._model_dir_setting)
+            )
+        except SynthesisError:
+            return {}
+        found = {voice: voice_identity(model_dir, voice) for voice in VOICE_CLIPS}
+        return {voice: recorded for voice, recorded in found.items() if recorded}
 
     def load(self) -> None:
         """Load once. Safe to call repeatedly and from several threads."""
@@ -567,18 +655,21 @@ class XttsAdapter(TtsAdapter):
                 device = "cpu"
                 gc.collect()
 
-        conditioning = self._compute_conditioning(model, config, model_dir)
+        conditioning = self._compute_conditioning(
+            model, config, model_dir / VOICE_CLIPS[DEFAULT_VOICE]
+        )
         return _LoadedModel(
             model=model,
             config=config,
             device=device,
             half=half,
-            conditioning=conditioning,
+            conditioning={DEFAULT_VOICE: conditioning},
             version=bundle_version(model_dir),
+            model_dir=model_dir,
         )
 
     @staticmethod
-    def _compute_conditioning(model: Any, config: Any, model_dir: Path) -> tuple[Any, Any]:
+    def _compute_conditioning(model: Any, config: Any, clip: Path) -> tuple[Any, Any]:
         """Speaker latents, computed once per process and reused.
 
         The reference clip is read with soundfile rather than through
@@ -589,7 +680,7 @@ class XttsAdapter(TtsAdapter):
         import soundfile as sf
         import torch
 
-        wav, rate = sf.read(str(model_dir / "reference.wav"), dtype="float32", always_2d=True)
+        wav, rate = sf.read(str(clip), dtype="float32", always_2d=True)
         audio = torch.from_numpy(wav.mean(axis=1)).unsqueeze(0)
 
         conditioning_rate = 22050
@@ -632,6 +723,7 @@ class XttsAdapter(TtsAdapter):
         loaded = self._loaded
         if loaded is None:  # pragma: no cover - load() raises before this
             raise ModelNotReadyError(self._failure or "model failed to load")
+        recorded = self.voice_id_for(voice_id)
 
         # Bounds how long a caller waits for a slot. It does NOT bound the
         # generation already running: a torch forward pass cannot be interrupted
@@ -644,12 +736,18 @@ class XttsAdapter(TtsAdapter):
                 "the worker is saturated, not stuck"
             )
         try:
+            if recorded not in loaded.conditioning:
+                # Inside the slot: computing latents uses the GPU too. Keyed by
+                # the recorded id, so a replaced clip is conditioned afresh.
+                loaded.conditioning[recorded] = self._compute_conditioning(
+                    loaded.model, loaded.config, loaded.model_dir / VOICE_CLIPS[voice_id]
+                )
             started = time.perf_counter()
             with torch.inference_mode():
                 out = loaded.model.inference(
                     model_text,
                     settings.language,
-                    *loaded.conditioning,
+                    *loaded.conditioning[recorded],
                     speed=settings.speed,
                     temperature=settings.temperature,
                     repetition_penalty=settings.repetition_penalty,
@@ -673,7 +771,7 @@ class XttsAdapter(TtsAdapter):
         report = check_audio(samples, sample_rate, model_text=model_text)
 
         metadata = SynthesisMetadata(
-            voice_id=voice_id,
+            voice_id=recorded,
             is_real_model=True,
             model_version=loaded.version,
             settings=settings,

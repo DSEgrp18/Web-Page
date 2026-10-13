@@ -250,7 +250,11 @@ class Voice:
         import base64
         import hmac
 
-        from sinhala_tts.adapter import TextNotSpeakableError, TextTooLongError
+        from sinhala_tts.adapter import (
+            TextNotSpeakableError,
+            TextTooLongError,
+            VoiceUnavailableError,
+        )
 
         expected = f"Bearer {os.environ['SWARA_TTS_KEY']}"
         if not hmac.compare_digest(expected.encode(), (authorization or "").encode()):
@@ -269,7 +273,7 @@ class Voice:
                 body.get("document_version"),
                 body.get("prepared"),
             )
-        except (TextNotSpeakableError, TextTooLongError) as error:
+        except (TextNotSpeakableError, TextTooLongError, VoiceUnavailableError) as error:
             # The caller's guards should have caught these; say which one.
             raise HTTPException(
                 status_code=422, detail=f"{type(error).__name__}: {error}"
@@ -296,6 +300,9 @@ class Voice:
             "device": f"cuda ({GPU}, {PRECISION})",
             "normalizer_version": NORMALIZER_VERSION,
             "load_seconds": getattr(self, "load_seconds", None),
+            # Each installed voice and the id its audio is recorded under. A
+            # clip added to the volume is found by the next container to start.
+            "voices": self.adapter.voices(),
         }
 
 

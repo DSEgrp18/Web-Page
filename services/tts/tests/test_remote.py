@@ -23,6 +23,7 @@ from sinhala_tts.adapter import (
     SynthesisError,
     TextNotSpeakableError,
     TextTooLongError,
+    VoiceUnavailableError,
 )
 from sinhala_tts.normalize import NORMALIZER_VERSION
 from sinhala_tts.remote import RemoteVoiceAdapter
@@ -49,6 +50,8 @@ class FakeVoice:
         self.requests: list[tuple[dict[str, Any], str | None]] = []
         self.normalizer = NORMALIZER_VERSION
         self.error: tuple[int, str] | None = None
+        #: What the status answer reports; None is an endpoint from before voices.
+        self.voices: dict[str, str] | None = None
 
     def answer(self, body: dict[str, Any], auth: str | None) -> tuple[int, dict[str, Any]]:
         self.requests.append((body, auth))
@@ -57,17 +60,23 @@ class FakeVoice:
         if self.error:
             return self.error[0], {"detail": self.error[1]}
         if body.get("status"):
-            return 200, {
+            status = {
                 "readiness": "ready",
                 "model_version": "remote-v1",
                 "device": "cuda (A10G, fp32)",
                 "normalizer_version": self.normalizer,
             }
-        return 200, {
+            if self.voices is not None:
+                status["voices"] = self.voices
+            return 200, status
+        spoken = {
             "wav": base64.b64encode(_wav()).decode("ascii"),
             "model_version": "remote-v1",
             "generate_seconds": 0.4,
         }
+        if self.voices is not None:
+            spoken["voice_id"] = self.voices[body["voice_id"]]
+        return 200, spoken
 
 
 @pytest.fixture
@@ -167,3 +176,45 @@ def test_only_https_or_loopback():
         RemoteVoiceAdapter("http://voice.example.org/", KEY)
     with pytest.raises(ValueError):
         RemoteVoiceAdapter("https://voice.example.org/", "")
+
+
+# --------------------------------------------------------------------------
+# Voices
+# --------------------------------------------------------------------------
+
+
+def test_an_endpoint_from_before_voices_has_only_the_default(voice):
+    adapter = adapter_for(voice)
+    assert adapter.voices() == {}  # not asked yet, and readiness must not wait
+    adapter.load()
+    assert adapter.voices() == {"si-female": "si-female"}
+    with pytest.raises(VoiceUnavailableError, match="si-male"):
+        adapter.synthesize("ශ්‍රී ලංකාව", "si-male")
+    assert all(body.get("status") for body, _ in voice.requests)
+
+
+def test_a_reported_male_voice_is_sent_and_recorded_with_its_clip(voice):
+    voice.voices = {"si-female": "si-female", "si-male": "si-male+abc123"}
+    adapter = adapter_for(voice)
+    result = adapter.synthesize("ශ්‍රී ලංකාව", "si-male")
+
+    assert voice.requests[-1][0]["voice_id"] == "si-male"
+    assert result.metadata.voice_id == "si-male+abc123"
+    assert adapter.cache_key("ශ්‍රී ලංකාව", "si-male") == result.metadata.cache_key()
+    assert adapter.cache_key("ශ්‍රී ලංකාව", "si-male") != adapter.cache_key("ශ්‍රී ලංකාව", "si-female")
+
+
+def test_an_unknown_voice_is_refused_without_asking_the_remote(voice):
+    adapter = adapter_for(voice)
+    with pytest.raises(VoiceUnavailableError, match="no voice"):
+        adapter.voice_id_for("en-robot")
+    assert voice.requests == []
+
+
+def test_the_remote_refusing_a_voice_is_a_voice_error(voice):
+    voice.voices = {"si-female": "si-female", "si-male": "si-male+abc123"}
+    adapter = adapter_for(voice)
+    adapter.load()
+    voice.error = (422, "VoiceUnavailableError: the si-male voice is not installed")
+    with pytest.raises(VoiceUnavailableError):
+        adapter.synthesize("ශ්‍රී ලංකාව", "si-male")
